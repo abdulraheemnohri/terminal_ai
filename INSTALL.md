@@ -32,18 +32,7 @@ python -m pip install google-genai litert-lm huggingface_hub
 cp .env.example .env
 ```
 
-Edit `.env` and add your Gemini key if you want `auto`, `cloud`, or `hybrid` mode. Keep the file private; it is ignored by Git.
-
-Run:
-
-```bash
-python terminal_ai.py
-python terminal_ai.py --diagnose
-python terminal_ai.py --mode cloud
-python terminal_ai.py --mode local
-python terminal_ai.py --mode hybrid
-python terminal_ai.py -p "Explain how a Python virtual environment works"
-```
+Edit the local `.env` file (for example, with `nano .env`) and replace the fake placeholders with your own credentials. Never commit this file or share it in screenshots/issues.
 
 ## 3. Windows 10 / 11 (PowerShell)
 
@@ -53,7 +42,7 @@ Install Python from https://www.python.org/downloads/windows/ (enable the Python
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
 Set-Location terminal_ai
 py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\\.venv\\Scripts\\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install google-genai litert-lm huggingface_hub
 Copy-Item .env.example .env
@@ -65,9 +54,9 @@ python terminal_ai.py
 If PowerShell blocks activation, you can skip activation and use the environment's Python directly:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install google-genai litert-lm huggingface_hub
-.\.venv\Scripts\python.exe terminal_ai.py
+.\\.venv\\Scripts\\python.exe -m pip install --upgrade pip
+.\\.venv\\Scripts\\python.exe -m pip install google-genai litert-lm huggingface_hub
+.\\.venv\\Scripts\\python.exe terminal_ai.py
 ```
 
 Do not change the machine-wide execution policy just to activate a virtual environment.
@@ -85,21 +74,31 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install google-genai huggingface_hub
+cp .env.example .env
+nano .env
 ```
 
 LiteRT-LM availability depends on the current Termux/Android architecture and package support. If `pip install litert-lm` fails, use cloud mode or consult the LiteRT-LM project's current supported installation instructions; do not assume local inference is installed just because the agent package is installed.
 
 ## 5. Configuration
 
-### Environment variables
+### Set up the local `.env` file
+
+The repository includes a safe `.env.example` template with fake placeholders. Copy it to `.env` and replace those placeholders on your own device; **do not put real credentials in GitHub files**.
+
+```dotenv
+GEMINI_API_KEY=replace_with_your_google_gemini_api_key
+HF_TOKEN=replace_with_your_huggingface_access_token
+```
+
+- Create/manage a Gemini API key in Google AI Studio: https://aistudio.google.com/app/apikey
+- Create/manage a Hugging Face token in your account settings: https://huggingface.co/settings/tokens
+- Gemini is needed for `cloud`, and may be used by `auto`/`hybrid` modes.
+- Hugging Face token is optional unless downloading a gated model or a resource requiring authentication.
+
+Linux/macOS/WSL/Termux: `nano .env` (or another local text editor). Windows: `notepad .env`.
 
 The application checks for a dotenv file in this order: `TERMINAL_AI_ENV`, project `.env`, then `~/.terminal_ai/.env`. Existing operating-system environment variables take precedence over values in the file.
-
-Copy the template if you have not already:
-
-```bash
-cp .env.example .env
-```
 
 Available variables:
 
@@ -112,7 +111,7 @@ Available variables:
 | `TERMINAL_AI_DEBUG` | Enable extra diagnostic logging when supported |
 | `TERMINAL_AI_ENV` | Use a specific dotenv file |
 
-Never commit real API keys. Do not paste keys into bug reports or screenshots.
+Never commit real API keys. Do not paste keys into bug reports or screenshots. The repository's `.gitignore` should keep `.env` out of commits; verify with `git status --short` before pushing.
 
 ### Model modes
 
