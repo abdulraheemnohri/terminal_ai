@@ -473,7 +473,7 @@ def registry(tmp_path):
         journal=Journal(path=tmp_path / "j.md"),
         skills=tai.SkillLibrary(),
         forge=ToolForge(path=tmp_path / "tools.json"), workspace=tmp_path,
-        confirm_shell=False, shell_timeout=5)
+        confirm_shell=False, shell_timeout=5, ask_delete=False)
 
 
 @pytest.fixture()
