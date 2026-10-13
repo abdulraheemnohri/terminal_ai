@@ -153,3 +153,14 @@ v4.2 نئے فیچرز: **`.env` فائل سپورٹ** (apikeyز `.env` میں �
 
 چلانے کے لیے: `pip install google-genai litert-lm huggingface_hub`، پھر
 `GEMINI_API_KEY` سیٹ کریں (یا `.env` فائل بنائیں) اور `python terminal_ai.py` چلائیں۔
+
+
+## Installation and Configuration Guide
+
+For complete setup instructions for **Windows PowerShell, Linux, macOS, WSL, and Termux**, environment variables, model modes, persistent settings, diagnostics, upgrades, and uninstalling, see **[INSTALL.md](INSTALL.md)**.
+
+Convenience setup scripts are also included:
+- Windows PowerShell: `install.ps1`
+- Linux / macOS / WSL: `sh install.sh`
+
+These scripts create a project-local `.venv`, install dependencies, create `.env` from `.env.example` when needed, and run a Python syntax check. Edit `.env` to add secrets; never commit real API keys.
