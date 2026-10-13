@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test deps
+        run: pip install pytest
+      - name: Byte-compile (syntax check)
+        run: python -m py_compile terminal_ai.py
+      - name: Run unit tests
+        env:
+          TERMINAL_AI_STATE: /tmp/tai_ci_state
+          NO_COLOR: "1"
+        run: pytest tests/ -q

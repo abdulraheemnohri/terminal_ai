@@ -1,0 +1,49 @@
+# secrets
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+service-account.json
+hf_token
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# local AI models
+*.litertlm
+*.task
+*.bin
+models/
+~/terminal-ai/models/
+
+# agent state (runtime artifacts, not source)
+.terminal_ai/
+sessions/
+backups/
+memory.json
+graph.json
+goals.json
+journal.md
+skills.json
+meta.json
+tools.json
+patterns.json
+settings.json
+stats.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
