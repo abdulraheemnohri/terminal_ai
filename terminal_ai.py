@@ -1593,6 +1593,7 @@ TOOL_SCHEMA: list[dict] = [
     {"name": "find_files", "desc": "Find files matching a glob pattern recursively.", "args": {"pattern": "string", "path": "string", "max_results": "int"}},
     {"name": "read_lines", "desc": "Read a file line-by-line with line numbers.", "args": {"path": "string", "start": "int", "end": "int"}},
     {"name": "env", "desc": "Inspect env vars (action: list/get/set/unset/save). Secrets masked.", "args": {"action": "string", "key": "string", "value": "string"}},
+    {"name": "dream", "desc": "Trigger offline memory consolidation.", "args": {}},
     {"name": "done", "desc": "Task complete with final answer.", "args": {"answer": "string"}},
 ]
 
