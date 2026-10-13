@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.2.0 — 2026-10-13
+
+### New Features
+- **EnvManager (.env support)**: loads a `.env` file at startup
+  (search: `$TERMINAL_AI_ENV` → `./.env` → `~/.terminal_ai/.env`) and exports
+  it without overwriting existing environment variables. `--env-file` flag,
+  `--no` autoload via `env_autoload` setting.
+- **Env REPL commands**: `/env [pattern]`, `/env-set <k> <v>`,
+  `/env-get <k>`, `/env-unset <k>`, `/env-save`. Secret-looking keys
+  (key/token/secret/password/credential) are always masked in output.
+- **New agent tools**: `sys_info` (python/platform/cpu/disk), `now`
+  (date/time with optional strftime format), `find_files` (recursive glob),
+  `read_lines` (numbered line ranges), `env` (list/get/set/unset/save env
+  vars, secrets masked).
+- **New settings**: `debug` (live), `tool_rounds` (live; caps agent tool
+  rounds per turn), `history_limit` (caps kept conversation messages),
+  `ask_delete` (live; separate confirmation for file deletion),
+  `env_autoload` (autoload .env at startup).
+- **New REPL commands**: `/history [n]`, `/sysinfo`, `/debug on|off`.
+- `.env.example` template; banner now shows env-file status.
+- **Full offline test suite** (~75 tests): parsing, router, registry, memory,
+  graph, goals, patterns, meta-learner, settings, stats, sessions, env
+  manager, forge, journal, file/system tools, hybrid backend, Gemini retry
+  logic, and agent turn behavior (including max-rounds and history trim).
+
+### Bug Fixes
+- Test-suite issues from the v4.1 rewrite fixed: removed broken
+  `builtins` monkeypatch line, replaced fragile chunk-constructing
+  `}}}}` replacements, verified router/registry/goal-tool expectations
+  against the implementation.
+
 ## v4.1.0 — 2026-10-13
 
 ### New Features

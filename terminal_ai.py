@@ -2,28 +2,30 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  TERMINAL-AI · ONE FILE · HYBRID SELF-EVOLVING AGENT · v4.0.0
+  TERMINAL-AI Â· ONE FILE Â· HYBRID SELF-EVOLVING AGENT Â· v4.0.0
 --------------------------------------------------------------------------------
-  🧭 Task Router            auto-selects best model per task
-  📥 Auto Downloader        fetches local models from HF on demand
-  🔄 Hybrid Mode            cloud + local work together, auto-fallback
-  📊 Model Registry         all 2026 Gemini + local models
-  🩺 Self-Diagnosis         agent checks its own health
-  💾 Auto-Backup            memory snapshots before risky ops
-  📈 Pattern Learner        learns your task patterns
-  ☁️  Gemini (all models)   3.8/3.7/3.5 Flash, 3.1 Pro, 3 Pro
-  ⚡ LiteRT-LM (local 1B)   Gemma 3, Qwen3, Phi-3
-  🧠 Memory + Graph         persistent facts, entities, relations
-  🎯 Goals + Journal        multi-step planning, self-reflection
-  🛠 Skills + Forge         learned procedures, self-written tools
-  💤 Dreamer                offline memory consolidation
-  👁 Observer               auto-extracts learnings
-  🪞 Self-Critique          critique + refine pass
-  💡 Proactive Advisor      suggests next steps
-  ⚙️  Settings Manager       persistent settings.json (/set, /settings)
-  📈 Usage Stats            per-backend turns/chars/time (/usage)
-  💾 Sessions               save/load conversations (--resume)
-  🗂  File Tools            list/edit/append/delete/copy/grep + web_search
+  ð§­ Task Router            auto-selects best model per task
+  ð¥ Auto Downloader        fetches local models from HF on demand
+  ð Hybrid Mode            cloud + local work together, auto-fallback
+  ð Model Registry         all 2026 Gemini + local models
+  ð©º Self-Diagnosis         agent checks its own health
+  ð¾ Auto-Backup            memory snapshots before risky ops
+  ð Pattern Learner        learns your task patterns
+  âï¸  Gemini (all models)   3.8/3.7/3.5 Flash, 3.1 Pro, 3 Pro
+  â¡ LiteRT-LM (local 1B)   Gemma 3, Qwen3, Phi-3
+  ð§  Memory + Graph         persistent facts, entities, relations
+  ð¯ Goals + Journal        multi-step planning, self-reflection
+  ð  Skills + Forge         learned procedures, self-written tools
+  ð¤ Dreamer                offline memory consolidation
+  ð Observer               auto-extracts learnings
+  ðª Self-Critique          critique + refine pass
+  ð¡ Proactive Advisor      suggests next steps
+  âï¸  Settings Manager       persistent settings.json (/set, /settings)
+  🔐 Env Manager            .env file support (/env, /env-set, /env-save)
+  🖥 System Tools          sys_info · now · find_files · read_lines · env
+  ð Usage Stats            per-backend turns/chars/time (/usage)
+  ð¾ Sessions               save/load conversations (--resume)
+  ð  File Tools            list/edit/append/delete/copy/grep + web_search
 
   MODES
       auto      Task Router picks best model per prompt (DEFAULT)
@@ -73,7 +75,7 @@ except Exception:
 if os.name == "nt":
     os.system("")
 
-__version__ = "4.1.0"
+__version__ = "4.2.0"
 STATE_DIR = Path(os.environ.get("TERMINAL_AI_STATE", Path.home() / ".terminal_ai"))
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 BACKUP_DIR = STATE_DIR / "backups"
@@ -94,7 +96,7 @@ MODELS_DIR = Path(os.environ.get("TERMINAL_AI_MODELS", Path.home() / "terminal-a
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ──────────────────────────────────────────────────────────────  TERMINAL  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  TERMINAL  ââ
 class C:
     RESET = "\033[0m";  BOLD = "\033[1m";  DIM = "\033[2m";  ITAL = "\033[3m"
     RED = "\033[31m";   GREEN = "\033[32m"; YELLOW = "\033[33m"; BLUE = "\033[34m"
@@ -123,15 +125,15 @@ def info(msg: str) -> None:
 
 
 def err(msg: str) -> None:
-    print(paint("  ✖ ", C.BRED) + paint(msg, C.RED), file=sys.stderr)
+    print(paint("  â ", C.BRED) + paint(msg, C.RED), file=sys.stderr)
 
 
 def ok(msg: str) -> None:
-    print(paint("  ✓ ", C.BGREEN) + paint(msg, C.GREEN))
+    print(paint("  â ", C.BGREEN) + paint(msg, C.GREEN))
 
 
 def warn(msg: str) -> None:
-    print(paint("  ⚠ ", C.BYELLOW) + paint(msg, C.YELLOW))
+    print(paint("  â  ", C.BYELLOW) + paint(msg, C.YELLOW))
 
 
 def dbg(tag: str, msg: str) -> None:
@@ -140,7 +142,7 @@ def dbg(tag: str, msg: str) -> None:
 
 
 class Spinner:
-    FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    FRAMES = "â â â ¹â ¸â ¼â ´â ¦â §â â "
 
     def __init__(self, label: str = "thinking"):
         self.label, self._stop, self._t = label, True, None
@@ -156,7 +158,7 @@ class Spinner:
         i = 0
         while not self._stop:
             sys.stdout.write(f"\r{paint(self.FRAMES[i % len(self.FRAMES)], C.BCYAN)} "
-                             f"{paint(self.label + '…', C.DIM)} ")
+                             f"{paint(self.label + 'â¦', C.DIM)} ")
             sys.stdout.flush()
             i += 1
             time.sleep(0.08)
@@ -171,7 +173,7 @@ class Spinner:
         sys.stdout.flush()
 
 
-# ───────────────────────────────────────────────────────────────  MODEL  ────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  MODEL  ââââ
 @dataclass
 class Msg:
     role: str
@@ -215,7 +217,7 @@ def _find(obj: Any, *names: str):
     return None
 
 
-# ────────────────────────────────────────────────────────────  MODEL REGISTRY  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  MODEL REGISTRY  ââ
 @dataclass
 class ModelInfo:
     name: str              # API model ID
@@ -286,7 +288,7 @@ class ModelRegistry:
         return next(iter(self.cloud.values()), None)
 
 
-# ────────────────────────────────────────────────────────────  TASK ROUTER  ────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  TASK ROUTER  ââââ
 class TaskRouter:
     """Classifies user prompts and routes them to the best model."""
 
@@ -347,7 +349,7 @@ class TaskRouter:
         """Returns (backend_type, model_name). backend_type: 'cloud'|'local'."""
         task = self.classify(prompt)
 
-        # privacy or prefer_local → local
+        # privacy or prefer_local â local
         if task == "privacy" or prefer_local:
             if local_available:
                 return "local", "gemma-3-1b-it"
@@ -364,10 +366,10 @@ class TaskRouter:
     def describe(self, prompt: str) -> str:
         task = self.classify(prompt)
         backend, model = self.select_backend(prompt)
-        return f"task={task} → {backend}/{model}"
+        return f"task={task} â {backend}/{model}"
 
 
-# ────────────────────────────────────────────────────────────  AUTO DOWNLOADER  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  AUTO DOWNLOADER  ââ
 class AutoDownloader:
     """Automatically downloads local models from Hugging Face if missing."""
 
@@ -400,7 +402,7 @@ class AutoDownloader:
         # Check if already downloaded
         existing = self.find_local_model(model_name)
         if existing and not force:
-            info(f"  ✓ local model found: {existing.name}")
+            info(f"  â local model found: {existing.name}")
             return existing
 
         # Get model info from registry
@@ -423,7 +425,7 @@ class AutoDownloader:
             return None
 
         MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        info(f"  📥 downloading {model_info.hf_repo}/{model_info.hf_file}…")
+        info(f"  ð¥ downloading {model_info.hf_repo}/{model_info.hf_file}â¦")
         spinner = Spinner("downloading")
         spinner.start()
 
@@ -456,7 +458,7 @@ class AutoDownloader:
         return sorted(set(found))
 
 
-# ────────────────────────────────────────────────────────────  HUGGING FACE  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  HUGGING FACE  ââ
 class HFManager:
     """Hugging Face Hub integration: login, download, list models."""
 
@@ -519,7 +521,7 @@ class HFManager:
         dest_dir = dest_dir or MODELS_DIR
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        info(f"  📥 downloading {repo_id}/{filename}…")
+        info(f"  ð¥ downloading {repo_id}/{filename}â¦")
         spinner = Spinner("downloading")
         spinner.start()
 
@@ -548,7 +550,7 @@ class HFManager:
         return [(k, v[0], v[1]) for k, v in self.POPULAR_MODELS.items()]
 
 
-# ────────────────────────────────────────────────────────────  PATTERN LEARNER  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  PATTERN LEARNER  ââ
 @dataclass
 class PatternLearner:
     """Learns user's task patterns to improve routing over time."""
@@ -608,7 +610,7 @@ class PatternLearner:
         return "\n".join(lines)
 
 
-# ────────────────────────────────────────────────────────────  SELF DIAGNOSTIC  ──
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  SELF DIAGNOSTIC  ââ
 class SelfDiagnostic:
     """Agent checks its own health: backends, memory, tools, models."""
 
@@ -678,11 +680,11 @@ class SelfDiagnostic:
             return {"error": "could not check disk"}
 
     def format_report(self, report: dict) -> str:
-        lines = [paint("═══ SELF-DIAGNOSTIC REPORT ═══", C.BOLD + C.BCYAN)]
+        lines = [paint("âââ SELF-DIAGNOSTIC REPORT âââ", C.BOLD + C.BCYAN)]
 
         # Cloud
         cloud = report.get("cloud", {})
-        status = paint("✓", C.BGREEN) if cloud.get("available") else paint("✗", C.BRED)
+        status = paint("â", C.BGREEN) if cloud.get("available") else paint("â", C.BRED)
         lines.append(f"\n  {status} Cloud (Gemini API)")
         if cloud.get("available"):
             models = cloud.get("models", [])[:5]
@@ -693,30 +695,30 @@ class SelfDiagnostic:
 
         # Local
         local = report.get("local", {})
-        status = paint("✓", C.BGREEN) if local.get("available") else paint("✗", C.BRED)
+        status = paint("â", C.BGREEN) if local.get("available") else paint("â", C.BRED)
         lines.append(f"\n  {status} Local (LiteRT-LM)")
         if local.get("models_found"):
             for m in local["models_found"][:3]:
-                lines.append(f"      {paint('•', C.GREY)} {m}")
+                lines.append(f"      {paint('â¢', C.GREY)} {m}")
         else:
             lines.append(f"      {paint('no local models found', C.DIM)}")
 
         # Memory
         mem = report.get("memory", {})
         size = mem.get("total_size", 0)
-        lines.append(f"\n  {paint('◆', C.BCYAN)} Memory: {size / 1024:.1f} KB across "
+        lines.append(f"\n  {paint('â', C.BCYAN)} Memory: {size / 1024:.1f} KB across "
                      f"{sum(mem.get('files', {}).values())} files")
 
         # Disk
         disk = report.get("disk", {})
         if "free_gb" in disk:
-            enough = paint("✓", C.BGREEN) if disk.get("enough_for_models") else paint("⚠", C.BYELLOW)
+            enough = paint("â", C.BGREEN) if disk.get("enough_for_models") else paint("â ", C.BYELLOW)
             lines.append(f"\n  {enough} Disk: {disk['free_gb']:.1f} GB free")
 
         return "\n".join(lines)
 
 
-# ────────────────────────────────────────────────────────────  AUTO BACKUP  ─────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  AUTO BACKUP  âââââ
 class AutoBackup:
     """Backs up memory files before risky operations."""
 
@@ -743,9 +745,9 @@ class AutoBackup:
         return sorted(self.backup_dir.iterdir(), reverse=True)[:10]
 
 
-# ────────────────────────────────────────────────────────────  SETTINGS  ───
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  SETTINGS  âââ
 class SettingsManager:
-    """Persistent user settings stored in settings.json — survives restarts.
+    """Persistent user settings stored in settings.json â survives restarts.
 
     Values here become CLI defaults; /set changes them live (LIVE_KEYS)
     or persists them for the next startup.
@@ -770,9 +772,15 @@ class SettingsManager:
         "shell_timeout": 30,
         "auto_backup_every": 0,
         "cloud_retries": 2,
+        "debug": False,
+        "history_limit": 40,
+        "tool_rounds": 10,
+        "ask_delete": True,
+        "env_autoload": True,
     }
     LIVE_KEYS = {"system", "autonomy", "self_critique", "proactive", "confirm_shell",
-                 "shell_timeout", "max_ctx_chars", "auto_backup_every"}
+                 "shell_timeout", "max_ctx_chars", "auto_backup_every", "debug",
+                 "tool_rounds", "ask_delete"}
 
     def __init__(self, path: Optional[Path] = SETTINGS_FILE):
         self.path = path
@@ -865,7 +873,7 @@ class SettingsManager:
         return True
 
 
-# ────────────────────────────────────────────────────  USAGE STATS  ────────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââ  USAGE STATS  ââââââââ
 class StatsTracker:
     """Tracks usage stats (turns, chars, seconds, tool calls) per backend."""
 
@@ -909,15 +917,15 @@ class StatsTracker:
 
     def summary(self) -> str:
         d = self.data
-        lines = [f"turns: {d['turns']} · chars in: {d['chars_in']} · "
-                 f"chars out: {d['chars_out']} · time: {d['seconds']:.0f}s · "
+        lines = [f"turns: {d['turns']} Â· chars in: {d['chars_in']} Â· "
+                 f"chars out: {d['chars_out']} Â· time: {d['seconds']:.0f}s Â· "
                  f"tool calls: {d['tool_calls']}"]
         for label, b in list(d["by_backend"].items())[:8]:
-            lines.append(f"  {label}: {b['turns']} turns · {b['chars_out']} chars · {b['seconds']:.0f}s")
+            lines.append(f"  {label}: {b['turns']} turns Â· {b['chars_out']} chars Â· {b['seconds']:.0f}s")
         return "\n".join(lines)
 
 
-# ────────────────────────────────────────────────────────  SESSIONS  ───────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  SESSIONS  âââââââ
 class SessionManager:
     """Save / load whole conversations as JSON snapshots."""
 
@@ -955,7 +963,151 @@ class SessionManager:
         return sorted(f.stem for f in self.dir.glob("*.json"))
 
 
-# ──────────────────────────────────────────────────────────────  MEMORY  ────
+# ──────────────────────────────────────────────────────────────  ENV FILE ──
+class EnvManager:
+    """Lightweight .env file support: KEY=VALUE pairs, loaded into os.environ.
+
+    Search order: $TERMINAL_AI_ENV, workspace/.env, STATE_DIR/.env.
+    Secrets are never printed in full (masked as ab***xy).
+    """
+
+    SECRET_HINTS = ("key", "token", "secret", "password", "passwd", "credential")
+
+    def __init__(self, env_file: Optional[Path] = None,
+                 workspace: Optional[Path] = None):
+        self.workspace = (workspace or Path.cwd()).resolve()
+        self.path = env_file or self._find_env_file()
+        self._data: dict[str, str] = {}
+
+    @classmethod
+    def _default_candidates(cls) -> list[Path]:
+        cands = []
+        env_override = os.environ.get("TERMINAL_AI_ENV")
+        if env_override:
+            cands.append(Path(env_override))
+        cands.append(Path.cwd() / ".env")
+        cands.append(STATE_DIR / ".env")
+        return cands
+
+    def _find_env_file(self) -> Optional[Path]:
+        for c in self._default_candidates():
+            if c.is_file():
+                return c.resolve()
+        return self.workspace / ".env"          # default write location
+
+    # ── parsing ──────────────────────────────────────────────────────
+    @staticmethod
+    def _parse_line(line: str) -> Optional[tuple[str, str]]:
+        s = line.strip()
+        if not s or s.startswith("#"):
+            return None
+        if "=" not in s:
+            return None
+        key, _, value = s.partition("=")
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            return None
+        value = value.strip()
+        # strip surrounding matching quotes
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        # optional "export " prefix
+        return key, value
+
+    def load(self, apply: bool = True) -> int:
+        """Load .env into memory (and os.environ if apply). Returns count."""
+        self._data = {}
+        if self.path is None or not self.path.exists():
+            return 0
+        try:
+            for line in self.path.read_text(encoding="utf-8").splitlines():
+                parsed = self._parse_line(line)
+                if parsed:
+                    self._data[parsed[0]] = parsed[1]
+        except OSError:
+            return 0
+        if apply:
+            self.apply()
+        return len(self._data)
+
+    def apply(self) -> None:
+        """Export loaded values into os.environ (never overwrites existing)."""
+        for k, v in self._data.items():
+            os.environ.setdefault(k, v)
+
+    def apply_force(self) -> None:
+        for k, v in self._data.items():
+            os.environ[k] = v
+
+    def save(self) -> Optional[Path]:
+        """Write current data back to the .env file."""
+        if self.path is None:
+            return None
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            lines = ["# terminal-ai .env — loaded automatically at startup"]
+            for k in sorted(self._data):
+                v = self._data[k]
+                if " " in v or v.startswith(("\"", "'")):
+                    v = '"' + v.replace('"', '\\"') + '"'
+                lines.append(f"{k}={v}")
+            self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return self.path
+        except OSError:
+            return None
+
+    # ── accessors ─────────────────────────────────────────────────────
+    def get(self, key: str, default: str = "") -> str:
+        return os.environ.get(key) or self._data.get(key, default)
+
+    def set(self, key: str, value: str, persist: bool = True) -> bool:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key or ""):
+            return False
+        self._data[key] = value
+        os.environ[key] = value
+        if persist:
+            self.save()
+        return True
+
+    def unset(self, key: str, persist: bool = True) -> bool:
+        existed = key in self._data or key in os.environ
+        self._data.pop(key, None)
+        os.environ.pop(key, None)
+        if persist:
+            self.save()
+        return existed
+
+    def keys(self) -> list[str]:
+        return sorted(self._data)
+
+    @classmethod
+    def mask(cls, key: str, value: str) -> str:
+        k = key.lower()
+        if any(h in k for h in cls.SECRET_HINTS):
+            if len(value) <= 4:
+                return "***"
+            return value[:2] + "***" + value[-2:]
+        return value
+
+    def summary(self, only_pattern: str = "") -> str:
+        keys = self.keys()
+        if only_pattern:
+            rx = re.compile(only_pattern, re.I)
+            keys = [k for k in keys if rx.search(k)]
+        if not keys:
+            return "(no env vars)"
+        return "\n".join(f"  {k}={self.mask(k, self._data[k])}" for k in keys)
+
+    def status(self) -> str:
+        p = self.path
+        if p and p.exists():
+            return f"{p} ({len(self._data)} vars)"
+        return "(no .env file)"
+
+
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  MEMORY  ââââ
 @dataclass
 class Memory:
     facts: list[dict] = field(default_factory=list)
@@ -1039,18 +1191,18 @@ class Memory:
             lines = []
             for it in rec:
                 if "k" in it and "v" in it:
-                    lines.append(f"  • {it['k']}: {it['v']}")
+                    lines.append(f"  â¢ {it['k']}: {it['v']}")
                 elif "right" in it:
-                    lines.append(f"  • correction: {it['wrong']} → {it['right']}")
+                    lines.append(f"  â¢ correction: {it['wrong']} â {it['right']}")
             if lines:
                 parts.append("RECALL:\n" + "\n".join(lines[:8]))
         if self.preferences:
-            prefs = "\n".join(f"  • {k} = {v}" for k, v in list(self.preferences.items())[:10])
+            prefs = "\n".join(f"  â¢ {k} = {v}" for k, v in list(self.preferences.items())[:10])
             parts.append("PREFERENCES:\n" + prefs)
         return "\n\n".join(parts)[:max_chars]
 
 
-# ────────────────────────────────────────────────────────────  KNOWLEDGE GRAPH  ─
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  KNOWLEDGE GRAPH  â
 @dataclass
 class KnowledgeGraph:
     entities: dict[str, dict] = field(default_factory=dict)
@@ -1099,13 +1251,13 @@ class KnowledgeGraph:
         for r in self.relations:
             blob = f"{r['from']} {r['rel']} {r['to']}"
             if any(t in blob.lower() for t in qtok):
-                hits.append(f"  • {r['from']} —[{r['rel']}]→ {r['to']}")
+                hits.append(f"  â¢ {r['from']} â[{r['rel']}]â {r['to']}")
         if not hits:
             return ""
         return "KNOWLEDGE GRAPH:\n" + "\n".join(hits[:10])[:max_chars]
 
 
-# ───────────────────────────────────────────────────────────────  GOALS  ─────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  GOALS  âââââ
 @dataclass
 class Goal:
     id: str
@@ -1175,13 +1327,13 @@ class GoalPlanner:
             return ""
         lines = ["ACTIVE GOALS:"]
         for g in active[:5]:
-            lines.append(f"  • [{g.id}] {g.text}")
+            lines.append(f"  â¢ [{g.id}] {g.text}")
             for s in g.subgoals[:3]:
                 lines.append(f"      - {s}")
         return "\n".join(lines)[:max_chars]
 
 
-# ──────────────────────────────────────────────────────────────  JOURNAL  ────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  JOURNAL  ââââ
 class Journal:
     def __init__(self, path: Path = JOURNAL_FILE):
         self.path = path
@@ -1212,7 +1364,7 @@ class Journal:
         return f"LAST JOURNAL ENTRY:\n{entries[-1][:max_chars]}"
 
 
-# ────────────────────────────────────────────────────────────  SKILLS  ───────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  SKILLS  âââââââ
 @dataclass
 class SkillLibrary:
     skills: list[dict] = field(default_factory=list)
@@ -1256,13 +1408,13 @@ class SkillLibrary:
             return ""
         lines = ["RELEVANT SKILLS:"]
         for s in rec:
-            lines.append(f"  • {s['name']}:")
+            lines.append(f"  â¢ {s['name']}:")
             for step in s["steps"][:5]:
                 lines.append(f"      {step}")
         return "\n".join(lines)[:max_chars]
 
 
-# ────────────────────────────────────────────────────────────  META  ─────────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  META  âââââââââ
 @dataclass
 class MetaLearner:
     strategies: dict[str, list[dict]] = field(default_factory=dict)
@@ -1311,7 +1463,7 @@ class MetaLearner:
         return f"META-LEARNING: for '{problem_type}', strategy '{best}' has worked best."
 
 
-# ────────────────────────────────────────────────────────────  DREAMER  ──────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  DREAMER  ââââââ
 class Dreamer:
     PROMPT = (
         "You are a memory consolidation system. Given recent conversation episodes, "
@@ -1337,7 +1489,7 @@ class Dreamer:
         return insights
 
 
-# ────────────────────────────────────────────────────────────  TOOL FORGE  ───
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  TOOL FORGE  âââ
 class ToolForge:
     def __init__(self, path: Path = TOOLS_FILE):
         self.path = path
@@ -1381,7 +1533,7 @@ class ToolForge:
         return list(self.tools.keys())
 
 
-# ────────────────────────────────────────────────────────────  PROACTIVE  ────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  PROACTIVE  ââââ
 class ProactiveAdvisor:
     PROMPT = (
         "Given the current conversation and any active goals, suggest 1-2 proactive "
@@ -1408,7 +1560,7 @@ class ProactiveAdvisor:
             return None
 
 
-# ───────────────────────────────────────────────────────────────  TOOLS  ────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  TOOLS  ââââ
 TOOL_SCHEMA: list[dict] = [
     {"name": "shell", "desc": "Run a shell command.", "args": {"cmd": "string"}},
     {"name": "read_file", "desc": "Read a text file.", "args": {"path": "string", "max_bytes": "int"}},
@@ -1436,6 +1588,11 @@ TOOL_SCHEMA: list[dict] = [
     {"name": "copy_file", "desc": "Copy a file.", "args": {"src": "string", "dst": "string"}},
     {"name": "grep_files", "desc": "Regex search across files in a directory.", "args": {"pattern": "string", "path": "string", "max_results": "int"}},
     {"name": "web_search", "desc": "Web search via DuckDuckGo (no API key).", "args": {"query": "string"}},
+    {"name": "sys_info", "desc": "Show system info (python, platform, cpu, disk).", "args": {}},
+    {"name": "now", "desc": "Current date/time (optional strftime format).", "args": {"format": "string"}},
+    {"name": "find_files", "desc": "Find files matching a glob pattern recursively.", "args": {"pattern": "string", "path": "string", "max_results": "int"}},
+    {"name": "read_lines", "desc": "Read a file line-by-line with line numbers.", "args": {"path": "string", "start": "int", "end": "int"}},
+    {"name": "env", "desc": "Inspect env vars (action: list/get/set/unset/save). Secrets masked.", "args": {"action": "string", "key": "string", "value": "string"}},
     {"name": "done", "desc": "Task complete with final answer.", "args": {"answer": "string"}},
 ]
 
@@ -1448,7 +1605,9 @@ class ToolRegistry:
                  journal: Journal, skills: SkillLibrary, forge: ToolForge,
                  workspace: Path, confirm_shell: bool = True,
                  shell_timeout: int = 30,
-                 dreamer: Optional[Dreamer] = None):
+                 dreamer: Optional[Dreamer] = None,
+                 env: Optional[EnvManager] = None,
+                 ask_delete: bool = True):
         self.memory = memory
         self.graph = graph
         self.goals = goals
@@ -1459,6 +1618,8 @@ class ToolRegistry:
         self.confirm_shell = confirm_shell
         self.shell_timeout = max(1, int(shell_timeout))
         self.dreamer = dreamer
+        self.env = env
+        self.ask_delete = ask_delete
         self._map: dict[str, Callable] = {
             "shell": self._shell, "read_file": self._read_file,
             "write_file": self._write_file, "web_fetch": self._web_fetch,
@@ -1476,6 +1637,9 @@ class ToolRegistry:
             "append_file": self._append_file, "delete_file": self._delete_file,
             "copy_file": self._copy_file, "grep_files": self._grep_files,
             "web_search": self._web_search,
+            "sys_info": self._sys_info, "now": self._now,
+            "find_files": self._find_files, "read_lines": self._read_lines,
+            "env": self._env_tool,
             "dream": self._dream, "done": self._done,
         }
 
@@ -1503,7 +1667,7 @@ class ToolRegistry:
         if self.confirm_shell:
             for ask in self.SHELL_ASK:
                 if ask in cmd:
-                    ans = input(paint(f"  ⚠ run `{cmd}`? [y/N] ", C.BYELLOW)).strip().lower()
+                    ans = input(paint(f"  â  run `{cmd}`? [y/N] ", C.BYELLOW)).strip().lower()
                     if ans not in ("y", "yes"):
                         return "cancelled by user"
                     break
@@ -1514,7 +1678,7 @@ class ToolRegistry:
             out = (r.stdout or "") + (r.stderr or "")
             out = out.strip()
             if len(out) > 4000:
-                out = out[:4000] + f"\n…[truncated, exit={r.returncode}]"
+                out = out[:4000] + f"\nâ¦[truncated, exit={r.returncode}]"
             return out or f"(no output, exit={r.returncode})"
         except subprocess.TimeoutExpired:
             return f"error: command timed out ({self.shell_timeout}s)"
@@ -1535,7 +1699,7 @@ class ToolRegistry:
         p = self._safe_path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
-        return f"wrote {len(content)} bytes → {p}"
+        return f"wrote {len(content)} bytes â {p}"
 
     def _web_fetch(self, url: str) -> str:
         if not url.startswith(("http://", "https://")):
@@ -1569,7 +1733,7 @@ class ToolRegistry:
             if "k" in it:
                 lines.append(f"- {it['k']}: {it['v']}")
             elif "right" in it:
-                lines.append(f"- correction: {it['wrong']} → {it['right']}")
+                lines.append(f"- correction: {it['wrong']} â {it['right']}")
         return "\n".join(lines)
 
     def _add_entity(self, name: str, type: str = "thing") -> str:
@@ -1583,13 +1747,13 @@ class ToolRegistry:
         if not all([from_e, to_e, rel]):
             return "error: missing from/to/rel"
         self.graph.add_relation(from_e, to_e, rel)
-        return f"added relation: {from_e} —[{rel}]→ {to_e}"
+        return f"added relation: {from_e} â[{rel}]â {to_e}"
 
     def _query_graph(self, entity: Optional[str] = None, rel: Optional[str] = None) -> str:
         results = self.graph.query(entity, rel)
         if not results:
             return "(no matching relations)"
-        return "\n".join(f"- {r['from']} —[{r['rel']}]→ {r['to']}" for r in results[:10])
+        return "\n".join(f"- {r['from']} â[{r['rel']}]â {r['to']}" for r in results[:10])
 
     def _set_goal(self, text: str) -> str:
         g = self.goals.add(text)
@@ -1695,7 +1859,7 @@ class ToolRegistry:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as f:
             f.write(content)
-        return f"appended {len(content)} bytes → {p}"
+        return f"appended {len(content)} bytes â {p}"
 
     def _delete_file(self, path: str) -> str:
         p = self._safe_path(path)
@@ -1703,8 +1867,8 @@ class ToolRegistry:
             return f"error: not found: {p}"
         if p.is_dir():
             return "error: is a directory; refusing (use shell)"
-        if self.confirm_shell:
-            ans = input(paint(f"  ⚠ delete `{p}`? [y/N] ", C.BYELLOW)).strip().lower()
+        if self.ask_delete:
+            ans = input(paint(f"  â  delete `{p}`? [y/N] ", C.BYELLOW)).strip().lower()
             if ans not in ("y", "yes"):
                 return "cancelled by user"
         try:
@@ -1724,7 +1888,7 @@ class ToolRegistry:
             shutil.copy2(s, d)
         except OSError as e:
             return f"error: {e}"
-        return f"copied {s.name} → {d}"
+        return f"copied {s.name} â {d}"
 
     def _grep_files(self, pattern: str, path: str = ".",
                     max_results: int = 50) -> str:
@@ -1777,11 +1941,124 @@ class ToolRegistry:
                 break
         return "\n".join(f"- {t}" for t in results) or "(no results)"
 
+    def _sys_info(self) -> str:
+        """System information: python, platform, cpu, memory, disk."""
+        import platform
+        lines = [
+            f"python   : {platform.python_version()} ({platform.python_implementation()})",
+            f"platform : {platform.system()} {platform.release()} ({platform.machine()})",
+            f"machine  : {platform.node() or 'unknown'}",
+            f"cwd      : {Path.cwd()}",
+            f"state    : {STATE_DIR}",
+        ]
+        try:
+            cpu = os.cpu_count()
+            lines.append(f"cpus     : {cpu}")
+        except Exception:
+            pass
+        try:
+            import shutil as _sh
+            du = _sh.disk_usage(str(Path.cwd()))
+            lines.append(f"disk     : {du.free // (1024**3)}GB free / {du.total // (1024**3)}GB")
+        except Exception:
+            pass
+        try:
+            if hasattr(os, "sysconf"):
+                pages = os.sysconf("SC_PHYS_PAGES")
+                psize = os.sysconf("SC_PAGE_SIZE")
+                lines.append(f"memory   : {pages * psize // (1024**3)}GB total")
+        except Exception:
+            pass
+        lines.append(f"mode     : {sys.executable}")
+        return "\n".join(lines)
+
+    def _now(self, format: str = "") -> str:
+        """Current date/time. Optional strftime format."""
+        if not format:
+            return time.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
+        try:
+            return time.strftime(format)
+        except Exception as e:
+            return f"error: bad format: {e}"
+
+    def _find_files(self, pattern: str = "*", path: str = ".",
+                    max_results: int = 50) -> str:
+        """Find files matching a glob pattern recursively."""
+        p = self._safe_path(path)
+        if not p.exists():
+            return f"error: not found: {p}"
+        try:
+            matches = sorted(p.rglob(pattern))[:max(1, int(max_results))]
+        except (TypeError, ValueError) as e:
+            return f"error: bad pattern: {e}"
+        if not matches:
+            return f"(no files matching {pattern})"
+        out = []
+        for m in matches:
+            try:
+                kind = "d" if m.is_dir() else "f"
+                size = "" if m.is_dir() else f" {m.stat().st_size}B"
+                out.append(f"[{kind}] {m}{size}")
+            except OSError:
+                continue
+        return "\n".join(out)
+
+    def _read_lines(self, path: str, start: int = 1, end: int = 0,
+                    max_bytes: int = 16384) -> str:
+        """Read a file line-by-line (1-indexed). end=0 means 'until EOF'."""
+        p = self._safe_path(path)
+        if not p.exists():
+            return f"error: not found: {p}"
+        if not p.is_file():
+            return f"error: not a file: {p}"
+        start = max(1, int(start))
+        end = int(end)
+        try:
+            text = p.read_bytes()[:max_bytes].decode("utf-8", errors="replace")
+        except OSError as e:
+            return f"error: {e}"
+        lines = text.splitlines()
+        if not lines:
+            return "(empty file)"
+        if end <= 0 or end > len(lines):
+            end = len(lines)
+        if start > len(lines):
+            return f"error: file has only {len(lines)} lines"
+        chunk = lines[start - 1:end]
+        return "\n".join(f"{i}: {chunk[i - start]}"
+                         for i in range(start, start + len(chunk)))
+
+    def _env_tool(self, action: str = "list", key: str = "", value: str = "") -> str:
+        """Inspect / modify environment variables (secrets masked)."""
+        if self.env is None:
+            return "error: env manager not available"
+        action = (action or "list").lower().strip()
+        if action == "list":
+            return self.env.summary()
+        if action == "get":
+            if not key:
+                return "error: missing key"
+            return f"{key}={EnvManager.mask(key, self.env.get(key))}"
+        if action == "set":
+            if not key:
+                return "error: missing key"
+            if self.env.set(key, value):
+                return f"set {key}={EnvManager.mask(key, value)}"
+            return "error: invalid key name"
+        if action == "unset":
+            if not key:
+                return "error: missing key"
+            return f"unset {key}" if self.env.unset(key) else f"(was not set: {key})"
+        if action == "save":
+            p = self.env.save()
+            return f"saved {p}" if p else "error: could not save .env"
+        return f"error: unknown action '{action}' (list/get/set/unset/save)"
+
     def schema_prompt(self) -> str:
         lines = ["TOOLS (respond with <tool_call>{\"name\":\"...\",\"args\":{...}}</tool_call>):"]
         for t in TOOL_SCHEMA:
             args = ", ".join(f"{k}: {v}" for k, v in t["args"].items())
-            lines.append(f"  • {t['name']}({args}) — {t['desc']}")
+            lines.append(f"  â¢ {t['name']}({args}) â {t['desc']}")
         forged = self.forge.list_tools()
         if forged:
             lines.append(f"FORGED TOOLS: {', '.join(forged)}")
@@ -1804,7 +2081,7 @@ def parse_tool_calls(text: str) -> list[dict]:
     return out
 
 
-# ───────────────────────────────────────────────────────  ☁ GEMINI  ─────────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââ  â GEMINI  âââââââââ
 class GeminiBackend(Backend):
     supports_tools = True
 
@@ -1821,7 +2098,7 @@ class GeminiBackend(Backend):
         if not self.api_key:
             raise BackendError("no Gemini API key.\n      export GEMINI_API_KEY='...'")
         self._sdk, self._client, self._types = self._connect()
-        self.label = f"gemini · {model}"
+        self.label = f"gemini Â· {model}"
 
     def _connect(self):
         try:
@@ -1904,7 +2181,7 @@ class GeminiBackend(Backend):
                     yield txt
 
 
-# ───────────────────────────────────────────────  ⚡ LiteRT-LM (1B, local)  ──
+# âââââââââââââââââââââââââââââââââââââââââââââââ  â¡ LiteRT-LM (1B, local)  ââ
 class LiteRTBackend(Backend):
     MODULES = ("litert_lm", "litertlm", "litert_lm.python",
                "ai_edge_litert_lm", "google_litert_lm")
@@ -1930,7 +2207,7 @@ class LiteRTBackend(Backend):
         self._cancel = threading.Event()
         self._engine = self._bind()
         self._method = self._pick_method()
-        self.label = f"litert · {self.model_path.stem} · {device}"
+        self.label = f"litert Â· {self.model_path.stem} Â· {device}"
 
     def _bind(self):
         mod = self._mod
@@ -2109,7 +2386,7 @@ class LiteRTBackend(Backend):
                 break
 
 
-# ─────────────────────────────────────────────────────  HYBRID BACKEND  ─────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââ  HYBRID BACKEND  âââââ
 class HybridBackend(Backend):
     """Tries cloud first, falls back to local on failure. Online+offline together."""
 
@@ -2131,13 +2408,13 @@ class HybridBackend(Backend):
         # Choose backend
         if backend_type == "local" and self.local:
             self._active = self.local
-            self.label = f"hybrid→local · {model_name}"
+            self.label = f"hybridâlocal Â· {model_name}"
         elif self.cloud:
             self._active = self.cloud
-            self.label = f"hybrid→cloud · {model_name}"
+            self.label = f"hybridâcloud Â· {model_name}"
         elif self.local:
             self._active = self.local
-            self.label = f"hybrid→local · {model_name}"
+            self.label = f"hybridâlocal Â· {model_name}"
         else:
             raise BackendError("no backend available")
 
@@ -2156,12 +2433,12 @@ class HybridBackend(Backend):
             if self._active == self.cloud and self.local:
                 warn(f"Cloud failed, falling back to local")
                 self._active = self.local
-                self.label = f"hybrid→local (fallback)"
+                self.label = f"hybridâlocal (fallback)"
                 yield from self.local.stream(system, history, tools)
             elif self._active == self.local and self.cloud:
                 warn(f"Local failed, falling back to cloud")
                 self._active = self.cloud
-                self.label = f"hybrid→cloud (fallback)"
+                self.label = f"hybridâcloud (fallback)"
                 yield from self.cloud.stream(system, history, tools)
             else:
                 raise
@@ -2177,7 +2454,7 @@ class HybridBackend(Backend):
             self.local.close()
 
 
-# ─────────────────────────────────────────────────────  OBSERVER / CRITIC  ──
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââ  OBSERVER / CRITIC  ââ
 class Observer:
     PROMPT = (
         "You are a silent observer. Given the last user message and assistant reply, "
@@ -2238,9 +2515,9 @@ class Observer:
                 self.graph.add_relation(str(r["from"]), str(r["to"]), str(r["rel"]))
                 n_rel += 1
         if any([n_facts, n_corr, n_prefs, n_ent, n_rel]):
-            info(paint("    👁 learned ", C.DIM) +
-                 paint(f"{n_facts} facts · {n_corr} corr · {n_prefs} prefs · "
-                       f"{n_ent} entities · {n_rel} relations", C.GREY))
+            info(paint("    ð learned ", C.DIM) +
+                 paint(f"{n_facts} facts Â· {n_corr} corr Â· {n_prefs} prefs Â· "
+                       f"{n_ent} entities Â· {n_rel} relations", C.GREY))
 
 
 class Critic:
@@ -2274,7 +2551,7 @@ class Critic:
             return draft
 
 
-# ─────────────────────────────────────────────────────────  AGENT LOOP  ─────
+# âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  AGENT LOOP  âââââ
 class Agent:
     MAX_TOOL_ROUNDS = 10
 
@@ -2317,6 +2594,18 @@ class Agent:
         self.tools.dreamer = self.dreamer
         self.advisor = ProactiveAdvisor(backend, enabled=proactive and autonomy >= 4)
         self.history: list[Msg] = []
+        # v4.2: tunable tool rounds + history limit from settings
+        self.max_tool_rounds = max(1, int(Agent.MAX_TOOL_ROUNDS))
+        self.history_limit = 0
+        if settings is not None:
+            try:
+                self.max_tool_rounds = max(1, int(settings.get("tool_rounds", 10)))
+            except (TypeError, ValueError):
+                pass
+            try:
+                self.history_limit = max(0, int(settings.get("history_limit", 40)))
+            except (TypeError, ValueError):
+                pass
 
     def _classify_problem(self, query: str) -> str:
         return self.router.classify(query)
@@ -2359,6 +2648,9 @@ class Agent:
         total = sum(len(m.text) for m in self.history)
         while self.history and total > self.max_ctx_chars:
             total -= len(self.history.pop(0).text)
+        limit = getattr(self, "history_limit", 0)
+        if limit > 0 and len(self.history) > limit:
+            del self.history[:len(self.history) - limit]
 
     def _stream_collect(self, system: str, history: list[Msg]) -> tuple[str, list[dict]]:
         buf: list[str] = []
@@ -2370,7 +2662,7 @@ class Agent:
                                              tools=TOOL_SCHEMA if self.autonomy >= 1 else None):
                 if first:
                     spinner.stop()
-                    sys.stdout.write(paint("◆ ", C.BCYAN) +
+                    sys.stdout.write(paint("â ", C.BCYAN) +
                                      paint(self.backend.label, C.DIM) + " ")
                     sys.stdout.flush()
                     first = False
@@ -2405,7 +2697,7 @@ class Agent:
         rounds = 0
         tool_calls_used = 0
         strategy_used = "direct"
-        while rounds < self.MAX_TOOL_ROUNDS:
+        while rounds < self.max_tool_rounds:
             rounds += 1
             text, calls = self._stream_collect(system, self.history)
 
@@ -2420,11 +2712,11 @@ class Agent:
             for c in calls:
                 name = c.get("name", "")
                 args = c.get("args", {}) or {}
-                sys.stdout.write(paint(f"    ⚙ {name}", C.YELLOW) +
+                sys.stdout.write(paint(f"    â {name}", C.YELLOW) +
                                  paint(f"({json.dumps(args)[:80]})", C.GREY) + "\n")
                 result = self.tools.call(name, args)
                 tool_calls_used += 1
-                sys.stdout.write(paint("      ← ", C.GREY) +
+                sys.stdout.write(paint("      â ", C.GREY) +
                                  paint(result[:200].replace("\n", " "), C.DIM) + "\n")
                 self.history.append(Msg("tool", f"[{name}] {result}"))
                 if name == "done":
@@ -2447,7 +2739,7 @@ class Agent:
         if self.autonomy >= 3 and final_answer:
             refined = self.critic.refine(system, user_msg, final_answer)
             if refined != final_answer:
-                sys.stdout.write(paint("    🪞 refined\n", C.DIM))
+                sys.stdout.write(paint("    ðª refined\n", C.DIM))
                 final_answer = refined
 
         if self.autonomy >= 3:
@@ -2459,7 +2751,7 @@ class Agent:
         if self.autonomy >= 4:
             suggestion = self.advisor.suggest(self.history, self.goals.active())
             if suggestion:
-                sys.stdout.write(paint("    💡 ", C.BYELLOW) +
+                sys.stdout.write(paint("    ð¡ ", C.BYELLOW) +
                                  paint(suggestion, C.GREY) + "\n")
 
         # Record pattern
@@ -2467,9 +2759,9 @@ class Agent:
 
         dt = max(time.time() - t0, 1e-6)
         chars = len(final_answer)
-        info(f"  ⚡ {chars} chars · {dt:.1f}s · {rounds} round(s) · "
-             f"task={problem_type} · "
-             f"mem {len(self.memory.facts)} facts · {len(self.goals.active())} goals")
+        info(f"  â¡ {chars} chars Â· {dt:.1f}s Â· {rounds} round(s) Â· "
+             f"task={problem_type} Â· "
+             f"mem {len(self.memory.facts)} facts Â· {len(self.goals.active())} goals")
         print()
 
         # Usage stats
@@ -2486,7 +2778,7 @@ class Agent:
                 and self._turn_count % self.auto_backup_every == 0):
             try:
                 if self.backup.backup("auto"):
-                    info(paint("  💾 auto-backup created", C.GREY))
+                    info(paint("  ð¾ auto-backup created", C.GREY))
             except Exception:
                 pass
 
@@ -2497,7 +2789,7 @@ class Agent:
         self.history.clear()
 
 
-# ──────────────────────────────────────────────────────────────  CLI  ───────
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  CLI  âââââââ
 HELP = f"""{paint('commands', C.BOLD+C.BCYAN)}
   /clear            wipe conversation
   /model <name>     switch Gemini model (e.g., gemini-3.8-flash, gemini-3.1-pro)
@@ -2543,6 +2835,14 @@ HELP = f"""{paint('commands', C.BOLD+C.BCYAN)}
   /sessions         list saved sessions
   /export <file>    export transcript (.md or .json)
   /reset            factory reset memory (backs up first)
+  /env [pattern]     list env vars (from .env; secrets masked)
+  /env-set <k> <v>  set an env var and persist to .env
+  /env-get <k>      show one env var (masked if secret)
+  /env-unset <k>    remove an env var (and from .env)
+  /env-save         save env vars to the .env file
+  /history [n]      show recent messages (default 10)
+  /sysinfo          show system info
+  /debug on/off     toggle debug logging
   /quit             exit"""
 
 
@@ -2606,9 +2906,10 @@ def build_backends(args: argparse.Namespace, registry: ModelRegistry,
 
 
 def banner(agent: Agent, args: argparse.Namespace, hf: HFManager,
-           registry: ModelRegistry, patterns: PatternLearner) -> None:
-    print(paint("  ⬢ terminal-ai", C.BOLD + C.BCYAN) +
-          paint(f"  v{__version__}  ·  hybrid self-evolving agent", C.DIM))
+           registry: ModelRegistry, patterns: PatternLearner,
+           env_mgr: Optional[EnvManager] = None) -> None:
+    print(paint("  â¬¢ terminal-ai", C.BOLD + C.BCYAN) +
+          paint(f"  v{__version__}  Â·  hybrid self-evolving agent", C.DIM))
     print(f"    brain     {paint(agent.backend.label, C.BGREEN)}")
     print(f"    mode      {paint(args.mode, C.BCYAN)}" +
           paint("  (auto/cloud/local/hybrid)", C.GREY))
@@ -2616,12 +2917,14 @@ def banner(agent: Agent, args: argparse.Namespace, hf: HFManager,
           paint("  (0..5)", C.GREY))
     print(f"    critique  {paint('on' if args.self_critique else 'off', C.GREY)}" +
           f"   proactive {paint('on' if args.proactive else 'off', C.GREY)}")
-    hf_status = paint("✓ logged in", C.BGREEN) if hf.is_logged_in() else paint("✗ not logged in", C.DIM)
+    hf_status = paint("â logged in", C.BGREEN) if hf.is_logged_in() else paint("â not logged in", C.DIM)
     print(f"    hf        {hf_status}")
     if patterns.total_prompts > 0:
         print(f"    patterns  {paint(f'{patterns.total_prompts} prompts learned', C.GREY)}")
+    if env_mgr is not None:
+        print(f"    env       {paint(env_mgr.status(), C.DIM)}")
     print(f"    state     {paint(str(STATE_DIR), C.DIM)}")
-    print(paint("    /help · /route · /diagnose · /models · /download · Ctrl-D quits",
+    print(paint("    /help Â· /route Â· /diagnose Â· /models Â· /download Â· Ctrl-D quits",
                 C.GREY) + "\n")
 
 
@@ -2632,12 +2935,12 @@ def _export_transcript(agent: "Agent", p: Path) -> None:
         p.write_text(json.dumps(payload, indent=2, ensure_ascii=False),
                      encoding="utf-8")
     else:
-        lines = [f"# terminal-ai · {agent.backend.label}\n",
+        lines = [f"# terminal-ai Â· {agent.backend.label}\n",
                  f"> system: {agent.base_system}\n"]
         for m in agent.history:
             lines.append(f"**{m.role}:** {m.text}\n")
         p.write_text("\n".join(lines), encoding="utf-8")
-    ok(f"exported → {p}\n")
+    ok(f"exported â {p}\n")
 
 
 def _apply_live_setting(agent: "Agent", args: argparse.Namespace,
@@ -2668,12 +2971,23 @@ def _apply_live_setting(agent: "Agent", args: argparse.Namespace,
         agent.auto_backup_every = max(0, int(v))
     elif key == "system":
         agent.base_system = str(v)
+    elif key == "debug":
+        if v:
+            os.environ["TERMINAL_AI_DEBUG"] = "1"
+        else:
+            os.environ.pop("TERMINAL_AI_DEBUG", None)
+        info(f"  debug → {'on' if v else 'off'}\n")
+    elif key == "tool_rounds":
+        agent.max_tool_rounds = max(1, int(v))
+    elif key == "ask_delete":
+        agent.tools.ask_delete = bool(v)
 
 
 def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
                registry: ModelRegistry, downloader: AutoDownloader,
                router: TaskRouter, diagnostic: SelfDiagnostic,
-               backup: AutoBackup, patterns: PatternLearner) -> bool:
+               backup: AutoBackup, patterns: PatternLearner,
+               env_mgr: Optional[EnvManager] = None) -> bool:
     cmd, _, rest = line[1:].partition(" ")
     cmd, rest = cmd.lower().strip(), rest.strip()
     if cmd in ("quit", "exit", "q"):
@@ -2781,7 +3095,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             desc = router.describe(rest)
             info(f"  routing preview: {desc}\n")
     elif cmd == "diagnose":
-        info("  running self-diagnostic…\n")
+        info("  running self-diagnosticâ¦\n")
         report = diagnostic.run()
         print(diagnostic.format_report(report) + "\n")
     elif cmd == "backup":
@@ -2794,16 +3108,16 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
         print(paint("  learned patterns:", C.BOLD))
         print(patterns.summary() + "\n")
     elif cmd == "models":
-        print(paint("  ☁ Cloud models:", C.BOLD))
+        print(paint("  â Cloud models:", C.BOLD))
         for m in registry.cloud.values():
             strengths = ", ".join(m.strengths[:3])
-            print(f"    • {paint(m.name, C.BCYAN)} — {m.display} ({strengths})")
-        print(paint("\n  ⚡ Local models:", C.BOLD))
+            print(f"    â¢ {paint(m.name, C.BCYAN)} â {m.display} ({strengths})")
+        print(paint("\n  â¡ Local models:", C.BOLD))
         for m in registry.local.values():
-            print(f"    • {paint(m.name, C.BGREEN)} — {m.display} ({m.size})")
-        print(paint("\n  📁 Downloaded:", C.BOLD))
+            print(f"    â¢ {paint(m.name, C.BGREEN)} â {m.display} ({m.size})")
+        print(paint("\n  ð Downloaded:", C.BOLD))
         for f in downloader.list_local_models():
-            print(f"    • {f}")
+            print(f"    â¢ {f}")
         print()
     elif cmd == "download":
         model_name = rest or "gemma-3-1b-it"
@@ -2815,7 +3129,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             err("could not download model\n")
     elif cmd == "system":
         agent.base_system = rest or agent.base_system
-        info(f"  system → {agent.base_system[:70]}\n")
+        info(f"  system â {agent.base_system[:70]}\n")
     elif cmd == "autonomy":
         try:
             lvl = max(0, min(5, int(rest)))
@@ -2827,19 +3141,19 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             agent.critic.enabled = lvl >= 3 and args.self_critique
             agent.observer.enabled = lvl >= 3
             agent.advisor.enabled = lvl >= 4 and args.proactive
-            info(f"  autonomy → {lvl}\n")
+            info(f"  autonomy â {lvl}\n")
     elif cmd == "critique":
         if rest in ("on", "off"):
             args.self_critique = rest == "on"
             agent.critic.enabled = args.self_critique and agent.autonomy >= 3
-            info(f"  self-critique → {rest}\n")
+            info(f"  self-critique â {rest}\n")
         else:
             err("usage: /critique on|off")
     elif cmd == "proactive":
         if rest in ("on", "off"):
             args.proactive = rest == "on"
             agent.advisor.enabled = args.proactive and agent.autonomy >= 4
-            info(f"  proactive → {rest}\n")
+            info(f"  proactive â {rest}\n")
         else:
             err("usage: /proactive on|off")
     elif cmd == "remember":
@@ -2862,15 +3176,15 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             print(paint("  facts:", C.BOLD))
             for f in m.facts[-20:]:
                 src = f.get("source", "?")
-                print(f"    • {f['k']}: {f['v']}  {paint(f'[{src}]', C.DIM)}")
+                print(f"    â¢ {f['k']}: {f['v']}  {paint(f'[{src}]', C.DIM)}")
         if kind in ("all", "corrections"):
             print(paint("  corrections:", C.BOLD))
             for c in m.corrections[-10:]:
-                print(f"    • {c['wrong']} → {c['right']}")
+                print(f"    â¢ {c['wrong']} â {c['right']}")
         if kind in ("all", "prefs", "preferences"):
             print(paint("  preferences:", C.BOLD))
             for k, v in m.preferences.items():
-                print(f"    • {k} = {v}")
+                print(f"    â¢ {k} = {v}")
         if kind in ("all", "episodes"):
             print(paint(f"  episodes ({len(m.episodes)}):", C.BOLD))
             for e in m.episodes[-5:]:
@@ -2886,7 +3200,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
                 info("  (nothing relevant)\n")
             else:
                 for it in items:
-                    print("    •", json.dumps(it, default=str)[:160])
+                    print("    â¢", json.dumps(it, default=str)[:160])
                 print()
     elif cmd == "goal":
         if not rest:
@@ -2939,7 +3253,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             info("  (no skills extracted)\n")
         else:
             for s in agent.skills.skills:
-                print(f"  • {s['name']}:")
+                print(f"  â¢ {s['name']}:")
                 for step in s["steps"][:5]:
                     print(f"      {step}")
             print()
@@ -2954,7 +3268,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             else:
                 err("tool contains forbidden constructs (import/exec/eval)")
     elif cmd == "dream":
-        info("  dreaming…\n")
+        info("  dreamingâ¦\n")
         insights = agent.dream()
         print(paint(insights, C.BCYAN) + "\n")
     elif cmd == "hf-login":
@@ -2969,18 +3283,18 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
         if hf.is_logged_in():
             ok("logged in to Hugging Face\n")
         else:
-            info("  ✗ not logged in\n")
+            info("  â not logged in\n")
             info("  set HF_TOKEN env var or use /hf-login <token>")
     elif cmd == "tools":
         print(paint("  tools:", C.BOLD))
         for t in TOOL_SCHEMA:
             args_s = ", ".join(f"{k}: {v}" for k, v in t["args"].items())
-            print(f"    • {t['name']}({args_s}) — {t['desc']}")
+            print(f"    â¢ {t['name']}({args_s}) â {t['desc']}")
         forged = agent.forge.list_tools()
         if forged:
             print(paint("  forged tools:", C.BOLD))
             for t in forged:
-                print(f"    • {t}")
+                print(f"    â¢ {t}")
         print()
     elif cmd == "save":
         _export_transcript(agent, Path(rest or "transcript.md"))
@@ -3029,7 +3343,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
                    + ("" if key in SettingsManager.LIVE_KEYS
                       else "  (applies on restart)") + "\n")
             else:
-                err(f"unknown/invalid setting '{key}' — see /settings")
+                err(f"unknown/invalid setting '{key}' â see /settings")
     elif cmd == "usage":
         st = getattr(agent, "stats", None)
         if st is None:
@@ -3044,7 +3358,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
         else:
             name = rest or "session_" + time.strftime("%Y%m%d_%H%M%S")
             p = sm.save(name, agent.history)
-            ok(f"session saved → {p.name} ({len(agent.history)} messages)\n")
+            ok(f"session saved â {p.name} ({len(agent.history)} messages)\n")
     elif cmd in ("load-session", "session-load"):
         sm = getattr(agent, "session_mgr", None)
         if sm is None or not rest:
@@ -3066,11 +3380,80 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
                 info("  (no saved sessions)\n")
             else:
                 for n2 in names:
-                    print(f"    • {n2}")
+                    print(f"    â¢ {n2}")
                 print()
+    elif cmd in ("env-set", "env_set"):
+        if env_mgr is None:
+            err("env manager not available")
+        elif " " not in rest:
+            err("usage: /env-set <KEY> <value>")
+        else:
+            key, _, value = rest.partition(" ")
+            if env_mgr.set(key.strip(), value.strip()):
+                ok(f"set {key.strip()}={EnvManager.mask(key.strip(), value.strip())}\n")
+            else:
+                err("invalid key name (use A-Z_0-9, starting with a letter)")
+    elif cmd in ("env-get", "env_get"):
+        if env_mgr is None:
+            err("env manager not available")
+        elif not rest:
+            err("usage: /env-get <KEY>")
+        else:
+            info(f"  {rest}={EnvManager.mask(rest, env_mgr.get(rest))}\n")
+    elif cmd in ("env-unset", "env_unset"):
+        if env_mgr is None:
+            err("env manager not available")
+        elif not rest:
+            err("usage: /env-unset <KEY>")
+        else:
+            existed = env_mgr.unset(rest)
+            info(f"  {'unset ' + rest if existed else f'(was not set: {rest})'}\n")
+    elif cmd in ("env-save", "env_save"):
+        if env_mgr is None:
+            err("env manager not available")
+        else:
+            p = env_mgr.save()
+            if p:
+                ok(f"saved env → {p}\n")
+            else:
+                err("could not save .env")
+    elif cmd == "env":
+        if env_mgr is None:
+            err("env manager not available")
+        else:
+            print(paint(f"  env file: {env_mgr.status()}", C.BOLD))
+            print(env_mgr.summary(rest) + "\n")
+    elif cmd == "history":
+        n = 10
+        try:
+            n = int(rest) if rest else 10
+        except ValueError:
+            pass
+        msgs = agent.history[-n:]
+        if not msgs:
+            info("  (no history)\n")
+        else:
+            for m in msgs:
+                print(f"  {paint(m.role, C.CYAN)}: {m.text[:120]}")
+            print()
+    elif cmd == "sysinfo":
+        print(paint(agent.tools._sys_info(), C.GREY) + "\n")
+    elif cmd == "debug":
+        if rest in ("on", "off"):
+            s = getattr(agent, "settings", None)
+            if s is not None and s.set("debug", rest):
+                _apply_live_setting(agent, args, s, "debug")
+            else:
+                if rest == "on":
+                    os.environ["TERMINAL_AI_DEBUG"] = "1"
+                else:
+                    os.environ.pop("TERMINAL_AI_DEBUG", None)
+            info(f"  debug → {rest}\n")
+        else:
+            err("usage: /debug on|off")
     elif cmd == "reset":
         warn("this wipes memory, graph, goals, skills, patterns and journal")
-        ans = input(paint("  ⚠ type RESET to confirm: ", C.BYELLOW)).strip()
+        ans = input(paint("  â  type RESET to confirm: ", C.BYELLOW)).strip()
         if ans != "RESET":
             info("  cancelled\n")
         else:
@@ -3083,18 +3466,19 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
                     pass
             ok("factory reset done (backup saved). Restart to reload.\n")
     else:
-        err(f"unknown command /{cmd} — try /help")
+        err(f"unknown command /{cmd} â try /help")
     return True
 
 
 def repl(agent: Agent, args: argparse.Namespace, hf: HFManager,
          registry: ModelRegistry, downloader: AutoDownloader,
          router: TaskRouter, diagnostic: SelfDiagnostic,
-         backup: AutoBackup, patterns: PatternLearner) -> None:
-    banner(agent, args, hf, registry, patterns)
+         backup: AutoBackup, patterns: PatternLearner,
+         env_mgr: Optional[EnvManager] = None) -> None:
+    banner(agent, args, hf, registry, patterns, env_mgr)
     while True:
         try:
-            line = input(paint("❯ ", C.BOLD + C.BCYAN)).strip()
+            line = input(paint("â¯ ", C.BOLD + C.BCYAN)).strip()
         except EOFError:
             print()
             break
@@ -3105,7 +3489,7 @@ def repl(agent: Agent, args: argparse.Namespace, hf: HFManager,
             continue
         if line.startswith("/"):
             if not handle_cmd(line, agent, args, hf, registry, downloader,
-                              router, diagnostic, backup, patterns):
+                              router, diagnostic, backup, patterns, env_mgr):
                 break
         else:
             agent.turn(line)
@@ -3116,14 +3500,14 @@ def repl(agent: Agent, args: argparse.Namespace, hf: HFManager,
         except Exception:
             pass
     agent.backend.close()
-    print(paint("  ✦ bye", C.DIM))
+    print(paint("  â¦ bye", C.DIM))
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     settings = SettingsManager()
     ap = argparse.ArgumentParser(
         prog="terminal_ai.py",
-        description="Hybrid self-evolving terminal AI: Gemini ☁ + LiteRT-LM ⚡ + HF 🤗")
+        description="Hybrid self-evolving terminal AI: Gemini â + LiteRT-LM â¡ + HF ð¤")
     ap.add_argument("--no-settings", action="store_true",
                     help="ignore saved settings.json for this run")
     ap.add_argument("--mode", choices=["auto", "cloud", "local", "hybrid"],
@@ -3161,6 +3545,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--cloud-retries", type=int, default=None,
                     help="cloud stream retries with backoff (default 2)")
     ap.add_argument("--resume", help="resume a saved session (see /sessions)")
+    ap.add_argument("--env-file", default=None,
+                    help="path to a .env file to load (default: workspace/.env)")
     ap.add_argument("--diagnose", action="store_true",
                     help="run self-diagnostic and exit")
     ap.add_argument("-p", "--prompt", help="one-shot prompt, then exit")
@@ -3192,8 +3578,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     stats = StatsTracker()
     session_mgr = SessionManager()
 
+    # v4.2: .env file support (autoload into os.environ unless disabled)
+    env_mgr = EnvManager(env_file=Path(args.env_file) if args.env_file else None,
+                         workspace=Path(args.workspace).resolve())
+    if bool(settings.get("env_autoload")):
+        n_env = env_mgr.load(apply=True)
+        if n_env:
+            ok(f"loaded {n_env} env var(s) from {env_mgr.path}")
+
     if args.diagnose:
-        info("  running self-diagnostic…\n")
+        info("  running self-diagnosticâ¦\n")
         report = diagnostic.run()
         print(diagnostic.format_report(report) + "\n")
         return 0
@@ -3219,7 +3613,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                          Path(args.workspace).resolve(),
                          confirm_shell=args.confirm_shell,
                          shell_timeout=args.shell_timeout,
-                         dreamer=dreamer)
+                         dreamer=dreamer, env=env_mgr,
+                         ask_delete=bool(settings.get("ask_delete")))
     agent = Agent(backend, memory, graph, goals, journal, skills, meta, tools, forge,
                   router, patterns, args.system, autonomy=args.autonomy,
                   self_critique=args.self_critique, proactive=args.proactive,
@@ -3241,7 +3636,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         finally:
             backend.close()
         return 0
-    repl(agent, args, hf, registry, downloader, router, diagnostic, backup, patterns)
+    repl(agent, args, hf, registry, downloader, router, diagnostic, backup,
+         patterns, env_mgr)
     return 0
 
 

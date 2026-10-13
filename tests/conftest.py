@@ -1,15 +1,22 @@
-"""Pytest configuration — must run before terminal_ai is imported.
+"""Test configuration — isolate terminal-ai state before importing the module.
 
-Redirects all agent state (memory, graph, settings, sessions…) into a
-throwaway temp dir so tests never touch the developer's real ~/.terminal_ai.
+terminal_ai computes STATE_DIR at import time from $TERMINAL_AI_STATE, so the
+env var must be set here (conftest runs before test modules import terminal_ai).
 """
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-_TEST_STATE = tempfile.mkdtemp(prefix="terminal_ai_test_state_")
-os.environ["TERMINAL_AI_STATE"] = _TEST_STATE
-os.environ["NO_COLOR"] = "1"
-
+# make repo root importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# isolated state + models dirs BEFORE terminal_ai is imported anywhere
+_STATE = tempfile.mkdtemp(prefix="tai-state-")
+_MODELS = tempfile.mkdtemp(prefix="tai-models-")
+os.environ["TERMINAL_AI_STATE"] = _STATE
+os.environ["TERMINAL_AI_MODELS"] = _MODELS
+os.environ["NO_COLOR"] = "1"
+os.environ.pop("TERMINAL_AI_DEBUG", None)
+os.environ.pop("GEMINI_API_KEY", None)
+os.environ.pop("GOOGLE_API_KEY", None)
