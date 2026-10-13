@@ -249,7 +249,7 @@ class ModelRegistry:
     LOCAL_MODELS = [
         ModelInfo("gemma-3-1b-it", "Gemma 3 1B IT", "local", "local",
                   ["private", "offline", "fast", "chat"],
-                  hf_repo="google/gemma-3-1b-it", hf_file="gemma-3-1b-it.litertlm",
+                  hf_repo="litert-community/Gemma3-1B-IT", hf_file="gemma3-1b-it-int4.litertlm",
                   size="1B"),
         ModelInfo("qwen3-1b", "Qwen3 1B", "local", "local",
                   ["private", "offline", "multilingual"],
@@ -463,7 +463,7 @@ class HFManager:
     """Hugging Face Hub integration: login, download, list models."""
 
     POPULAR_MODELS = {
-        "gemma-3-1b": ("google/gemma-3-1b-it", "gemma-3-1b-it.litertlm"),
+        "gemma-3-1b": ("litert-community/Gemma3-1B-IT", "gemma3-1b-it-int4.litertlm"),
         "gemma-3-4b": ("google/gemma-3-4b-it", "gemma-3-4b-it.litertlm"),
         "qwen3-1b": ("Qwen/Qwen3-1B", "model.bin"),
         "phi-3-mini": ("microsoft/phi-3-mini-4k-instruct", "model.bin"),
@@ -3520,7 +3520,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("-m", "--model-path", help="local .litertlm 1B model")
     ap.add_argument("--auto-download", action="store_true",
                     help="auto-download local model from HF if missing")
-    ap.add_argument("--hf-repo", help="Hugging Face repo (e.g. google/gemma-3-1b-it)")
+    ap.add_argument("--hf-repo", help="Hugging Face repo (e.g. litert-community/Gemma3-1B-IT)")
     ap.add_argument("--hf-file", help="filename in HF repo")
     ap.add_argument("--hf-token", help="Hugging Face token")
     ap.add_argument("--device", default="cpu", choices=["cpu", "gpu", "npu"])
