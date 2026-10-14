@@ -95,12 +95,32 @@ def _build_agent() -> core.Agent:
     local: core.Backend | None = None
     mode = settings_data["mode"]
 
-    if key and mode in {"auto", "cloud", "hybrid"}:
+    provider_id = str(settings_data.get("active_provider", "gemini"))
+    provider_model = str(settings_data.get("provider_model", "")).strip() or None
+
+    if mode in {"auto", "cloud", "hybrid"}:
         try:
-            cloud = core.GeminiBackend(
-                model=os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"),
-                api_key=key,
-            )
+            if provider_id == "gemini":
+                if not key:
+                    raise core.BackendError("Missing GEMINI_API_KEY. Configure it in Settings.")
+                cloud = core.GeminiBackend(
+                    model=provider_model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"),
+                    api_key=key,
+                )
+            else:
+                from api_provider_backend import APIProviderBackend, PROVIDERS
+                provider = PROVIDERS.get(provider_id)
+                if provider is None:
+                    raise core.BackendError(f"Unsupported cloud provider: {provider_id}")
+                provider_key = os.environ.get(provider["env"], "")
+                if not provider_key:
+                    raise core.BackendError(f"Missing API key for {provider['label']}. Configure it in Settings.")
+                cloud = APIProviderBackend(
+                    provider_id=provider_id,
+                    api_key=provider_key,
+                    model=provider_model,
+                    base_url=(settings_data.get("custom_base_url") or None) if provider_id == "custom-openai" else None,
+                )
         except Exception as exc:
             _ENGINE_ERROR = f"Cloud backend unavailable: {exc}"
 
