@@ -88,6 +88,16 @@ $("self-reflect").addEventListener("click",async()=>{
  finally{b.disabled=false;b.textContent="Run self-review";}
 });
 
+
+$("test-provider").addEventListener("click",async()=>{
+ const b=$("test-provider");b.disabled=true;b.textContent="Testing…";$("provider-test-result").textContent="Contacting provider…";$("settings-error").textContent="";
+ try{
+  const result=await api("/api/providers/test",{method:"POST",body:JSON.stringify({provider_id:$("setting-provider").value,model:$("setting-model").value,base_url:$("setting-endpoint").value,api_key:$("setting-api-key").value})});
+  $("provider-test-result").textContent="Connected · "+result.elapsed_ms+" ms";
+ }catch(e){$("provider-test-result").textContent="Connection failed";$("settings-error").textContent=e.message;}
+ finally{b.disabled=false;b.textContent="Test provider";}
+});
+
 loadStatus();
 
 
