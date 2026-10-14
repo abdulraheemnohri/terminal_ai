@@ -35,6 +35,13 @@ def _load_env() -> None:
     manager.load(apply=True)
 
 
+def _gemini_key() -> str | None:
+    value = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or "").strip()
+    if not value or value.lower().startswith(("replace_", "your_", "change_me", "placeholder")):
+        return None
+    return value
+
+
 def _read_settings() -> dict[str, Any]:
     defaults: dict[str, Any] = {
         "mode": os.environ.get("TERMINAL_AI_MODE", "auto"),
@@ -71,7 +78,7 @@ def _build_agent() -> core.Agent:
     registry = core.ModelRegistry()
     downloader = core.AutoDownloader(registry)
     router = core.TaskRouter(registry)
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    key = _gemini_key()
     local_path = downloader.find_local_model()
     cloud: core.Backend | None = None
     local: core.Backend | None = None
@@ -176,7 +183,7 @@ async def status() -> dict[str, Any]:
         "ready": agent is not None and _BACKEND is not None,
         "backend": getattr(_BACKEND, "label", None),
         "mode": settings["mode"],
-        "gemini_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")),
+        "gemini_configured": _gemini_key() is not None,
         "local_models": [p.name for p in core.MODELS_DIR.glob("*.litertlm")],
         "memory_facts": len(agent.memory.facts) if agent else len(core.Memory.load().facts),
         "active_goals": len(agent.goals.active()) if agent else len(core.GoalPlanner.load().active()),
