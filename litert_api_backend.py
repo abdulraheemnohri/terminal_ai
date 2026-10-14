@@ -103,10 +103,18 @@ class LiteRTPythonBackend(core.Backend):
         )
         try:
             with lm.Engine(str(self.model_path), backend=lm.Backend.CPU()) as engine:
+                # Qwen3 defaults to a separate thought channel. Disable
+                # thinking for this chat backend so short responses do not
+                # spend the entire output budget on hidden reasoning tokens.
+                thinking_config = lm.ThinkingConfig(
+                    enable_thinking=False,
+                    thinking_token_budget=0,
+                )
                 with engine.create_conversation(
                     messages=messages or None,
                     system_message=system or None,
                     max_output_tokens=self.max_output_tokens,
+                    thinking_config=thinking_config,
                 ) as conversation:
                     for chunk in conversation.send_message_async(latest_user_message):
                         text = self._chunk_text(chunk)
