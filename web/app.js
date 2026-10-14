@@ -34,8 +34,60 @@ function startDownloadPolling(){if(downloadPoll)clearInterval(downloadPoll);down
 loadProviders();loadDownloads();
 async function loadDiagnostics(){const list=$("diagnostic-list");list.innerHTML='<div class="empty">Running local checks…</div>';$("diagnostics-error").textContent="";try{const d=await api("/api/diagnostics");const sections=[["Application",d.application],["Backend",d.backend],["Storage",d.storage],["Runtime",d.runtime]];list.innerHTML=sections.map(([name,values])=>'<div class="list-item"><b>'+escapeHtml(name)+'</b>'+Object.entries(values||{}).map(([k,v])=>'<p><span class="muted">'+escapeHtml(k.replace(/_/g," "))+'</span>: '+escapeHtml(typeof v==="object"&&v!==null?JSON.stringify(v):v)+'</p>').join("")+'</div>').join("");}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
 $("refresh-diagnostics").addEventListener("click",loadDiagnostics);
-async function loadSettings(){try{const data=await api("/api/settings");$("setting-mode").value=data.mode||"auto";$("setting-critique").checked=!!data.self_critique;$("setting-proactive").checked=!!data.proactive;$("setting-context").value=data.max_ctx_chars||12000;$("storage-list").innerHTML=[["State directory",data.state_dir],["Models directory",data.models_dir],["Gemini key",data.gemini_configured?"Configured":"Missing"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");}catch(e){$("settings-error").textContent=e.message;}}
-$("settings-form").addEventListener("submit",async e=>{e.preventDefault();$("settings-error").textContent="";$("settings-saved").textContent="Saving…";try{await api("/api/settings",{method:"PATCH",body:JSON.stringify({mode:$("setting-mode").value,self_critique:$("setting-critique").checked,proactive:$("setting-proactive").checked,max_ctx_chars:Number($("setting-context").value)})});$("settings-saved").textContent="Saved";await loadStatus();}catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}});
+
+async function loadSettings(){
+ try{
+  const data=await api("/api/settings");
+  $("setting-mode").value=data.mode||"auto";
+  $("setting-provider").value=data.active_provider||"gemini";
+  $("setting-model").value=data.provider_model||"";
+  $("setting-endpoint").value=data.custom_base_url||"";
+  $("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";
+  $("setting-critique").checked=!!data.self_critique;
+  $("setting-proactive").checked=!!data.proactive;
+  $("setting-context").value=data.max_ctx_chars||12000;
+  const configured=data.provider_configured||{};
+  const rows=[["State directory",data.state_dir],["Models directory",data.models_dir],...Object.entries(configured).map(([k,v])=>[k,v?"API key configured":"API key missing"])];
+  $("storage-list").innerHTML=rows.map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
+ }catch(e){$("settings-error").textContent=e.message;}
+}
+$("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";});
+$("settings-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("settings-error").textContent="";$("settings-saved").textContent="Saving…";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify({
+   mode:$("setting-mode").value,active_provider:$("setting-provider").value,
+   provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
+   api_key:$("setting-api-key").value,self_critique:$("setting-critique").checked,
+   proactive:$("setting-proactive").checked,max_ctx_chars:Number($("setting-context").value)
+  })});
+  $("settings-saved").textContent="Saved";$("setting-api-key").value="";
+  await loadSettings();await loadStatus();
+ }catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}
+});
+async function loadSelf(){
+ try{
+  const state=await api("/api/self/status");
+  $("self-identity").value=state.identity||"Terminal AI";
+  $("self-mission").value=state.mission||"";
+  $("self-reflection-enabled").checked=!!state.reflection_enabled;
+  $("self-stats").innerHTML=[["Backend",state.backend||"Not initialized"],["Mode",state.mode],["Initialized",state.agent_initialized?"Yes":"No"]].map(([k,v])=>'<div class="stat"><small>'+escapeHtml(k)+'</small><strong>'+escapeHtml(v)+'</strong></div>').join("");
+  $("self-capabilities").innerHTML=["Reports configured backend and mode","Reviews current limitations and risks","Stores latest review locally","Cannot grant itself permissions"].map(x=>'<div class="list-item">'+escapeHtml(x)+'</div>').join("");
+  if(state.last_reflection){$("self-reflection-text").textContent=state.last_reflection.text||"";$("self-reflection-time").textContent=new Date(state.last_reflection.created_at*1000).toLocaleString();}
+  else{$("self-reflection-text").textContent="Run a self-review to inspect capabilities, limitations, risks and possible improvements.";$("self-reflection-time").textContent="No review yet";}
+ }catch(e){$("self-error").textContent=e.message;}
+}
+$("self-save").addEventListener("click",async()=>{
+ try{$("self-error").textContent="";await api("/api/settings",{method:"PATCH",body:JSON.stringify({self_identity:$("self-identity").value,self_mission:$("self-mission").value,self_reflection_enabled:$("self-reflection-enabled").checked})});await loadSelf();}
+ catch(e){$("self-error").textContent=e.message;}
+});
+$("self-reflect").addEventListener("click",async()=>{
+ const b=$("self-reflect");b.disabled=true;b.textContent="Reviewing…";$("self-error").textContent="";
+ try{const data=await api("/api/self/reflect",{method:"POST",body:"{}"});$("self-reflection-text").textContent=data.reflection.text;$("self-reflection-time").textContent=new Date(data.reflection.created_at*1000).toLocaleString();}
+ catch(e){$("self-error").textContent=e.message;}
+ finally{b.disabled=false;b.textContent="Run self-review";}
+});
+
 loadStatus();
 
 
