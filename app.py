@@ -326,7 +326,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         _AGENT = None
     elif _AGENT is not None:
         _AGENT.self_critique = bool(current.get("self_critique", False))
-        _AGENT.critic.enabled = _AGENT.self_critique and _AGENT.autonomy >= 3
+        _AGENT.critic.enabled = _AGENT.self_critique
         _AGENT.proactive = bool(current.get("proactive", False))
         _AGENT.max_ctx_chars = int(current.get("max_ctx_chars", 12000))
     return await get_settings()
