@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -25,6 +26,8 @@ from litestar.response import Response
 from litestar.static_files import create_static_files_router
 
 import terminal_ai as core
+
+logger = logging.getLogger("terminal_ai.web")
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -772,27 +775,46 @@ async def self_status() -> dict[str, Any]:
 
 @post("/api/self/reflect")
 async def self_reflect() -> dict[str, Any]:
-    settings = _read_settings()
-    if not settings.get("self_reflection_enabled", True):
-        raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
-    agent = _get_agent()
-    state = await self_status()
-    prompt = "Review the supplied operational state. Do not claim feelings or sentience. Summarize capabilities, limitations, risks, and next improvements. Do not execute tools or change settings.\\n\\n" + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
     try:
+        settings = _read_settings()
+        if not settings.get("self_reflection_enabled", True):
+            raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
+        agent = _get_agent()
+        state = await self_status()
+        prompt = (
+            "Review the supplied operational state. Do not claim feelings or sentience. "
+            "Summarize capabilities, limitations, risks, and next improvements. "
+            "Do not execute tools or change settings.\\n\\n"
+            + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
+        )
+
         def run_reflection() -> str:
             return "".join(agent.backend.stream(
                 "You are an evidence-based software-agent self-audit component.",
                 [core.Msg("user", prompt)], tools=None
             )).strip()
+
         answer = await asyncio.to_thread(run_reflection)
+        if not answer:
+            raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
+        record = {
+            "text": answer,
+            "created_at": time.time(),
+            "backend": getattr(agent.backend, "label", "unknown"),
+        }
+        core.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        target = core.STATE_DIR / "self_reflection.json"
+        temporary = target.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(target)
+        return {"reflection": record}
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Self-review model request failed: {str(exc)[:500]}") from exc
-    if not answer:
-        raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
-    record = {"text": answer, "created_at": time.time(), "backend": getattr(agent.backend, "label", "unknown")}
-    core.STATE_DIR.mkdir(parents=True, exist_ok=True)
-    (core.STATE_DIR / "self_reflection.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {"reflection": record}
+        logger.exception("Self-reflection failed")
+        # Return a useful error to the UI; do not expose credentials or environment values.
+        safe_detail = str(exc).replace(os.environ.get("GEMINI_API_KEY", "\\0"), "[redacted]") if os.environ.get("GEMINI_API_KEY") else str(exc)
+        raise HTTPException(status_code=502, detail=f"Self-reflection failed ({type(exc).__name__}): {safe_detail[:400]}") from exc
 
 
 def _check_github_update() -> dict[str, Any]:
