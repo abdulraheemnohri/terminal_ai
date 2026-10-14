@@ -128,6 +128,151 @@ def err(msg: str) -> None:
 
 
 def ok(msg: str) -> None:
+    print(paint("  [OK] ", C.BGREEN) + paint(msg, C.GREEN))
+
+
+def warn(msg: str) -> None:
+    # Keep operational warnings off stdout so API/server output stays readable.
+    print(paint("  [WARN] ", C.BYELLOW) + paint(msg, C.YELLOW), file=sys.stderr)
+
+
+def dbg(tag: str, msg: str) -> None:
+    if os.environ.get("TERMINAL_AI_DEBUG"):
+        print(paint(f"  [{tag}] ", C.DIM) + paint(msg, C.GREY), file=sys.stderr)
+
+
+class Spinner:
+    FRAMES = "|/-\\"
+
+    def __init__(self, label: str = "thinking"):
+        self.label, self._stop, self._t = label, True, None
+
+    def start(self) -> None:
+        # Animated carriage-return output is only useful in an interactive TTY.
+        # It corrupts logs when the agent is hosted by Uvicorn/systemd or piped.
+        if not COLOR or not getattr(sys.stdout, "isatty", lambda: False)():
+            return
+        self._stop = False
+        self._t = threading.Thread(target=self._run, daemon=True)
+        self._t.start()
+
+    def _run(self) -> None:
+        i = 0
+        while not self._stop:
+            sys.stdout.write(f"\r{paint(self.FRAMES[i % len(self.FRAMES)], C.BCYAN)} "
+                             f"{paint(self.label + '...', C.DIM)} ")
+            sys.stdout.flush()
+            i += 1
+            time.sleep(0.08)
+
+    def stop(self) -> None:
+        if self._stop:
+            return
+        self._stop = True
+        if self._t:
+            self._t.join(timeout=0.2)
+
+  MODES
+      auto      Task Router picks best model per prompt (DEFAULT)
+      cloud     Force Gemini only
+      local     Force LiteRT-LM only
+      hybrid    Try cloud, fallback to local on failure
+
+  INSTALL
+      pip install google-genai litert-lm huggingface_hub
+
+  WEB APP
+      litestar --app app:app run --host 127.0.0.1 --port 8000
+      open http://127.0.0.1:8000 in a browser
+
+  This module is the internal agent engine. The terminal REPL is no longer
+  the supported interface; use app.py for the Litestar web application.
+================================================================================
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import importlib
+import inspect
+import json
+import os
+import queue
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from typing import Any, Callable, Iterator, Optional
+
+try:
+    import readline  # noqa: F401
+except Exception:
+    pass
+
+if os.name == "nt":
+    os.system("")
+
+__version__ = "4.2.0"
+STATE_DIR = Path(os.environ.get("TERMINAL_AI_STATE", Path.home() / ".terminal_ai"))
+STATE_DIR.mkdir(parents=True, exist_ok=True)
+BACKUP_DIR = STATE_DIR / "backups"
+BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+MEMORY_FILE = STATE_DIR / "memory.json"
+GRAPH_FILE = STATE_DIR / "graph.json"
+GOALS_FILE = STATE_DIR / "goals.json"
+JOURNAL_FILE = STATE_DIR / "journal.md"
+SKILLS_FILE = STATE_DIR / "skills.json"
+META_FILE = STATE_DIR / "meta.json"
+TOOLS_FILE = STATE_DIR / "tools.json"
+PATTERNS_FILE = STATE_DIR / "patterns.json"
+HF_TOKEN_FILE = STATE_DIR / "hf_token"
+SETTINGS_FILE = STATE_DIR / "settings.json"
+STATS_FILE = STATE_DIR / "stats.json"
+SESSIONS_DIR = STATE_DIR / "sessions"
+MODELS_DIR = Path(os.environ.get("TERMINAL_AI_MODELS", Path.home() / "terminal-ai" / "models"))
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ  TERMINAL  ââ
+class C:
+    RESET = "\033[0m";  BOLD = "\033[1m";  DIM = "\033[2m";  ITAL = "\033[3m"
+    RED = "\033[31m";   GREEN = "\033[32m"; YELLOW = "\033[33m"; BLUE = "\033[34m"
+    MAGENTA = "\033[35m"; CYAN = "\033[36m"; WHITE = "\033[37m"
+    GREY = "\033[90m";  BRED = "\033[91m"; BGREEN = "\033[92m"
+    BYELLOW = "\033[93m"; BCYAN = "\033[96m"
+
+
+# Module-level aliases (fixes NameError in f-strings)
+RESET = C.RESET;    BOLD = C.BOLD;     DIM = C.DIM;     ITAL = C.ITAL
+RED = C.RED;        GREEN = C.GREEN;   YELLOW = C.YELLOW; BLUE = C.BLUE
+MAGENTA = C.MAGENTA; CYAN = C.CYAN;    WHITE = C.WHITE
+GREY = C.GREY;      BRED = C.BRED;     BGREEN = C.BGREEN; BYELLOW = C.BYELLOW
+BCYAN = C.BCYAN
+
+
+COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+
+def paint(s: str, *codes: str) -> str:
+    return ("".join(codes) + s + C.RESET) if COLOR else s
+
+
+def info(msg: str) -> None:
+    print(paint(msg, C.GREY))
+
+
+def err(msg: str) -> None:
+    print(paint("  â ", C.BRED) + paint(msg, C.RED), file=sys.stderr)
+
+
+def ok(msg: str) -> None:
     print(paint("  â ", C.BGREEN) + paint(msg, C.GREEN))
 
 
@@ -2434,12 +2579,12 @@ class HybridBackend(Backend):
             if self._active == self.cloud and self.local:
                 warn(f"Cloud failed, falling back to local")
                 self._active = self.local
-                self.label = f"hybridâlocal (fallback)"
+                self.label = "hybrid->local (fallback)"
                 yield from self.local.stream(system, history, tools)
             elif self._active == self.local and self.cloud:
                 warn(f"Local failed, falling back to cloud")
                 self._active = self.cloud
-                self.label = f"hybridâcloud (fallback)"
+                self.label = "hybrid->cloud (fallback)"
                 yield from self.cloud.stream(system, history, tools)
             else:
                 raise
