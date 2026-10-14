@@ -444,6 +444,9 @@ async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Skill context must be at most 1000 characters.")
     library = core.SkillLibrary.load()
     library.add(name, steps, context)
+    # Keep the active agent's in-memory skill context in sync with the persistent library.
+    if _AGENT is not None and hasattr(_AGENT, "skills"):
+        _AGENT.skills.skills = list(library.skills)
     return {"status": "saved", "skill": next(s for s in library.skills if s.get("name") == name)}
 
 
@@ -458,6 +461,8 @@ async def delete_skill(data: dict[str, Any]) -> dict[str, Any]:
     if len(library.skills) == before:
         raise HTTPException(status_code=404, detail="Skill not found.")
     library.save()
+    if _AGENT is not None and hasattr(_AGENT, "skills"):
+        _AGENT.skills.skills = list(library.skills)
     return {"status": "deleted", "name": name}
 
 
