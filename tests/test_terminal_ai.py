@@ -822,3 +822,44 @@ def test_spinner_does_not_write_animation_when_stdout_is_not_tty(monkeypatch):
     spinner = tai.Spinner()
     spinner.start()
     assert spinner._t is None
+
+
+# LiteRT-LM streaming regression tests: the Python API can yield Message objects.
+from types import SimpleNamespace
+
+from litert_api_backend import LiteRTPythonBackend
+
+
+def test_litert_chunk_text_extracts_message_text_channel():
+    chunk = SimpleNamespace(
+        channels={"text": "OFFLINE OK"},
+        contents=[],
+    )
+    assert LiteRTPythonBackend._chunk_text(chunk) == "OFFLINE OK"
+
+
+def test_litert_chunk_text_does_not_expose_thought_channel():
+    chunk = SimpleNamespace(
+        channels={"thought": "private internal reasoning"},
+        contents=[],
+    )
+    assert LiteRTPythonBackend._chunk_text(chunk) == ""
+
+
+def test_litert_chunk_text_reads_content_parts():
+    chunk = SimpleNamespace(
+        channels={},
+        contents=SimpleNamespace(items=[
+            SimpleNamespace(text="Hello"),
+            SimpleNamespace(text=" offline"),
+        ]),
+    )
+    assert LiteRTPythonBackend._chunk_text(chunk) == "Hello offline"
+
+
+def test_litert_chunk_text_keeps_legacy_string_and_dict_support():
+    assert LiteRTPythonBackend._chunk_text("hello") == "hello"
+    assert LiteRTPythonBackend._chunk_text({"content": "hello"}) == "hello"
+    assert LiteRTPythonBackend._chunk_text({
+        "content": [{"type": "text", "text": "hello"}]
+    }) == "hello"
