@@ -1,26 +1,16 @@
-# Installation and Configuration Guide
+# Terminal AI — Litestar Web Installation
 
-This guide covers Windows 10/11, Linux, macOS, WSL, and Termux. The project is a Python CLI application; a virtual environment is recommended so dependencies do not affect system Python.
+Terminal AI now uses a browser dashboard served by Litestar. The old terminal REPL is not the supported interface; `terminal_ai.py` is retained as the internal agent engine imported by `app.py`.
 
-## 1. Requirements
+## Requirements
 
-- Python 3.10 or newer (use a currently supported Python release).
-- Git (only needed to clone the repository).
-- Internet access for installation and Gemini mode. Local mode can run without an API key after the required local runtime and model are available.
-- Optional: a Hugging Face token for models that require access approval.
+- Python 3.10 or newer
+- Git
+- A browser
+- Gemini API key for cloud inference, or a compatible local LiteRT-LM runtime and model
+- Internet access for installing Python packages; local inference can run offline after setup
 
-Check versions:
-
-```bash
-python --version
-git --version
-```
-
-On systems where Python 3 is invoked as `python3`, replace `python` with `python3` below.
-
-## 2. Linux / macOS / WSL
-
-Install Git and Python using your distribution's package manager, then:
+## Linux / macOS / WSL
 
 ```bash
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
@@ -28,42 +18,48 @@ cd terminal_ai
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install google-genai litert-lm huggingface_hub
+python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit the local `.env` file (for example, with `nano .env`) and replace the fake placeholders with your own credentials. Never commit this file or share it in screenshots/issues.
+Edit `.env` with your own credentials using a local editor:
 
-## 3. Windows 10 / 11 (PowerShell)
+```dotenv
+GEMINI_API_KEY=replace_with_your_real_gemini_key
+HF_TOKEN=replace_with_your_huggingface_token
+```
 
-Install Python from https://www.python.org/downloads/windows/ (enable the Python PATH option) and Git from https://git-scm.com/download/win. Open a new PowerShell window:
+Start the dashboard:
+
+```bash
+.venv/bin/litestar --app app:app run --reload --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000. API documentation is available at http://127.0.0.1:8000/schema/swagger.
+
+## Windows 10 / 11 (PowerShell)
+
+Install Python and Git, then run:
 
 ```powershell
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
 Set-Location terminal_ai
 py -3 -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install google-genai litert-lm huggingface_hub
+python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 notepad .env
-python terminal_ai.py --diagnose
-python terminal_ai.py
+.\.venv\Scripts\litestar.exe --app app:app run --reload --host 127.0.0.1 --port 8000
 ```
 
-If PowerShell blocks activation, you can skip activation and use the environment's Python directly:
+If the Litestar executable is unavailable, use:
 
 ```powershell
-.\\.venv\\Scripts\\python.exe -m pip install --upgrade pip
-.\\.venv\\Scripts\\python.exe -m pip install google-genai litert-lm huggingface_hub
-.\\.venv\\Scripts\\python.exe terminal_ai.py
+.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Do not change the machine-wide execution policy just to activate a virtual environment.
-
-## 4. Termux (Android terminal)
-
-Install Termux from a trusted distribution source, then:
+## Termux
 
 ```bash
 pkg update
@@ -73,105 +69,32 @@ cd terminal_ai
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install google-genai huggingface_hub
+python -m pip install -r requirements.txt
 cp .env.example .env
 nano .env
+uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-LiteRT-LM availability depends on the current Termux/Android architecture and package support. If `pip install litert-lm` fails, use cloud mode or consult the LiteRT-LM project's current supported installation instructions; do not assume local inference is installed just because the agent package is installed.
+Some LiteRT-LM packages may not support all Termux/Android architectures. If local runtime installation is unavailable, use Gemini mode or a supported Linux/Windows environment. Keep the server bound to localhost unless you deliberately configure access controls.
 
-## 5. Configuration
+## Configure credentials
 
-### Set up the local `.env` file
+- Gemini key: https://aistudio.google.com/app/apikey
+- Hugging Face token: https://huggingface.co/settings/tokens
 
-The repository includes a safe `.env.example` template with fake placeholders. Copy it to `.env` and replace those placeholders on your own device; **do not put real credentials in GitHub files**.
+Never commit `.env` or paste real keys into issues. `.env.example` contains placeholders only; verify the current example values before copying. Process environment variables override values loaded from the dotenv file.
 
-```dotenv
-GEMINI_API_KEY=replace_with_your_google_gemini_api_key
-HF_TOKEN=replace_with_your_huggingface_access_token
-```
+## Start and stop
 
-- Create/manage a Gemini API key in Google AI Studio: https://aistudio.google.com/app/apikey
-- Create/manage a Hugging Face token in your account settings: https://huggingface.co/settings/tokens
-- Gemini is needed for `cloud`, and may be used by `auto`/`hybrid` modes.
-- Hugging Face token is optional unless downloading a gated model or a resource requiring authentication.
-
-Linux/macOS/WSL/Termux: `nano .env` (or another local text editor). Windows: `notepad .env`.
-
-The application checks for a dotenv file in this order: `TERMINAL_AI_ENV`, project `.env`, then `~/.terminal_ai/.env`. Existing operating-system environment variables take precedence over values in the file.
-
-Available variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `GEMINI_API_KEY` | Gemini API key for cloud, hybrid, and auto modes |
-| `HF_TOKEN` | Optional Hugging Face token for gated models |
-| `TERMINAL_AI_STATE` | Override the persistent state directory |
-| `TERMINAL_AI_MODELS` | Override the local model directory |
-| `TERMINAL_AI_DEBUG` | Enable extra diagnostic logging when supported |
-| `TERMINAL_AI_ENV` | Use a specific dotenv file |
-
-Never commit real API keys. Do not paste keys into bug reports or screenshots. The repository's `.gitignore` should keep `.env` out of commits; verify with `git status --short` before pushing.
-
-### Model modes
-
-- `auto`: route tasks to the appropriate backend.
-- `cloud`: Gemini only; requires `GEMINI_API_KEY`.
-- `local`: LiteRT-LM only; requires a compatible local runtime and downloaded model.
-- `hybrid`: try cloud and fall back to local when possible.
-
-Example:
+Run the Litestar command in a terminal and leave it running while you use the browser. Stop the server with Ctrl+C. For a stable local session without auto-reload:
 
 ```bash
-python terminal_ai.py --mode local --diagnose
-python terminal_ai.py --auto-download
+.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-The downloader may need internet access and, for gated models, `HF_TOKEN`.
+## Troubleshooting
 
-### Persistent settings
-
-Settings are stored in `~/.terminal_ai/settings.json` by default. From the agent prompt:
-
-```text
-/settings
-/set mode local
-/set temperature 0.5
-/set debug on
-/set history_limit 20
-/set tool_rounds 5
-```
-
-Some settings (such as backend mode) take effect after restarting. The interactive `/help` and `/settings` commands show the supported commands and current values for the version installed.
-
-### State and model directories
-
-- State, memory, settings, sessions, and backups: `~/.terminal_ai/`
-- Local model files: `~/terminal-ai/models/`
-
-Set `TERMINAL_AI_STATE` or `TERMINAL_AI_MODELS` before launch to use custom locations. Ensure the selected directories are writable and have sufficient free disk space.
-
-## 6. Verify installation and run tests
-
-```bash
-python -m py_compile terminal_ai.py
-python terminal_ai.py --diagnose
-python -m pip install pytest
-python -m pytest tests/ -v
-```
-
-A successful package installation does not guarantee that a particular LiteRT-LM model is supported on your platform. Use diagnostics to check runtime and model availability.
-
-## 7. Upgrade / uninstall
-
-Upgrade a Git checkout:
-
-```bash
-git pull
-python -m pip install --upgrade google-genai litert-lm huggingface_hub
-python terminal_ai.py --diagnose
-```
-
-Before upgrading, back up `~/.terminal_ai/` if the stored memory and sessions matter to you.
-
-To uninstall, deactivate the virtual environment and delete the cloned project directory and its `.venv`. Agent data is stored separately in `~/.terminal_ai/`; remove that directory only if you intentionally want to delete memory, settings, sessions, and backups.
+- **Backend not ready:** configure `GEMINI_API_KEY`, or install LiteRT-LM and place a compatible `.litertlm` model under the configured models directory.
+- **Port busy:** change `--port 8000` to another local port such as `--port 8001`.
+- **LiteRT-LM installation fails:** check upstream package support for your operating system and Python version; this does not necessarily indicate a Litestar issue.
+- **API docs:** visit `/schema/swagger`.
