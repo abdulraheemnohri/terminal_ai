@@ -232,6 +232,18 @@ async def index() -> Response:
     return await _index_response()
 
 
+@get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    """Return a tiny built-in SVG favicon; no separate asset is required."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<rect width="64" height="64" rx="14" fill="#0b1020"/>'
+        '<path d="M18 14h9v16l15-16h12L37 32l18 18H43L27 35v15h-9z" fill="#8b9cff"/>'
+        '</svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
+
+
 @get("/overview")
 async def overview_page() -> Response:
     return await _index_response()
@@ -1128,7 +1140,7 @@ async def _stop_update_checker() -> None:
 
 app = Litestar(
     route_handlers=[
-        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
+        index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, list_skills, create_skill, delete_skill, list_tools, learning_status, self_improvements,

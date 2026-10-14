@@ -239,3 +239,11 @@ def test_skill_creation_validates_steps_and_saves_locally():
     with TestClient(app=app) as client:
         invalid = client.post("/api/skills", json={"name": "Empty skill", "steps": []})
     assert invalid.status_code == 400
+
+
+def test_favicon_route_returns_svg_without_404():
+    with TestClient(app=app) as client:
+        response = client.get("/favicon.ico")
+    assert response.status_code == 200
+    assert "image/svg+xml" in response.headers["content-type"]
+    assert "<svg" in response.text
