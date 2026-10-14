@@ -3,7 +3,7 @@ let statusData=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",settings:"Settings"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings")loadSettings();if(name==="self")loadSelf();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
 async function loadStatus(){try{statusData=await api("/api/status");$("status-label").textContent=statusData.ready?"System online":"Setup required";$("status-dot").style.background=statusData.ready?"var(--green)":"var(--red)";$("metric-ready").textContent=statusData.ready?"Ready":"Setup";$("metric-backend").textContent=statusData.backend||"Not loaded";$("metric-mode").textContent="Mode: "+statusData.mode;$("metric-memory").textContent=statusData.memory_facts;$("metric-goals").textContent=statusData.active_goals;$("side-version").textContent="v"+statusData.version;$("side-state").textContent=statusData.ready?"Agent connected":"Backend not ready";$("system-list").innerHTML=[["Application",statusData.interface],["Version","v"+statusData.version],["Gemini key",statusData.gemini_configured?"Configured":"Not configured"],["Local models",statusData.local_models.length?statusData.local_models.join(", "):"No .litertlm files found"],["State directory",statusData.state_dir],["Uptime",statusData.uptime_seconds+" seconds"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");$("system-error").textContent=statusData.error||"";$("storage-list").innerHTML=[["State",statusData.state_dir],["Models",statusData.local_models.length+" found"],["Interface","Litestar + HTML/CSS/JS"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");}catch(e){$("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;}}
@@ -46,21 +46,62 @@ async function loadSettings(){
   $("setting-critique").checked=!!data.self_critique;
   $("setting-proactive").checked=!!data.proactive;
   $("setting-context").value=data.max_ctx_chars||12000;
+  $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
+  $("updates-enabled").checked=!!data.updates_enabled;
+  $("update-interval").value=data.update_check_interval_hours||24;
   const configured=data.provider_configured||{};
   const rows=[["State directory",data.state_dir],["Models directory",data.models_dir],...Object.entries(configured).map(([k,v])=>[k,v?"API key configured":"API key missing"])];
   $("storage-list").innerHTML=rows.map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
  }catch(e){$("settings-error").textContent=e.message;}
 }
 $("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";});
+
+let latestUpdateInfo=null;
+async function loadUpdateStatus(){
+ try{
+  const data=await api("/api/updates/status");
+  $("updates-enabled").checked=!!data.enabled;
+  $("update-interval").value=data.interval_hours||24;
+  $("update-status").textContent="Channel: "+data.channel+" · "+(data.last_result||"Not checked yet")+" · install: "+data.install_method;
+ }catch(e){$("update-error").textContent=e.message;}
+}
+$("check-updates").addEventListener("click",async()=>{
+ const b=$("check-updates");b.disabled=true;b.textContent="Checking…";$("update-error").textContent="";
+ try{
+  latestUpdateInfo=await api("/api/updates/check",{method:"POST",body:"{}"});
+  $("update-status").textContent=latestUpdateInfo.update_available
+   ?"Update available: "+(latestUpdateInfo.commit_message||latestUpdateInfo.latest_sha.slice(0,12))+" · "+latestUpdateInfo.latest_sha.slice(0,12)
+   :"No update detected. Latest checked commit: "+(latestUpdateInfo.latest_sha||"unknown").slice(0,12);
+  $("apply-update").disabled=!latestUpdateInfo.update_available;
+  if(latestUpdateInfo.commit_url){$("update-status").innerHTML=escapeHtml($("update-status").textContent)+' · <a href="'+escapeHtml(latestUpdateInfo.commit_url)+'" target="_blank" rel="noopener">View commit</a>';}
+ }catch(e){$("update-error").textContent=e.message;}
+ finally{b.disabled=false;b.textContent="Check for updates now";}
+});
+$("apply-update").addEventListener("click",async()=>{
+ if(!latestUpdateInfo?.update_available)return;
+ if(!confirm("Apply this update now? A state backup will be created first. Your Git working tree must be clean. You will need to restart Terminal AI after the update."))return;
+ const b=$("apply-update");b.disabled=true;b.textContent="Updating…";$("update-error").textContent="";
+ try{
+  const result=await api("/api/updates/apply",{method:"POST",body:JSON.stringify({confirm:true})});
+  $("update-status").textContent=result.message+(result.backup?" Backup: "+result.backup:"");
+  latestUpdateInfo=null;
+ }catch(e){$("update-error").textContent=e.message;}
+ finally{b.disabled=true;b.textContent="Apply available update";}
+});
+
 $("settings-form").addEventListener("submit",async e=>{
  e.preventDefault();$("settings-error").textContent="";$("settings-saved").textContent="Saving…";
  try{
   await api("/api/settings",{method:"PATCH",body:JSON.stringify({
    mode:$("setting-mode").value,active_provider:$("setting-provider").value,
    provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
-   api_key:$("setting-api-key").value,self_critique:$("setting-critique").checked,
-   proactive:$("setting-proactive").checked,max_ctx_chars:Number($("setting-context").value)
+   api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
+   self_critique:$("setting-critique").checked,
+   proactive:$("setting-proactive").checked,max_ctx_chars:Number($("setting-context").value),
+   updates_enabled:$("updates-enabled").checked,
+   update_check_interval_hours:Number($("update-interval").value)
   })});
+  $("setting-hf-token").value="";
   $("settings-saved").textContent="Saved";$("setting-api-key").value="";
   await loadSettings();await loadStatus();
  }catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}
@@ -99,6 +140,13 @@ $("test-provider").addEventListener("click",async()=>{
 });
 
 loadStatus();
+loadUpdateStatus();
+setInterval(async()=>{
+ try{
+  const data=await api("/api/updates/status");
+  if(data.enabled && data.interval_hours){await api("/api/updates/check",{method:"POST",body:"{}"});}
+ }catch{}
+}, 60*60*1000);
 
 
 const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/settings":"settings"};
