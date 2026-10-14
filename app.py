@@ -581,6 +581,7 @@ async def get_settings() -> dict[str, Any]:
 @patch("/api/settings")
 async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     current = _read_settings()
+    previous = dict(current)
     if "mode" in data:
         mode = str(data["mode"]).lower()
         if mode not in {"auto", "cloud", "local", "hybrid"}:
@@ -631,7 +632,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    if current["mode"] != getattr(_AGENT, "mode", None):
+    backend_changed = any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url"))
+    if backend_changed:
         if _AGENT is not None:
             try:
                 _AGENT.backend.close()
