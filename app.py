@@ -7,11 +7,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
+import subprocess
+import urllib.request
+import urllib.error
 import time
 import uuid
 import threading
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +26,8 @@ from litestar.response import Response
 from litestar.static_files import create_static_files_router
 
 import terminal_ai as core
+
+logger = logging.getLogger("terminal_ai.web")
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -60,6 +67,16 @@ def _read_settings() -> dict[str, Any]:
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
         "self_reflection_enabled": True,
+        "learning_enabled": True,
+        "self_improvement_enabled": True,
+        "auto_extract_skills": False,
+        "tool_approval_required": True,
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
+        "updates_enabled": False,
+        "update_channel": "main",
+        "update_check_interval_hours": 24,
+        "last_update_check": 0,
+        "last_update_result": "Not checked yet",
     }
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
@@ -67,6 +84,7 @@ def _read_settings() -> dict[str, Any]:
             defaults.update(saved)
     except (OSError, json.JSONDecodeError):
         pass
+    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     defaults["autonomy"] = 0  # Web default stays tool-disabled until explicitly enabled in a future guarded UI.
@@ -198,52 +216,85 @@ def _get_agent() -> core.Agent:
     return _AGENT
 
 
-@get("/")
-async def index() -> Response:
+async def _index_response() -> Response:
     page = WEB_DIR / "index.html"
     if not page.is_file():
         raise HTTPException(status_code=500, detail="Web UI file is missing.")
-    return Response(content=page.read_text(encoding="utf-8"), media_type="text/html")
+    try:
+        content = page.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Web UI file could not be read.") from exc
+    return Response(content=content, media_type="text/html")
+
+
+@get("/")
+async def index() -> Response:
+    return await _index_response()
 
 
 @get("/overview")
 async def overview_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/chat")
 async def chat_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/models")
 async def models_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/sessions")
 async def sessions_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/diagnostics")
 async def diagnostics_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/memory")
 async def memory_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/goals")
 async def goals_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/settings")
 async def settings_page() -> Response:
-    return await index()
+    return await _index_response()
+
+
+@get("/self")
+async def self_page() -> Response:
+    return await _index_response()
+
+
+@get("/skills")
+async def skills_page() -> Response:
+    return await _index_response()
+
+
+@get("/tools")
+async def tools_page() -> Response:
+    return await _index_response()
+
+
+@get("/learning")
+async def learning_page() -> Response:
+    return await _index_response()
+
+
+@get("/improvements")
+async def improvements_page() -> Response:
+    return await _index_response()
 
 
 @get("/api/status")
@@ -365,6 +416,135 @@ async def complete_goal(goal_id: str) -> dict[str, str]:
 async def sessions() -> dict[str, Any]:
     agent = _get_agent()
     return {"sessions": agent.session_mgr.list_sessions() if agent.session_mgr else []}
+
+
+@get("/api/skills")
+async def list_skills() -> dict[str, Any]:
+    """List locally stored reusable procedures without requiring a model backend."""
+    library = core.SkillLibrary.load()
+    return {"skills": library.skills, "count": len(library.skills)}
+
+
+@post("/api/skills")
+async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
+    settings = _read_settings()
+    if not settings.get("learning_enabled", True):
+        raise HTTPException(status_code=400, detail="Learning is disabled in Settings.")
+    name = str(data.get("name", "")).strip()
+    context = str(data.get("context", "")).strip()
+    raw_steps = data.get("steps", [])
+    if not name or len(name) > 120:
+        raise HTTPException(status_code=400, detail="Skill name must be 1–120 characters.")
+    if not isinstance(raw_steps, list) or not raw_steps or len(raw_steps) > 20:
+        raise HTTPException(status_code=400, detail="Provide 1–20 skill steps.")
+    steps = [str(step).strip()[:500] for step in raw_steps if str(step).strip()]
+    if not steps:
+        raise HTTPException(status_code=400, detail="At least one non-empty skill step is required.")
+    if len(context) > 1000:
+        raise HTTPException(status_code=400, detail="Skill context must be at most 1000 characters.")
+    library = core.SkillLibrary.load()
+    library.add(name, steps, context)
+    # Keep the active agent's in-memory skill context in sync with the persistent library.
+    if _AGENT is not None and hasattr(_AGENT, "skills"):
+        _AGENT.skills.skills = list(library.skills)
+    return {"status": "saved", "skill": next(s for s in library.skills if s.get("name") == name)}
+
+
+@post("/api/skills/delete")
+async def delete_skill(data: dict[str, Any]) -> dict[str, Any]:
+    name = str(data.get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Skill name is required.")
+    library = core.SkillLibrary.load()
+    before = len(library.skills)
+    library.skills = [skill for skill in library.skills if skill.get("name") != name]
+    if len(library.skills) == before:
+        raise HTTPException(status_code=404, detail="Skill not found.")
+    library.save()
+    if _AGENT is not None and hasattr(_AGENT, "skills"):
+        _AGENT.skills.skills = list(library.skills)
+    return {"status": "deleted", "name": name}
+
+
+@get("/api/tools")
+async def list_tools() -> dict[str, Any]:
+    """Expose tool capabilities as metadata only; this endpoint never executes tools."""
+    builtins = [
+        {"name": item.get("name", "unknown"), "description": item.get("desc", ""),
+         "arguments": item.get("args", {}), "kind": "built-in",
+         "approval_required": item.get("name") in {"shell", "write_file", "edit_file", "append_file", "delete_file", "copy_file", "env", "forge_tool"}}
+        for item in core.TOOL_SCHEMA
+    ]
+    forge = core.ToolForge()
+    forged = [{"name": name, "description": "User/agent-authored tool; not executable from the web UI.",
+               "arguments": {}, "kind": "forged", "approval_required": True}
+              for name in forge.list_tools()]
+    return {"tools": builtins + forged, "built_in_count": len(builtins), "forged_count": len(forged),
+            "execution_enabled_in_web": False, "approval_required": bool(_read_settings().get("tool_approval_required", True))}
+
+
+@get("/api/learning")
+async def learning_status() -> dict[str, Any]:
+    """Report local learning state without loading a model or doing network work."""
+    settings = _read_settings()
+    skills = core.SkillLibrary.load().skills
+    memory = core.Memory.load()
+    meta = core.MetaLearner.load()
+    patterns = core.PatternLearner.load()
+    strategy_groups = []
+    for problem_type, records in getattr(meta, "strategies", {}).items():
+        if isinstance(records, list):
+            successes = sum(bool(item.get("success")) for item in records if isinstance(item, dict))
+            strategy_groups.append({"problem_type": problem_type, "records": len(records), "successes": successes})
+    pattern_data = getattr(patterns, "task_counts", {})
+    if not isinstance(pattern_data, (dict, list)):
+        pattern_data = {}
+    return {
+        "enabled": bool(settings.get("learning_enabled", True)),
+        "auto_extract_skills": bool(settings.get("auto_extract_skills", False)),
+        "memory_facts": len(getattr(memory, "facts", [])),
+        "episodes": len(getattr(memory, "episodes", [])),
+        "skills_count": len(skills),
+        "strategy_groups": strategy_groups,
+        "pattern_count": len(pattern_data),
+        "meta_strategy_count": sum(group["records"] for group in strategy_groups),
+        "notice": "Learning stores explicit memories, reusable procedures, and outcome records locally; it does not modify model weights.",
+    }
+
+
+@get("/api/self/improvements")
+async def self_improvements() -> dict[str, Any]:
+    """Return evidence-based, deterministic improvement ideas; never modify code or permissions."""
+    settings = _read_settings()
+    if not settings.get("self_improvement_enabled", True):
+        return {"enabled": False, "proposals": [], "notice": "Self-improvement proposals are disabled in Settings."}
+    proposals = []
+    if _AGENT is None:
+        proposals.append({"id": "initialize-backend", "title": "Configure and verify a model backend",
+                          "reason": "The agent has not been initialized in this process.",
+                          "action": "Review provider settings or install the configured local LiteRT-LM model.",
+                          "risk": "low"})
+    if not core.SkillLibrary.load().skills:
+        proposals.append({"id": "create-first-skill", "title": "Create a reusable skill",
+                          "reason": "No reusable procedures are saved yet.",
+                          "action": "Document a tested workflow in the Skills page.",
+                          "risk": "low"})
+    if not bool(settings.get("tool_approval_required", True)):
+        proposals.append({"id": "restore-tool-approval", "title": "Require approval for risky tools",
+                          "reason": "The safety setting is disabled.",
+                          "action": "Enable tool approval in Settings before adding any execution capability.",
+                          "risk": "high"})
+    if not bool(settings.get("auto_extract_skills", False)):
+        proposals.append({"id": "review-learning", "title": "Review and save successful procedures",
+                          "reason": "Automatic skill extraction is off, so new skills should be reviewed and saved manually.",
+                          "action": "Use Skills to capture verified steps after successful tasks.",
+                          "risk": "low"})
+    proposals.append({"id": "review-backups", "title": "Verify local state backups",
+                      "reason": "Recovery depends on recent, restorable state backups.",
+                      "action": "Check the state directory and keep backups before manual updates.",
+                      "risk": "low"})
+    return {"enabled": True, "proposals": proposals,
+            "notice": "Proposals are advisory. They do not patch source code, change permissions, run commands, or install packages."}
 
 
 @get("/api/models")
@@ -511,7 +691,7 @@ async def _run_model_download(job_id: str, repo_id: str, filename: str) -> None:
             return str(hf_hub_download(
                 repo_id=repo_id,
                 filename=filename,
-                token=os.environ.get("HF_TOKEN") or None,
+                token=os.environ.get("HF_TOKEN") or (core.HF_TOKEN_FILE.read_text(encoding="utf-8").strip() if core.HF_TOKEN_FILE.exists() else None),
                 local_dir=str(core.MODELS_DIR),
             ))
         task = asyncio.create_task(asyncio.to_thread(download))
@@ -534,9 +714,15 @@ async def _run_model_download(job_id: str, repo_id: str, filename: str) -> None:
                        bytes_downloaded=resolved.stat().st_size if resolved.is_file() else job["bytes_downloaded"],
                        finished_at=time.time())
     except Exception as exc:
+        message = str(exc)
+        if "401" in message or "Unauthorized" in message or "gated" in message.lower():
+            message = ("Hugging Face denied access. Verify the repository/file name, accept any model access terms, "
+                       "and configure a read token in Settings if required. Detail: " + message[:350])
+        elif "404" in message or "Entry Not Found" in message:
+            message = "Model file not found; verify the repository ID and exact filename. Detail: " + message[:350]
         with _DOWNLOAD_LOCK:
             job = _DOWNLOAD_JOBS[job_id]
-            job.update(status="failed", error=str(exc)[:1000], finished_at=time.time())
+            job.update(status="failed", error=message[:1000], finished_at=time.time())
 
 
 @post("/api/models/download")
@@ -611,6 +797,7 @@ async def get_settings() -> dict[str, Any]:
         "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
     }
 
 
@@ -651,6 +838,32 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         current["self_mission"] = str(data["self_mission"]).strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
+    for setting_key in ("learning_enabled", "self_improvement_enabled", "auto_extract_skills", "tool_approval_required"):
+        if setting_key in data:
+            current[setting_key] = bool(data[setting_key])
+    if "updates_enabled" in data:
+        current["updates_enabled"] = bool(data["updates_enabled"])
+    if "update_channel" in data:
+        channel = str(data["update_channel"]).strip().lower()
+        if channel != "main":
+            raise HTTPException(status_code=400, detail="Only the main update channel is currently supported.")
+        current["update_channel"] = channel
+    if "update_check_interval_hours" in data:
+        try:
+            current["update_check_interval_hours"] = max(6, min(168, int(data["update_check_interval_hours"])))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Update interval must be 6–168 hours.")
+    if "hf_token" in data and str(data["hf_token"]).strip():
+        token = str(data["hf_token"]).strip()
+        if len(token) > 500:
+            raise HTTPException(status_code=400, detail="Hugging Face token is too long.")
+        core.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        core.HF_TOKEN_FILE.write_text(token, encoding="utf-8")
+        try:
+            core.HF_TOKEN_FILE.chmod(0o600)
+        except OSError:
+            pass
+        os.environ["HF_TOKEN"] = token
     if "api_key" in data and str(data["api_key"]).strip():
         provider_id = str(current.get("active_provider", "gemini"))
         if provider_id == "gemini":
@@ -691,11 +904,12 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
     }
 
 
-@get("/api/self/status")
-async def self_status() -> dict[str, Any]:
+def _self_status_payload() -> dict[str, Any]:
+    """Build self-status data without calling a decorated Litestar handler."""
     settings = _read_settings()
     reflection_file = core.STATE_DIR / "self_reflection.json"
     try:
@@ -707,6 +921,10 @@ async def self_status() -> dict[str, Any]:
         "identity": settings.get("self_identity", "Terminal AI"),
         "mission": settings.get("self_mission", ""),
         "reflection_enabled": bool(settings.get("self_reflection_enabled", True)),
+        "learning_enabled": bool(settings.get("learning_enabled", True)),
+        "self_improvement_enabled": bool(settings.get("self_improvement_enabled", True)),
+        "auto_extract_skills": bool(settings.get("auto_extract_skills", False)),
+        "tool_approval_required": bool(settings.get("tool_approval_required", True)),
         "agent_initialized": agent is not None,
         "backend": getattr(getattr(agent, "backend", None), "label", None),
         "mode": settings.get("mode", "auto"),
@@ -715,29 +933,209 @@ async def self_status() -> dict[str, Any]:
     }
 
 
+@get("/api/self/status")
+async def self_status() -> dict[str, Any]:
+    return _self_status_payload()
+
+
 @post("/api/self/reflect")
 async def self_reflect() -> dict[str, Any]:
-    settings = _read_settings()
-    if not settings.get("self_reflection_enabled", True):
-        raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
-    agent = _get_agent()
-    state = await self_status()
-    prompt = "Review the supplied operational state. Do not claim feelings or sentience. Summarize capabilities, limitations, risks, and next improvements. Do not execute tools or change settings.\\n\\n" + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
-    answer = "".join(agent.backend.stream("You are an evidence-based software-agent self-audit component.", [core.Msg("user", prompt)], tools=None)).strip()
-    if not answer:
-        raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
-    record = {"text": answer, "created_at": time.time(), "backend": getattr(agent.backend, "label", "unknown")}
-    core.STATE_DIR.mkdir(parents=True, exist_ok=True)
-    (core.STATE_DIR / "self_reflection.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {"reflection": record}
+    try:
+        settings = _read_settings()
+        if not settings.get("self_reflection_enabled", True):
+            raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
+        agent = _get_agent()
+        state = _self_status_payload()
+        prompt = (
+            "Review the supplied operational state. Do not claim feelings or sentience. "
+            "Summarize capabilities, limitations, risks, and next improvements. "
+            "Do not execute tools or change settings.\\n\\n"
+            + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
+        )
 
+        def run_reflection() -> str:
+            return "".join(agent.backend.stream(
+                "You are an evidence-based software-agent self-audit component.",
+                [core.Msg("user", prompt)], tools=None
+            )).strip()
+
+        answer = await asyncio.to_thread(run_reflection)
+        if not answer:
+            raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
+        record = {
+            "text": answer,
+            "created_at": time.time(),
+            "backend": getattr(agent.backend, "label", "unknown"),
+        }
+        core.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        target = core.STATE_DIR / "self_reflection.json"
+        temporary = target.with_suffix(".json.tmp")
+        temporary.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(target)
+        return {"reflection": record}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Self-reflection failed")
+        # Return a useful error to the UI; do not expose credentials or environment values.
+        safe_detail = str(exc).replace(os.environ.get("GEMINI_API_KEY", "\\0"), "[redacted]") if os.environ.get("GEMINI_API_KEY") else str(exc)
+        raise HTTPException(status_code=502, detail=f"Self-reflection failed ({type(exc).__name__}): {safe_detail[:400]}") from exc
+
+
+def _check_github_update() -> dict[str, Any]:
+    settings = _read_settings()
+    branch = settings.get("update_channel", "main")
+    url = f"https://api.github.com/repos/abdulraheemnohri/terminal_ai/commits/{branch}"
+    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Terminal-AI-Updater"})
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub update check failed (HTTP {exc.code}).") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Could not reach GitHub to check updates: {exc}") from exc
+    remote = str(payload.get("sha", ""))
+    local = ""
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=3, check=True)
+        local = result.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"repository": "abdulraheemnohri/terminal_ai", "channel": branch,
+            "latest_sha": remote, "local_sha": local or None,
+            "update_available": bool(remote and local and remote != local),
+            "commit_url": payload.get("html_url"),
+            "commit_message": (payload.get("commit", {}).get("message", "") or "").splitlines()[0][:240],
+            "checked_at": time.time()}
+
+
+@get("/api/updates/status")
+async def update_status() -> dict[str, Any]:
+    settings = _read_settings()
+    return {"enabled": bool(settings.get("updates_enabled", False)),
+            "channel": settings.get("update_channel", "main"),
+            "interval_hours": settings.get("update_check_interval_hours", 24),
+            "last_check": settings.get("last_update_check", 0),
+            "last_result": settings.get("last_update_result", "Not checked yet"),
+            "install_method": "git" if (ROOT / ".git").exists() else "manual"}
+
+
+@post("/api/updates/check")
+async def check_updates() -> dict[str, Any]:
+    try:
+        info = await asyncio.to_thread(_check_github_update)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    settings = _read_settings()
+    settings["last_update_check"] = info["checked_at"]
+    settings["last_update_result"] = "Update available" if info["update_available"] else "No update detected"
+    _write_settings(settings)
+    return info
+
+
+@post("/api/updates/apply")
+async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
+    if data.get("confirm") is not True:
+        raise HTTPException(status_code=400, detail="Explicit confirmation is required to apply an update.")
+    if not (ROOT / ".git").exists():
+        raise HTTPException(status_code=400, detail="This installation is not a Git checkout; use your original installation method.")
+    try:
+        remote_result = await asyncio.to_thread(
+            lambda: subprocess.run(["git", "remote", "get-url", "origin"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True)
+        )
+        origin = remote_result.stdout.strip().lower().removesuffix(".git").rstrip("/")
+        if origin not in {"https://github.com/abdulraheemnohri/terminal_ai", "git@github.com:abdulraheemnohri/terminal_ai"}:
+            raise HTTPException(status_code=400, detail="Update blocked: Git origin does not match the official Terminal AI repository.")
+        status_result = await asyncio.to_thread(
+            lambda: subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True)
+        )
+        if status_result.stdout.strip():
+            raise HTTPException(status_code=409, detail="Update blocked because local files have uncommitted changes.")
+        info = await asyncio.to_thread(_check_github_update)
+        if not info["update_available"]:
+            return {"updated": False, "message": "No newer commit detected.", "restart_required": False}
+        backup_dir = core.BACKUP_DIR / f"pre-update-{int(time.time())}"
+        backup_dir.mkdir(parents=True, exist_ok=False)
+        archive = backup_dir / "state-backup.zip"
+        def create_state_backup() -> None:
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for path in core.STATE_DIR.rglob("*"):
+                    if not path.is_file() or backup_dir in path.parents:
+                        continue
+                    zf.write(path, path.relative_to(core.STATE_DIR))
+        await asyncio.to_thread(create_state_backup)
+        try:
+            archive.chmod(0o600)
+        except OSError:
+            pass
+        def pull_fast_forward() -> subprocess.CompletedProcess[str]:
+            subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=ROOT, capture_output=True, text=True, timeout=90, check=True)
+            return subprocess.run(["git", "merge", "--ff-only", "FETCH_HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=90)
+        result = await asyncio.to_thread(pull_fast_forward)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout or "Git fast-forward update failed.")[:600])
+        return {"updated": True, "message": "Update applied. Restart Terminal AI to load the new code.",
+                "restart_required": True, "backup": str(archive), "commit": info["latest_sha"]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Update failed. Restart is not automatic. {str(exc)[:500]}") from exc
+
+
+
+_UPDATE_TASK: asyncio.Task | None = None
+
+
+async def _automatic_update_checker() -> None:
+    while True:
+        try:
+            settings = _read_settings()
+            if settings.get("updates_enabled", False):
+                interval = max(6, min(168, int(settings.get("update_check_interval_hours", 24)))) * 3600
+                last_check = float(settings.get("last_update_check", 0) or 0)
+                if time.time() - last_check >= interval:
+                    info = await asyncio.to_thread(_check_github_update)
+                    settings["last_update_check"] = info["checked_at"]
+                    settings["last_update_result"] = "Update available" if info["update_available"] else "No update detected"
+                    _write_settings(settings)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            try:
+                settings = _read_settings()
+                settings["last_update_result"] = f"Update check failed: {str(exc)[:180]}"
+                _write_settings(settings)
+            except Exception:
+                pass
+        await asyncio.sleep(60)
+
+
+async def _start_update_checker() -> None:
+    global _UPDATE_TASK
+    if _UPDATE_TASK is None or _UPDATE_TASK.done():
+        _UPDATE_TASK = asyncio.create_task(_automatic_update_checker())
+
+
+async def _stop_update_checker() -> None:
+    global _UPDATE_TASK
+    if _UPDATE_TASK is not None:
+        _UPDATE_TASK.cancel()
+        try:
+            await _UPDATE_TASK
+        except asyncio.CancelledError:
+            pass
+        _UPDATE_TASK = None
 
 app = Litestar(
     route_handlers=[
-        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page,
+        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
+        skills_page, tools_page, learning_page, improvements_page,
         status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
+        goals, add_goal, complete_goal, sessions, list_skills, create_skill, delete_skill, list_tools, learning_status, self_improvements,
+        models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
+    on_startup=[_start_update_checker],
+    on_shutdown=[_stop_update_checker],
 )

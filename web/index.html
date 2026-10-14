@@ -20,6 +20,10 @@
     <button data-view="memory"><span class="ico">◉</span><span class="nav-text">Memory</span></button>
     <button data-view="goals"><span class="ico">◎</span><span class="nav-text">Goals</span></button>
     <button data-view="self"><span class="ico">✧</span><span class="nav-text">Self-awareness</span></button>
+    <button data-view="skills"><span class="ico">✦</span><span class="nav-text">Skills</span></button>
+    <button data-view="tools"><span class="ico">⌘</span><span class="nav-text">Tools</span></button>
+    <button data-view="learning"><span class="ico">↗</span><span class="nav-text">Learning</span></button>
+    <button data-view="improvements"><span class="ico">⟳</span><span class="nav-text">Self-improve</span></button>
     <button data-view="settings"><span class="ico">⚙</span><span class="nav-text">Settings</span></button>
   </nav></div>
   <div class="side-foot"><span class="dot"></span><b id="side-state">Web interface</b><br>Local state storage<br><span id="side-version">Loading version…</span></div>
@@ -36,7 +40,7 @@
     </div>
     <div class="grid">
       <article class="card span-8"><div class="card-head"><h2>System overview</h2><span class="badge">Litestar</span></div><div class="list" id="system-list"><div class="empty">Loading system details…</div></div><div id="system-error" class="error"></div></article>
-      <article class="card span-4"><div class="card-head"><h2>Quick actions</h2></div><div class="list"><button class="btn primary" data-go="chat">✧ Open AI chat</button><button class="btn" data-go="memory">◉ Manage memory</button><button class="btn" data-go="goals">◎ Review goals</button><button class="btn" data-go="settings">⚙ Configure app</button></div><p class="footer-note">Model inference runs through your configured Gemini or local LiteRT-LM backend. API keys remain in your local environment file.</p></article>
+      <article class="card span-4"><div class="card-head"><h2>Quick actions</h2></div><div class="list"><button class="btn primary" data-go="chat">✧ Open AI chat</button><button class="btn" data-go="memory">◉ Manage memory</button><button class="btn" data-go="goals">◎ Review goals</button><button class="btn" data-go="skills">✦ Manage skills</button><button class="btn" data-go="learning">↗ Review learning</button><button class="btn" data-go="improvements">⟳ Self-improvement</button><button class="btn" data-go="settings">⚙ Configure app</button></div><p class="footer-note">Model inference runs through your configured Gemini or local LiteRT-LM backend. API keys remain in your local environment file.</p></article>
     </div>
   </section>
 
@@ -96,6 +100,52 @@
     </div>
   </section>
 
+  <section class="view" id="view-skills">
+    <div class="grid">
+      <article class="card span-4">
+        <div class="card-head"><h2>Build a reusable skill</h2><span class="badge">Local</span></div>
+        <p class="muted">Save a verified procedure so Terminal AI can recall it as context. Skills are instructions, not executable code.</p>
+        <form id="skill-form">
+          <div class="field"><label for="skill-name">Skill name</label><input id="skill-name" maxlength="120" placeholder="e.g. Debug a Python traceback" required></div>
+          <div class="field"><label for="skill-context">When to use it (optional)</label><textarea id="skill-context" maxlength="1000" placeholder="Describe the task or trigger"></textarea></div>
+          <div class="field"><label for="skill-steps">Steps (one per line, up to 20)</label><textarea id="skill-steps" maxlength="6000" placeholder="Reproduce the issue&#10;Inspect the complete traceback&#10;Add a regression test" required></textarea></div>
+          <button class="btn primary" type="submit">Save skill</button><div id="skill-error" class="error"></div>
+        </form>
+      </article>
+      <article class="card span-8"><div class="card-head"><div><h2>Skill library</h2><p class="muted">Persistent reusable procedures stored locally.</p></div><button class="btn" id="refresh-skills">Refresh</button></div><div class="list" id="skill-list"><div class="empty">Loading skills…</div></div></article>
+    </div>
+  </section>
+
+  <section class="view" id="view-tools">
+    <div class="grid">
+      <article class="card span-12"><div class="card-head"><div><h2>Tool registry</h2><p class="muted">Capabilities and required arguments, shown for transparency.</p></div><button class="btn" id="refresh-tools">Refresh</button></div>
+        <div class="notice">Safety boundary: the web UI does not execute shell commands, forged Python tools, or arbitrary code. Tool metadata is read-only here. Risky capabilities should require explicit approval and audited execution.</div>
+        <div class="metrics" style="margin-top:14px"><article class="card metric-card"><div class="muted">Built-in tools</div><div class="metric" id="tool-builtins">—</div></article><article class="card metric-card"><div class="muted">Forged tools</div><div class="metric" id="tool-forged">—</div></article><article class="card metric-card"><div class="muted">Web execution</div><div class="metric" style="font-size:20px">Disabled</div></article><article class="card metric-card"><div class="muted">Approval</div><div class="metric" style="font-size:20px" id="tool-approval">Required</div></article></div>
+        <div class="list" id="tool-list"><div class="empty">Loading tools…</div></div><div id="tools-error" class="error"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="view" id="view-learning">
+    <div class="grid">
+      <article class="card span-12"><div class="card-head"><div><h2>Local learning dashboard</h2><p class="muted">Inspect saved knowledge and outcome records; no model-weight training occurs.</p></div><button class="btn" id="refresh-learning">Refresh</button></div>
+        <div class="metrics"><article class="card metric-card"><div class="muted">Memory facts</div><div class="metric" id="learning-facts">—</div></article><article class="card metric-card"><div class="muted">Conversation episodes</div><div class="metric" id="learning-episodes">—</div></article><article class="card metric-card"><div class="muted">Reusable skills</div><div class="metric" id="learning-skills">—</div></article><article class="card metric-card"><div class="muted">Outcome records</div><div class="metric" id="learning-records">—</div></article></div>
+        <div class="row" style="margin:12px 0"><span class="badge" id="learning-enabled">Learning enabled</span><span class="muted" id="learning-patterns"></span></div>
+        <div class="list" id="learning-strategies"><div class="empty">Loading learning data…</div></div>
+        <p class="footer-note" id="learning-notice">Learning records are stored locally and can be reviewed or deleted by the user.</p><div id="learning-error" class="error"></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="view" id="view-improvements">
+    <div class="grid">
+      <article class="card span-12"><div class="card-head"><div><h2>Self-improvement proposals</h2><p class="muted">Evidence-based maintenance suggestions generated from current configuration and local state.</p></div><button class="btn" id="refresh-improvements">Reassess</button></div>
+        <div class="notice">Proposals are advisory. This page does not rewrite source code, install dependencies, grant permissions, or run commands automatically. Review a proposal before acting.</div>
+        <div class="list" id="improvement-list" style="margin-top:14px"><div class="empty">Assessing current state…</div></div><div id="improvements-error" class="error"></div>
+      </article>
+    </div>
+  </section>
+
   <section class="view" id="view-settings">
     <div class="grid"><article class="card span-8"><div class="card-head"><h2>Agent configuration</h2><span class="badge">Saved locally</span></div><form id="settings-form"><div class="field"><label for="setting-mode">Backend mode</label><select id="setting-mode"><option value="auto">Auto — choose available backend</option><option value="cloud">Cloud — selected API provider</option><option value="local">Local — LiteRT-LM</option><option value="hybrid">Hybrid — cloud and local fallback</option></select><p>Mode changes take effect when the agent is next initialized. Cloud mode uses the selected provider API key; local mode requires a supported LiteRT-LM model.</p></div>
 <div class="field"><label for="setting-provider">Cloud AI provider</label><select id="setting-provider">
@@ -104,7 +154,13 @@
 <div class="field"><label for="setting-model">Model ID (optional override)</label><input id="setting-model" type="text" maxlength="200" placeholder="Use provider default model"></div>
 <div class="field" id="custom-endpoint-field" hidden><label for="setting-endpoint">Custom API base URL</label><input id="setting-endpoint" type="url" placeholder="https://your-server.example/v1"></div>
 <div class="field"><label for="setting-api-key">API key (saved on this machine)</label><input id="setting-api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key"></div>
-<div class="notice">API keys are written to the local .env file and never returned to the browser. Keep this web server bound to localhost unless authentication is configured.</div><div class="field"><label><input type="checkbox" id="setting-critique" style="width:auto;margin-right:8px"> Enable self-critique</label></div><div class="field"><label><input type="checkbox" id="setting-proactive" style="width:auto;margin-right:8px"> Enable proactive suggestions</label></div><div class="field"><label for="setting-context">Maximum context characters</label><input type="number" id="setting-context" min="2000" max="50000" step="1000"></div><button class="btn primary" type="submit">Save settings</button><button class="btn" type="button" id="test-provider">Test provider</button><span id="provider-test-result" class="muted" style="font-size:12px"></span><span id="settings-saved" class="muted" style="font-size:12px;margin-left:10px"></span><div id="settings-error" class="error"></div></form></article>
+<div class="notice">API keys are written to the local .env file and never returned to the browser. Keep this web server bound to localhost unless authentication is configured.</div><div class="field"><label for="setting-hf-token">Hugging Face read token (optional)</label><input id="setting-hf-token" type="password" autocomplete="new-password" placeholder="Leave blank to keep saved token"><p id="hf-token-state">Token status loading…</p></div><div class="field"><label><input type="checkbox" id="setting-critique" style="width:auto;margin-right:8px"> Enable self-critique</label></div><div class="field"><label><input type="checkbox" id="setting-proactive" style="width:auto;margin-right:8px"> Enable proactive suggestions</label></div><div class="field"><label for="setting-context">Maximum context characters</label><input type="number" id="setting-context" min="2000" max="50000" step="1000"></div>
+<div class="field"><label><input type="checkbox" id="setting-learning" style="width:auto;margin-right:8px"> Enable local learning and skill management</label><p>Stores explicit memories, reusable procedures, and outcome records. Does not train model weights.</p></div>
+<div class="field"><label><input type="checkbox" id="setting-auto-skills" style="width:auto;margin-right:8px"> Enable automatic skill extraction preference</label><p>Preference only; automatically generated skills should be reviewed before saving.</p></div>
+<div class="field"><label><input type="checkbox" id="setting-self-improve" style="width:auto;margin-right:8px"> Enable self-improvement proposals</label></div>
+<div class="field"><label><input type="checkbox" id="setting-tool-approval" style="width:auto;margin-right:8px"> Require approval for risky tool operations</label></div>
+<button class="btn primary" type="submit">Save settings</button><button class="btn" type="button" id="test-provider">Test provider</button><span id="provider-test-result" class="muted" style="font-size:12px"></span><span id="settings-saved" class="muted" style="font-size:12px;margin-left:10px"></span><div id="settings-error" class="error"></div></form></article>
+    <article class="card span-12"><div class="card-head"><h2>System updates</h2><span class="badge">Manual install confirmation</span></div><p>Check the official GitHub main branch. Automatic checks never install code; applying an update requires confirmation, a clean Git working tree, and a local state backup.</p><div class="field"><label><input type="checkbox" id="updates-enabled" style="width:auto;margin-right:8px"> Enable scheduled update checks</label></div><div class="field"><label for="update-interval">Check interval (hours)</label><input id="update-interval" type="number" min="6" max="168" step="6" value="24"></div><div class="row" style="gap:10px;flex-wrap:wrap"><button class="btn" type="button" id="check-updates">Check for updates now</button><button class="btn primary" type="button" id="apply-update" disabled>Apply available update</button></div><p id="update-status" class="muted">Update status has not been checked.</p><div id="update-error" class="error"></div></article>
     <article class="card span-4"><div class="card-head"><h2>Security & storage</h2></div><div class="notice">Browser tool execution is disabled by default. Keep the server bound to localhost unless you have configured authentication and network access controls.</div><div class="list" style="margin-top:14px" id="storage-list"></div><p class="footer-note">Never paste API keys into chat or commit a real .env file. Configure credentials on the machine running Terminal AI.</p></article></div>
   </section>
   <div class="footer-note">Terminal AI · Litestar web interface · <a href="/schema/swagger" style="color:var(--cyan)">API docs</a> · Local-first state</div>

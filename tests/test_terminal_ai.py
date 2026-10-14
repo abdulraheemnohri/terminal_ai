@@ -111,7 +111,7 @@ def test_router_select_backend_privacy_prefers_local():
     backend, model = router.select_backend(
         "this is private, answer locally", local_available=True)
     assert backend == "local"
-    assert model == "gemma-3-1b-it"
+    assert model == "qwen3-0.6b"
 
 
 def test_router_describe():

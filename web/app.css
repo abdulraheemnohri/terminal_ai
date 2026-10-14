@@ -14,3 +14,19 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}.app{display:gri
 #view-self .stat strong{display:block;overflow-wrap:anywhere;font-size:14px}
 .reflection{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px;color:var(--text);font:inherit;line-height:1.6;max-height:560px;overflow:auto}
 @media(max-width:640px){#view-self .stats{grid-template-columns:1fr}.reflection{padding:12px}}
+
+
+/* Self-management dashboards */
+#view-skills ol{margin:10px 0 0;padding-left:22px;color:var(--text);font-size:12px;line-height:1.7}
+#view-skills li{padding:2px 0;overflow-wrap:anywhere}
+#view-tools .metrics,#view-learning .metrics{margin:14px 0}
+#view-tools .metric-card,#view-learning .metric-card{min-width:0}
+#view-tools .list-item p,#view-learning .list-item p,#view-improvements .list-item p{line-height:1.55}
+#view-improvements .list-item .btn{margin-top:12px}
+#view-skills .field textarea{min-height:90px}
+#view-tools .badge,#view-improvements .badge{white-space:nowrap}
+@media(max-width:560px){
+  #nav{overflow-x:auto;justify-content:flex-start}
+  #nav button{min-width:58px;flex:0 0 auto}
+  #nav .nav-text{display:block;font-size:9px;max-width:66px;white-space:normal}
+}
