@@ -12,7 +12,7 @@
   ð¾ Auto-Backup            memory snapshots before risky ops
   ð Pattern Learner        learns your task patterns
   âï¸  Gemini (all models)   3.8/3.7/3.5 Flash, 3.1 Pro, 3 Pro
-  â¡ LiteRT-LM (local 1B)   Gemma 3, Qwen3, Phi-3
+  â¡ LiteRT-LM (local 0.6B) Qwen3
   ð§  Memory + Graph         persistent facts, entities, relations
   ð¯ Goals + Journal        multi-step planning, self-reflection
   ð  Skills + Forge         learned procedures, self-written tools
@@ -348,7 +348,7 @@ class TaskRouter:
         # privacy or prefer_local â local
         if task == "privacy" or prefer_local:
             if local_available:
-                return "local", "gemma-3-1b-it"
+                return "local", "qwen3-0.6b"
             # fallback to cloud if no local available
             if task == "privacy":
                 warn("Privacy requested but no local model. Using cloud.")
@@ -381,18 +381,18 @@ class AutoDownloader:
                 return None
         return None
 
-    def find_local_model(self, model_name: str = "gemma-3-1b-it") -> Optional[Path]:
+    def find_local_model(self, model_name: str = "qwen3-0.6b") -> Optional[Path]:
         """Find an already-downloaded local model."""
         for d in (MODELS_DIR, Path("models"), Path.cwd(), Path.home() / "models"):
             for pat in ("*.litertlm", "*.task", "*.litert", "*.bin"):
                 for f in d.glob(pat):
-                    if model_name.lower().replace("-", "") in f.name.lower().replace("-", ""):
-                        return f
-                    if "1b" in f.name.lower():
+                    normalized_model = model_name.lower().replace("-", "").replace("_", "")
+                    normalized_file = f.name.lower().replace("-", "").replace("_", "")
+                    if normalized_model in normalized_file:
                         return f
         return None
 
-    def ensure_model(self, model_name: str = "gemma-3-1b-it",
+    def ensure_model(self, model_name: str = "qwen3-0.6b",
                      force: bool = False) -> Optional[Path]:
         """Ensure a local model exists. Download if missing. Returns path."""
         # Check if already downloaded
@@ -459,9 +459,7 @@ class HFManager:
     """Hugging Face Hub integration: login, download, list models."""
 
     POPULAR_MODELS = {
-        "gemma-3-1b": ("litert-community/Gemma3-1B-IT", "gemma3-1b-it-int4.litertlm"),
-        "gemma-3-4b": ("google/gemma-3-4b-it", "gemma-3-4b-it.litertlm"),
-        "qwen3-1b": ("Qwen/Qwen3-1B", "model.bin"),
+        "qwen3-0.6b": ("litert-community/Qwen3-0.6B", "Qwen3-0.6B.litertlm"),
         "phi-3-mini": ("microsoft/phi-3-mini-4k-instruct", "model.bin"),
     }
 
@@ -760,7 +758,7 @@ class SettingsManager:
         "top_p": 0.95,
         "top_k": 64,
         "max_tokens": 1024,
-        "chat_template": "gemma",
+        "chat_template": "chatml",
         "max_ctx_chars": 24000,
         "self_critique": False,
         "proactive": False,
@@ -824,7 +822,10 @@ class SettingsManager:
         if self.data["mode"] not in ("auto", "cloud", "local", "hybrid"):
             self.data["mode"] = "auto"
         if self.data["chat_template"] not in ("gemma", "chatml", "raw"):
-            self.data["chat_template"] = "gemma"
+            self.data["chat_template"] = "chatml"
+        elif self.data["chat_template"] == "gemma":
+            # The default local model is Qwen3; migrate the old Gemma-specific default.
+            self.data["chat_template"] = "chatml"
         try:
             if not 0 <= int(self.data["autonomy"]) <= 5:
                 self.data["autonomy"] = 3
@@ -834,7 +835,10 @@ class SettingsManager:
         if self.data["mode"] not in ("auto", "cloud", "local", "hybrid"):
             self.data["mode"] = "auto"
         if self.data["chat_template"] not in ("gemma", "chatml", "raw"):
-            self.data["chat_template"] = "gemma"
+            self.data["chat_template"] = "chatml"
+        elif self.data["chat_template"] == "gemma":
+            # The default local model is Qwen3; migrate the old Gemma-specific default.
+            self.data["chat_template"] = "chatml"
         try:
             if not 0 <= int(self.data["autonomy"]) <= 5:
                 self.data["autonomy"] = 3
@@ -2187,7 +2191,7 @@ class LiteRTBackend(Backend):
 
     def __init__(self, model_path, device: str = "cpu", temperature: float = 0.8,
                  top_k: int = 64, top_p: float = 0.95, max_tokens: int = 1024,
-                 seed: int = 0, style: str = "gemma"):
+                 seed: int = 0, style: str = "chatml"):
         self.model_path = Path(model_path).expanduser()
         if not self.model_path.exists():
             raise BackendError(f"model not found: {self.model_path}")
@@ -3117,7 +3121,7 @@ def handle_cmd(line: str, agent: Agent, args: argparse.Namespace, hf: HFManager,
             print(f"    â¢ {f}")
         print()
     elif cmd == "download":
-        model_name = rest or "gemma-3-1b-it"
+        model_name = rest or "qwen3-0.6b"
         info(f"  ensuring model: {model_name}\n")
         path = downloader.ensure_model(model_name)
         if path:
@@ -3516,7 +3520,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("-m", "--model-path", help="local .litertlm 1B model")
     ap.add_argument("--auto-download", action="store_true",
                     help="auto-download local model from HF if missing")
-    ap.add_argument("--hf-repo", help="Hugging Face repo (e.g. litert-community/Gemma3-1B-IT)")
+    ap.add_argument("--hf-repo", help="Hugging Face repo (e.g. litert-community/Qwen3-0.6B)")
     ap.add_argument("--hf-file", help="filename in HF repo")
     ap.add_argument("--hf-token", help="Hugging Face token")
     ap.add_argument("--device", default="cpu", choices=["cpu", "gpu", "npu"])
