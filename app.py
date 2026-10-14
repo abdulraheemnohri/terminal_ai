@@ -1220,6 +1220,47 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
 
 
 _UPDATE_TASK: asyncio.Task | None = None
+_SELFX_TASK: asyncio.Task | None = None
+
+
+async def _automatic_selfx_maintenance() -> None:
+    """Run safe local checks only when the user explicitly enables Self-X autonomy."""
+    engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
+    while True:
+        try:
+            settings = _read_settings()
+            if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
+                interval = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24)))) * 3600
+                state = engine.status()
+                latest_eval = state.get("latest_evaluation") or {}
+                due = not latest_eval or time.time() - float(latest_eval.get("created_at", 0)) >= interval
+                if due:
+                    if settings.get("self_evaluation_enabled", True):
+                        await asyncio.to_thread(engine.evaluate)
+                    elif settings.get("self_diagnostics_enabled", True):
+                        await asyncio.to_thread(engine.diagnose)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("Self-X scheduled maintenance check failed", exc_info=True)
+        await asyncio.sleep(60)
+
+
+async def _start_selfx_maintenance() -> None:
+    global _SELFX_TASK
+    if _SELFX_TASK is None or _SELFX_TASK.done():
+        _SELFX_TASK = asyncio.create_task(_automatic_selfx_maintenance())
+
+
+async def _stop_selfx_maintenance() -> None:
+    global _SELFX_TASK
+    if _SELFX_TASK is not None:
+        _SELFX_TASK.cancel()
+        try:
+            await _SELFX_TASK
+        except asyncio.CancelledError:
+            pass
+        _SELFX_TASK = None
 
 
 async def _automatic_update_checker() -> None:
@@ -1272,6 +1313,6 @@ app = Litestar(
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
-    on_startup=[_start_update_checker],
-    on_shutdown=[_stop_update_checker],
+    on_startup=[_start_update_checker, _start_selfx_maintenance],
+    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance],
 )
