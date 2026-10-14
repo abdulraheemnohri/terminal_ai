@@ -86,6 +86,15 @@ HF_TOKEN=replace_with_your_huggingface_token
 
 Cloud mode uses the selected provider. Auto and Hybrid may combine cloud and local inference according to the configured backend behavior. API keys are stored in the local environment configuration and are not returned by the settings API. Custom remote endpoints must use HTTPS; HTTP is permitted only for loopback/local endpoints.
 
+### Run fully offline with Qwen3-0.6B
+
+1. Download the compatible `Qwen3-0.6B.litertlm` artifact before disconnecting from the internet.
+2. Put it in `~/terminal-ai/models/` (or the directory selected by `TERMINAL_AI_MODELS`).
+3. In **Settings**, set **Mode** to **Local**. This mode does not initialize a cloud provider and does not need a Gemini/API key.
+4. Restart the web server if you changed environment variables, then open Chat and send a prompt.
+
+The LiteRT-LM adapter uses the Python API, not a `litert-lm` shell command. It disables Qwen3 thinking for concise chat responses and extracts the final text channel from streamed `Message` objects. Model download and Python package installation still require internet access if they have not already been completed.
+
 ## Main UI pages
 
 | Page | Purpose |
