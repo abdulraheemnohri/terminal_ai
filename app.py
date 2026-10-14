@@ -654,11 +654,49 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@get("/api/self/status")
+async def self_status() -> dict[str, Any]:
+    settings = _read_settings()
+    reflection_file = core.STATE_DIR / "self_reflection.json"
+    try:
+        reflection = json.loads(reflection_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        reflection = None
+    agent = _AGENT
+    return {
+        "identity": settings.get("self_identity", "Terminal AI"),
+        "mission": settings.get("self_mission", ""),
+        "reflection_enabled": bool(settings.get("self_reflection_enabled", True)),
+        "agent_initialized": agent is not None,
+        "backend": getattr(getattr(agent, "backend", None), "label", None),
+        "mode": settings.get("mode", "auto"),
+        "last_reflection": reflection,
+        "notice": "Operational self-model and reflection are software features; they do not establish sentience or subjective experience.",
+    }
+
+
+@post("/api/self/reflect")
+async def self_reflect() -> dict[str, Any]:
+    settings = _read_settings()
+    if not settings.get("self_reflection_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
+    agent = _get_agent()
+    state = await self_status()
+    prompt = "Review the supplied operational state. Do not claim feelings or sentience. Summarize capabilities, limitations, risks, and next improvements. Do not execute tools or change settings.\\n\\n" + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
+    answer = "".join(agent.backend.stream("You are an evidence-based software-agent self-audit component.", [core.Msg("user", prompt)], tools=None)).strip()
+    if not answer:
+        raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
+    record = {"text": answer, "created_at": time.time(), "backend": getattr(agent.backend, "label", "unknown")}
+    core.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (core.STATE_DIR / "self_reflection.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {"reflection": record}
+
+
 app = Litestar(
     route_handlers=[
         index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page,
         status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
+        goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
