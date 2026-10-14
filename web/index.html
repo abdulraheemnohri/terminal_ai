@@ -19,6 +19,7 @@
     <button data-view="diagnostics"><span class="ico">⌁</span><span class="nav-text">Diagnostics</span></button>
     <button data-view="memory"><span class="ico">◉</span><span class="nav-text">Memory</span></button>
     <button data-view="goals"><span class="ico">◎</span><span class="nav-text">Goals</span></button>
+    <button data-view="self"><span class="ico">✧</span><span class="nav-text">Self-awareness</span></button>
     <button data-view="settings"><span class="ico">⚙</span><span class="nav-text">Settings</span></button>
   </nav></div>
   <div class="side-foot"><span class="dot"></span><b id="side-state">Web interface</b><br>Local state storage<br><span id="side-version">Loading version…</span></div>
@@ -79,8 +80,31 @@
     </div>
   </section>
 
+  <section class="view" id="view-self">
+    <div class="grid">
+      <article class="card span-8">
+        <div class="card-head"><div><h2>Operational self-model</h2><p class="muted">Identity, current configuration and evidence-based reflection.</p></div><span class="badge">Self-X</span></div>
+        <div class="stats" id="self-stats"></div>
+        <div class="field"><label for="self-identity">Agent identity</label><input id="self-identity" maxlength="120" placeholder="Terminal AI"></div>
+        <div class="field"><label for="self-mission">Mission and operating principles</label><textarea id="self-mission" rows="3" maxlength="1000" placeholder="Help accurately and safely..."></textarea></div>
+        <label><input type="checkbox" id="self-reflection-enabled" style="width:auto;margin-right:8px"> Enable self-reflection</label>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="self-save">Save identity</button><button class="btn primary" id="self-reflect">Run self-review</button></div>
+        <div id="self-error" class="error"></div>
+      </article>
+      <article class="card span-4"><div class="card-head"><h2>Boundaries</h2></div><div class="notice">This is operational self-monitoring, not proof of sentience or subjective consciousness. Reflection can describe only available system state; it cannot grant itself new permissions or execute tools.</div><div class="list" id="self-capabilities" style="margin-top:12px"></div></article>
+      <article class="card span-12"><div class="card-head"><h2>Latest self-review</h2><span class="muted" id="self-reflection-time">No review yet</span></div><pre id="self-reflection-text" class="reflection">Run a self-review to inspect capabilities, limitations, risks and possible improvements.</pre></article>
+    </div>
+  </section>
+
   <section class="view" id="view-settings">
-    <div class="grid"><article class="card span-8"><div class="card-head"><h2>Agent configuration</h2><span class="badge">Saved locally</span></div><form id="settings-form"><div class="field"><label for="setting-mode">Backend mode</label><select id="setting-mode"><option value="auto">Auto — choose available backend</option><option value="cloud">Cloud — Gemini</option><option value="local">Local — LiteRT-LM</option><option value="hybrid">Hybrid — cloud and local fallback</option></select><p>Mode changes take effect when the agent is next initialized. Cloud mode requires GEMINI_API_KEY; local mode requires a supported LiteRT-LM model.</p></div><div class="field"><label><input type="checkbox" id="setting-critique" style="width:auto;margin-right:8px"> Enable self-critique</label></div><div class="field"><label><input type="checkbox" id="setting-proactive" style="width:auto;margin-right:8px"> Enable proactive suggestions</label></div><div class="field"><label for="setting-context">Maximum context characters</label><input type="number" id="setting-context" min="2000" max="50000" step="1000"></div><button class="btn primary" type="submit">Save settings</button><span id="settings-saved" class="muted" style="font-size:12px;margin-left:10px"></span><div id="settings-error" class="error"></div></form></article>
+    <div class="grid"><article class="card span-8"><div class="card-head"><h2>Agent configuration</h2><span class="badge">Saved locally</span></div><form id="settings-form"><div class="field"><label for="setting-mode">Backend mode</label><select id="setting-mode"><option value="auto">Auto — choose available backend</option><option value="cloud">Cloud — Gemini</option><option value="local">Local — LiteRT-LM</option><option value="hybrid">Hybrid — cloud and local fallback</option></select><p>Mode changes take effect when the agent is next initialized. Cloud mode requires GEMINI_API_KEY; local mode requires a supported LiteRT-LM model.</p></div>
+<div class="field"><label for="setting-provider">Cloud AI provider</label><select id="setting-provider">
+<option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="openrouter">OpenRouter</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="together">Together AI</option><option value="mistral">Mistral AI</option><option value="xai">xAI</option><option value="fireworks">Fireworks AI</option><option value="cerebras">Cerebras</option><option value="custom-openai">Custom OpenAI-compatible</option>
+</select><p>Choose the cloud API used by Cloud, Auto and Hybrid modes. Local mode remains LiteRT-LM Python API.</p></div>
+<div class="field"><label for="setting-model">Model ID (optional override)</label><input id="setting-model" type="text" maxlength="200" placeholder="Use provider default model"></div>
+<div class="field" id="custom-endpoint-field" hidden><label for="setting-endpoint">Custom API base URL</label><input id="setting-endpoint" type="url" placeholder="https://your-server.example/v1"></div>
+<div class="field"><label for="setting-api-key">API key (saved on this machine)</label><input id="setting-api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key"></div>
+<div class="notice">API keys are written to the local .env file and never returned to the browser. Keep this web server bound to localhost unless authentication is configured.</div><div class="field"><label><input type="checkbox" id="setting-critique" style="width:auto;margin-right:8px"> Enable self-critique</label></div><div class="field"><label><input type="checkbox" id="setting-proactive" style="width:auto;margin-right:8px"> Enable proactive suggestions</label></div><div class="field"><label for="setting-context">Maximum context characters</label><input type="number" id="setting-context" min="2000" max="50000" step="1000"></div><button class="btn primary" type="submit">Save settings</button><span id="settings-saved" class="muted" style="font-size:12px;margin-left:10px"></span><div id="settings-error" class="error"></div></form></article>
     <article class="card span-4"><div class="card-head"><h2>Security & storage</h2></div><div class="notice">Browser tool execution is disabled by default. Keep the server bound to localhost unless you have configured authentication and network access controls.</div><div class="list" style="margin-top:14px" id="storage-list"></div><p class="footer-note">Never paste API keys into chat or commit a real .env file. Configure credentials on the machine running Terminal AI.</p></article></div>
   </section>
   <div class="footer-note">Terminal AI · Litestar web interface · <a href="/schema/swagger" style="color:var(--cyan)">API docs</a> · Local-first state</div>
