@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 STATE_FILES = (
     "memory.json", "graph.json", "goals.json", "journal.md", "skills.json",
     "meta.json", "tools.json", "patterns.json", "stats.json",
-    "self_reflection.json", "selfx_state.json",
+    "self_reflection.json", "selfx_state.json", "web_settings.json",
 )
 SECRET_NAMES = {"hf_token", ".env", "credentials.json", "secrets.json"}
 
