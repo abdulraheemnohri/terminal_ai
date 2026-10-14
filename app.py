@@ -632,7 +632,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    backend_changed = any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url"))
+    backend_changed = bool(str(data.get("api_key", "")).strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url"))
     if backend_changed:
         if _AGENT is not None:
             try:
@@ -646,9 +646,13 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         _AGENT.critic.enabled = _AGENT.self_critique
         _AGENT.proactive = bool(current.get("proactive", False))
         _AGENT.max_ctx_chars = int(current.get("max_ctx_chars", 12000))
+    from api_provider_backend import PROVIDERS
+    provider_status = {pid: bool(os.environ.get(info["env"])) for pid, info in PROVIDERS.items()}
+    provider_status["gemini"] = _gemini_key() is not None
     return {
         **current,
         "gemini_configured": _gemini_key() is not None,
+        "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
     }
