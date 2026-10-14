@@ -130,3 +130,9 @@ def test_settings_reject_insecure_custom_remote_endpoint():
             "custom_base_url": "http://remote.example/v1",
         })
     assert response.status_code == 400
+
+
+def test_provider_connection_test_rejects_unknown_provider():
+    with TestClient(app=app) as client:
+        response = client.post("/api/providers/test", json={"provider_id": "unknown-provider"})
+    assert response.status_code == 400
