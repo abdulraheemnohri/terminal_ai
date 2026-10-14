@@ -298,7 +298,7 @@ async def get_settings() -> dict[str, Any]:
     settings = _read_settings()
     return {
         **settings,
-        "gemini_configured": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")),
+        "gemini_configured": _gemini_key() is not None,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
     }
