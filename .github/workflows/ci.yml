@@ -9,62 +9,33 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install test dependencies
-        run: pip install pytest
-
-      - name: Validate (compile + tests)
+      - name: Install project and test dependencies
         run: |
-          set +e
-          {
-            echo "### python -m py_compile terminal_ai.py"
-            python -m py_compile terminal_ai.py 2>&1
-            echo "py_compile exit code: $?"
-            echo ""
-            echo "### pytest tests/ -v"
-            pytest tests/ -v --color=no 2>&1
-            echo "pytest exit code: $?"
-          } | tee ci_output.txt
-          exit 0
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
-      - name: Report results to CI issue
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Check dependency consistency
+        run: python -m pip check
+
+      - name: Compile application modules
         run: |
-          if grep -q "pytest exit code: 0" ci_output.txt \
-             && grep -q "py_compile exit code: 0" ci_output.txt; then
-            STATUS="PASSED"
-          else
-            STATUS="FAILED"
-          fi
-          {
-            echo "## CI Test Report — ${STATUS}"
-            echo ""
-            echo "- **commit:** \`${GITHUB_SHA}\`"
-            echo "- **ref:** ${GITHUB_REF_NAME}"
-            echo "- **run:** [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
-            echo "- **date:** $(date -u '+%Y-%m-%d %H:%M UTC')"
-            echo ""
-            echo "\`\`\`"
-            tail -c 50000 ci_output.txt
-            echo "\`\`\`"
-          } > issue_body.md
-          num=$(gh issue list --state open --search "in:title CI Test Report" \
-                --json number --limit 1 -q '.[0].number' 2>/dev/null || echo "")
-          if [ -n "$num" ]; then
-            gh issue comment "$num" --body-file issue_body.md
-          else
-            gh issue create --title "CI Test Report" --body-file issue_body.md
-          fi
+          python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py
+
+      - name: Run test suite
+        run: python -m pytest tests/ -v --color=yes
