@@ -52,7 +52,7 @@ def test_provider_discovery_is_dynamic_and_local():
         response = client.get("/api/providers")
     assert response.status_code == 200
     payload = response.json()
-    assert {item["id"] for item in payload["providers"]} >= {"gemini", "litert-lm", "huggingface-hub"}
+    assert {item["id"] for item in payload["providers"]} >= {"gemini", "litert-lm", "huggingface-hub", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}
 
 
 def test_download_requires_explicit_confirmation():
@@ -101,3 +101,32 @@ def test_dashboard_assets_are_served_separately():
     assert "font-family" in css.text
     assert js.status_code == 200
     assert "routeViews" in js.text
+
+
+def test_self_status_exposes_operational_model_without_claiming_sentience():
+    with TestClient(app=app) as client:
+        response = client.get("/api/self/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "identity" in payload
+    assert "mission" in payload
+    assert "notice" in payload
+    assert "sentience" in payload["notice"]
+
+
+def test_self_reflection_can_be_disabled():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"self_reflection_enabled": False})
+        reflect = client.post("/api/self/reflect", json={})
+        client.patch("/api/settings", json={"self_reflection_enabled": True})
+    assert response.status_code == 200
+    assert reflect.status_code == 400
+
+
+def test_settings_reject_insecure_custom_remote_endpoint():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "active_provider": "custom-openai",
+            "custom_base_url": "http://remote.example/v1",
+        })
+    assert response.status_code == 400
