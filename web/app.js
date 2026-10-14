@@ -1,9 +1,9 @@
 const $=id=>document.getElementById(id);
 let statusData=null;
-const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",settings:"Settings"};
+const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
 async function loadStatus(){try{statusData=await api("/api/status");$("status-label").textContent=statusData.ready?"System online":"Setup required";$("status-dot").style.background=statusData.ready?"var(--green)":"var(--red)";$("metric-ready").textContent=statusData.ready?"Ready":"Setup";$("metric-backend").textContent=statusData.backend||"Not loaded";$("metric-mode").textContent="Mode: "+statusData.mode;$("metric-memory").textContent=statusData.memory_facts;$("metric-goals").textContent=statusData.active_goals;$("side-version").textContent="v"+statusData.version;$("side-state").textContent=statusData.ready?"Agent connected":"Backend not ready";$("system-list").innerHTML=[["Application",statusData.interface],["Version","v"+statusData.version],["Gemini key",statusData.gemini_configured?"Configured":"Not configured"],["Local models",statusData.local_models.length?statusData.local_models.join(", "):"No .litertlm files found"],["State directory",statusData.state_dir],["Uptime",statusData.uptime_seconds+" seconds"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");$("system-error").textContent=statusData.error||"";$("storage-list").innerHTML=[["State",statusData.state_dir],["Models",statusData.local_models.length+" found"],["Interface","Litestar + HTML/CSS/JS"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");}catch(e){$("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;}}
@@ -49,6 +49,18 @@ async function loadSettings(){
   $("setting-learning").checked=data.learning_enabled!==false;
   $("setting-auto-skills").checked=!!data.auto_extract_skills;
   $("setting-self-improve").checked=data.self_improvement_enabled!==false;
+  $("setting-self-diagnostics").checked=data.self_diagnostics_enabled!==false;
+  $("setting-self-repair").checked=data.self_repair_enabled!==false;
+  $("setting-self-research").checked=!!data.self_research_enabled;
+  $("setting-self-evaluation").checked=data.self_evaluation_enabled!==false;
+  $("setting-self-goals").checked=data.self_goals_enabled!==false;
+  $("setting-self-skills").checked=data.self_skills_enabled!==false;
+  $("setting-self-recovery").checked=data.self_recovery_enabled!==false;
+  $("setting-self-maintenance").checked=data.self_maintenance_enabled!==false;
+  $("setting-self-autonomous").checked=!!data.self_autonomous_enabled;
+  $("setting-self-checkpoint").checked=data.self_auto_checkpoint!==false;
+  $("setting-checkpoint-retention").value=data.self_checkpoint_retention||10;
+  $("setting-evaluation-interval").value=data.self_evaluation_interval_hours||24;
   $("setting-tool-approval").checked=data.tool_approval_required!==false;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
@@ -107,6 +119,18 @@ $("settings-form").addEventListener("submit",async e=>{
    learning_enabled:$("setting-learning").checked,
    auto_extract_skills:$("setting-auto-skills").checked,
    self_improvement_enabled:$("setting-self-improve").checked,
+   self_diagnostics_enabled:$("setting-self-diagnostics").checked,
+   self_repair_enabled:$("setting-self-repair").checked,
+   self_research_enabled:$("setting-self-research").checked,
+   self_evaluation_enabled:$("setting-self-evaluation").checked,
+   self_goals_enabled:$("setting-self-goals").checked,
+   self_skills_enabled:$("setting-self-skills").checked,
+   self_recovery_enabled:$("setting-self-recovery").checked,
+   self_maintenance_enabled:$("setting-self-maintenance").checked,
+   self_autonomous_enabled:$("setting-self-autonomous").checked,
+   self_auto_checkpoint:$("setting-self-checkpoint").checked,
+   self_checkpoint_retention:Number($("setting-checkpoint-retention").value),
+   self_evaluation_interval_hours:Number($("setting-evaluation-interval").value),
    tool_approval_required:$("setting-tool-approval").checked
   })});
   $("setting-hf-token").value="";
@@ -114,6 +138,54 @@ $("settings-form").addEventListener("submit",async e=>{
   await loadSettings();await loadStatus();
  }catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}
 });
+async function loadSelfX(){
+ try{
+  const data=await api("/api/selfx/status");
+  const latest=data.latest_diagnostic;
+  $("selfx-health").textContent=latest?latest.status:"Not checked";
+  $("selfx-score").textContent=data.latest_evaluation?data.latest_evaluation.score+"/100":"Not evaluated";
+  $("selfx-research-count").textContent=(data.research||[]).length;
+  $("selfx-checkpoint-count").textContent=(data.checkpoints||[]).length;
+  $("selfx-capabilities").innerHTML=(data.capabilities||[]).map(x=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(x.name)+'</b><span class="badge">'+escapeHtml(x.status)+'</span></div><p>'+escapeHtml(x.mode)+'</p></div>').join("");
+  $("selfx-events").innerHTML=(data.events||[]).length?(data.events||[]).map(x=>'<div class="list-item"><b>'+escapeHtml(x.kind)+'</b><p>'+escapeHtml(x.summary)+'</p><p class="muted">'+new Date(x.created_at*1000).toLocaleString()+'</p></div>').join(""):'<div class="empty">No Self-X activity recorded yet.</div>';
+  $("selfx-research-list").innerHTML=(data.research||[]).length?(data.research||[]).map(x=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(x.title)+'</b><span class="badge">'+escapeHtml(x.status)+'</span></div>'+(x.source_url?'<p><a href="'+escapeHtml(x.source_url)+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(x.source_url)+'</a></p>':'')+'<p>'+escapeHtml(x.notes||"No notes")+'</p><p class="muted">'+new Date(x.created_at*1000).toLocaleString()+'</p></div>').join(""):'<div class="empty">No research notes saved.</div>';
+  $("selfx-checkpoint-list").innerHTML=(data.checkpoints||[]).length?(data.checkpoints||[]).map(x=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(x.id)+'</b><span class="badge">'+escapeHtml(x.file_count)+' files</span></div><p class="muted">'+new Date(x.created_at*1000).toLocaleString()+'</p><button class="btn danger" data-selfx-restore="'+escapeHtml(x.id)+'">Restore checkpoint</button></div>').join(""):'<div class="empty">No recovery checkpoints yet.</div>';
+  if(latest){$("selfx-diagnostic-list").innerHTML=(latest.checks||[]).map(x=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(x.name)+'</b><span class="badge">'+(x.ok?"PASS":"CHECK")+'</span></div><p>'+escapeHtml(x.detail)+'</p></div>').join("");}
+  const ev=data.latest_evaluation;
+  if(ev){$("selfx-evaluation-list").innerHTML='<div class="list-item"><b>Score: '+escapeHtml(ev.score)+'/100</b><p>'+escapeHtml(ev.scope)+'</p></div>'+(ev.checks||[]).map(x=>'<div class="list-item"><b>'+escapeHtml(x.name)+'</b><p>'+(x.passed?"Passed":"Needs attention")+'</p></div>').join("");}
+  $("selfx-recovery-error").textContent="";
+ }catch(e){$("selfx-recovery-error").textContent=e.message;}
+}
+$("selfx-refresh").addEventListener("click",loadSelfX);
+$("selfx-diagnose").addEventListener("click",async()=>{
+ const b=$("selfx-diagnose");b.disabled=true;b.textContent="Checking…";
+ try{const r=await api("/api/selfx/diagnose",{method:"POST",body:"{}"});const d=r.diagnostic;$("selfx-health").textContent=d.status;$("selfx-diagnostic-list").innerHTML=(d.checks||[]).map(x=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(x.name)+'</b><span class="badge">'+(x.ok?"PASS":"CHECK")+'</span></div><p>'+escapeHtml(x.detail)+'</p></div>').join("");await loadSelfX();}
+ catch(e){$("selfx-recovery-error").textContent=e.message;}finally{b.disabled=false;b.textContent="Run checks";}
+});
+$("selfx-evaluate").addEventListener("click",async()=>{
+ const b=$("selfx-evaluate");b.disabled=true;b.textContent="Evaluating…";
+ try{const r=await api("/api/selfx/evaluate",{method:"POST",body:"{}"});const ev=r.evaluation;$("selfx-score").textContent=ev.score+"/100";$("selfx-evaluation-list").innerHTML='<div class="list-item"><b>Score: '+escapeHtml(ev.score)+'/100</b><p>'+escapeHtml(ev.scope)+'</p></div>'+(ev.checks||[]).map(x=>'<div class="list-item"><b>'+escapeHtml(x.name)+'</b><p>'+(x.passed?"Passed":"Needs attention")+'</p></div>').join("");await loadSelfX();}
+ catch(e){$("selfx-recovery-error").textContent=e.message;}finally{b.disabled=false;b.textContent="Evaluate readiness";}
+});
+$("selfx-research-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("selfx-research-error").textContent="";
+ try{await api("/api/selfx/research",{method:"POST",body:JSON.stringify({title:$("selfx-research-title").value,source_url:$("selfx-research-url").value,notes:$("selfx-research-notes").value})});$("selfx-research-title").value="";$("selfx-research-url").value="";$("selfx-research-notes").value="";await loadSelfX();}
+ catch(err){$("selfx-research-error").textContent=err.message;}
+});
+$("selfx-checkpoint").addEventListener("click",async()=>{
+ const b=$("selfx-checkpoint");b.disabled=true;b.textContent="Creating…";
+ try{const r=await api("/api/selfx/checkpoints",{method:"POST",body:"{}"});$("selfx-recovery-error").textContent="Checkpoint created: "+r.checkpoint.id;await loadSelfX();}
+ catch(e){$("selfx-recovery-error").textContent=e.message;}finally{b.disabled=false;b.textContent="Create checkpoint";}
+});
+$("selfx-checkpoint-list").addEventListener("click",async e=>{
+ const b=e.target.closest("[data-selfx-restore]");if(!b)return;
+ const id=b.dataset.selfxRestore;
+ if(!confirm("Restore checkpoint "+id+"? Current state will first be saved to a safety checkpoint. The active agent will be reset."))return;
+ b.disabled=true;
+ try{const r=await api("/api/selfx/restore",{method:"POST",body:JSON.stringify({checkpoint_id:id,confirm:true})});$("selfx-recovery-error").textContent="Restored. Safety checkpoint: "+r.safety_checkpoint+". Reopen chat to reinitialize the agent.";await loadSelfX();}
+ catch(err){$("selfx-recovery-error").textContent=err.message;b.disabled=false;}
+});
+
 async function loadSelf(){
  try{
   const state=await api("/api/self/status");
@@ -216,6 +288,6 @@ $("improvement-list").addEventListener("click",async e=>{
  catch(err){$("improvements-error").textContent=err.message;}
 });
 
-const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/settings":"settings"};
+const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
 const initialView=routeViews[location.pathname]||new URLSearchParams(location.search).get("view");
 if(titles[initialView])showView(initialView);

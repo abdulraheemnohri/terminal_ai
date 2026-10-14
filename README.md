@@ -2,6 +2,22 @@
 
 Terminal AI is a Python agent served through a Litestar web dashboard. The browser UI is the primary interface; `terminal_ai.py` is the internal agent engine imported by `app.py`.
 
+## Self-X Evolution Engine
+
+The **Self-X** web dashboard adds operational self-identity/status, local diagnostics, deterministic readiness evaluation, an unverified research notebook, and state recovery checkpoints.
+
+- **Self-identity/reflection:** user-configured identity and mission; operational reflection must not claim sentience.
+- **Self-diagnostics:** local checks for Python/platform, writable state, model inventory, LiteRT-LM API availability, disk space, and required project files.
+- **Self-repair:** evidence-based proposals only; no automatic source edits, shell execution, dependency installation, or permission changes.
+- **Self-research:** manually curated local research notes with optional HTTP(S) source references; notes remain unverified and URLs are not fetched automatically.
+- **Self-evaluation:** deterministic operational readiness checks, not an intelligence benchmark.
+- **Self-goals / self-skills:** existing goal planner and reviewed reusable procedure library, controlled by independent settings.
+- **Self-learning:** local memories, skill procedures, and outcome records; no model-weight training.
+- **Self-recovery:** checksummed allowlisted state checkpoints and explicitly confirmed restore; restores create a safety checkpoint first and exclude Hugging Face tokens and other secret files.
+- **Self-maintenance:** advisory proposals and manual update review. When explicitly enabled, a background worker runs local diagnostics/evaluation at the configured interval. It does not execute commands, apply repairs, install dependencies, or update source code.
+
+Self-X data is stored locally in the Terminal AI state directory. Keep the web UI on localhost unless authentication and network access controls are configured.
+
 ## What it includes
 
 - Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Goals, Self-awareness, and Settings.

@@ -26,6 +26,7 @@ from litestar.response import Response
 from litestar.static_files import create_static_files_router
 
 import terminal_ai as core
+from selfx_engine import SelfXEngine
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -67,6 +68,18 @@ def _read_settings() -> dict[str, Any]:
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
         "self_reflection_enabled": True,
+        "self_diagnostics_enabled": True,
+        "self_repair_enabled": True,
+        "self_research_enabled": False,
+        "self_evaluation_enabled": True,
+        "self_goals_enabled": True,
+        "self_skills_enabled": True,
+        "self_recovery_enabled": True,
+        "self_maintenance_enabled": True,
+        "self_autonomous_enabled": False,
+        "self_auto_checkpoint": True,
+        "self_checkpoint_retention": 10,
+        "self_evaluation_interval_hours": 24,
         "learning_enabled": True,
         "self_improvement_enabled": True,
         "auto_extract_skills": False,
@@ -309,6 +322,11 @@ async def improvements_page() -> Response:
     return await _index_response()
 
 
+@get("/selfx")
+async def selfx_page() -> Response:
+    return await _index_response()
+
+
 @get("/api/status")
 async def status() -> dict[str, Any]:
     _load_env()
@@ -407,6 +425,8 @@ async def goals() -> dict[str, Any]:
 
 @post("/api/goals")
 async def add_goal(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_goals_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-goal tracking is disabled in Settings.")
     text = str(data.get("text", "")).strip()
     if not text or len(text) > 2000:
         raise HTTPException(status_code=400, detail="Goal must be 1–2000 characters.")
@@ -440,6 +460,8 @@ async def list_skills() -> dict[str, Any]:
 @post("/api/skills")
 async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
     settings = _read_settings()
+    if not settings.get("self_skills_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-skills are disabled in Settings.")
     if not settings.get("learning_enabled", True):
         raise HTTPException(status_code=400, detail="Learning is disabled in Settings.")
     name = str(data.get("name", "")).strip()
@@ -464,6 +486,8 @@ async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/skills/delete")
 async def delete_skill(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_skills_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-skills are disabled in Settings.")
     name = str(data.get("name", "")).strip()
     if not name:
         raise HTTPException(status_code=400, detail="Skill name is required.")
@@ -528,8 +552,8 @@ async def learning_status() -> dict[str, Any]:
 async def self_improvements() -> dict[str, Any]:
     """Return evidence-based, deterministic improvement ideas; never modify code or permissions."""
     settings = _read_settings()
-    if not settings.get("self_improvement_enabled", True):
-        return {"enabled": False, "proposals": [], "notice": "Self-improvement proposals are disabled in Settings."}
+    if not settings.get("self_improvement_enabled", True) or not settings.get("self_repair_enabled", True) or not settings.get("self_maintenance_enabled", True):
+        return {"enabled": False, "proposals": [], "notice": "Self-improvement, advisory repair, or maintenance suggestions are disabled in Settings."}
     proposals = []
     if _AGENT is None:
         proposals.append({"id": "initialize-backend", "title": "Configure and verify a model backend",
@@ -850,9 +874,24 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         current["self_mission"] = str(data["self_mission"]).strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
-    for setting_key in ("learning_enabled", "self_improvement_enabled", "auto_extract_skills", "tool_approval_required"):
+    for setting_key in (
+        "learning_enabled", "self_improvement_enabled", "auto_extract_skills",
+        "tool_approval_required", "self_diagnostics_enabled", "self_repair_enabled",
+        "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
+        "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
+        "self_autonomous_enabled", "self_auto_checkpoint",
+    ):
         if setting_key in data:
             current[setting_key] = bool(data[setting_key])
+    for setting_key, minimum, maximum in (
+        ("self_checkpoint_retention", 1, 30),
+        ("self_evaluation_interval_hours", 1, 168),
+    ):
+        if setting_key in data:
+            try:
+                current[setting_key] = max(minimum, min(maximum, int(data[setting_key])))
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"{setting_key} must be an integer from {minimum} to {maximum}.")
     if "updates_enabled" in data:
         current["updates_enabled"] = bool(data["updates_enabled"])
     if "update_channel" in data:
@@ -890,6 +929,12 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         manager.load(apply=True)
         if not manager.set(env_name, str(data["api_key"]).strip(), persist=True):
             raise HTTPException(status_code=400, detail="Could not save API key.")
+    if current.get("self_auto_checkpoint", True) and any(current.get(k) != previous.get(k) for k in current if k != "last_update_check"):
+        try:
+            engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
+            await asyncio.to_thread(engine.create_checkpoint)
+        except OSError:
+            logger.warning("Automatic pre-settings checkpoint failed", exc_info=True)
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
@@ -948,6 +993,85 @@ def _self_status_payload() -> dict[str, Any]:
 @get("/api/self/status")
 async def self_status() -> dict[str, Any]:
     return _self_status_payload()
+
+
+def _selfx_engine() -> SelfXEngine:
+    return SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
+
+
+@get("/api/selfx/status")
+async def selfx_status() -> dict[str, Any]:
+    settings = _read_settings()
+    data = _selfx_engine().status()
+    data["settings"] = {key: settings.get(key) for key in (
+        "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled",
+        "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
+        "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
+        "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+    )}
+    return data
+
+
+@post("/api/selfx/diagnose")
+async def selfx_diagnose() -> dict[str, Any]:
+    if not _read_settings().get("self_diagnostics_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-diagnostics are disabled in Settings.")
+    return {"diagnostic": await asyncio.to_thread(_selfx_engine().diagnose)}
+
+
+@post("/api/selfx/evaluate")
+async def selfx_evaluate() -> dict[str, Any]:
+    if not _read_settings().get("self_evaluation_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-evaluation is disabled in Settings.")
+    return {"evaluation": await asyncio.to_thread(_selfx_engine().evaluate)}
+
+
+@post("/api/selfx/research")
+async def selfx_research(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_research_enabled", False):
+        raise HTTPException(status_code=400, detail="Self-research log is disabled in Settings.")
+    try:
+        item = _selfx_engine().add_research(str(data.get("title", "")), str(data.get("notes", "")), str(data.get("source_url", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"research": item}
+
+
+@post("/api/selfx/checkpoints")
+async def selfx_checkpoint() -> dict[str, Any]:
+    if not _read_settings().get("self_recovery_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-recovery is disabled in Settings.")
+    try:
+        manifest = await asyncio.to_thread(_selfx_engine().create_checkpoint)
+        retention = int(_read_settings().get("self_checkpoint_retention", 10))
+        backup_dir = core.STATE_DIR / "backups" / "selfx"
+        checkpoints = sorted((p for p in backup_dir.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
+        for old in checkpoints[retention:]:
+            shutil.rmtree(old, ignore_errors=True)
+        return {"checkpoint": manifest}
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Checkpoint failed: {exc}") from exc
+
+
+@post("/api/selfx/restore")
+async def selfx_restore(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_recovery_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-recovery is disabled in Settings.")
+    try:
+        result = await asyncio.to_thread(_selfx_engine().restore_checkpoint, str(data.get("checkpoint_id", "")), data.get("confirm") is True)
+        global _AGENT, _BACKEND
+        if _AGENT is not None:
+            try:
+                _AGENT.backend.close()
+            except Exception:
+                pass
+        _AGENT = None
+        _BACKEND = None
+        return {"status": "restored", **result, "restart_agent_required": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=500, detail=f"Restore failed: {exc}") from exc
 
 
 @post("/api/self/reflect")
@@ -1096,6 +1220,47 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
 
 
 _UPDATE_TASK: asyncio.Task | None = None
+_SELFX_TASK: asyncio.Task | None = None
+
+
+async def _automatic_selfx_maintenance() -> None:
+    """Run safe local checks only when the user explicitly enables Self-X autonomy."""
+    engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
+    while True:
+        try:
+            settings = _read_settings()
+            if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
+                interval = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24)))) * 3600
+                state = engine.status()
+                latest_eval = state.get("latest_evaluation") or {}
+                due = not latest_eval or time.time() - float(latest_eval.get("created_at", 0)) >= interval
+                if due:
+                    if settings.get("self_evaluation_enabled", True):
+                        await asyncio.to_thread(engine.evaluate)
+                    elif settings.get("self_diagnostics_enabled", True):
+                        await asyncio.to_thread(engine.diagnose)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("Self-X scheduled maintenance check failed", exc_info=True)
+        await asyncio.sleep(60)
+
+
+async def _start_selfx_maintenance() -> None:
+    global _SELFX_TASK
+    if _SELFX_TASK is None or _SELFX_TASK.done():
+        _SELFX_TASK = asyncio.create_task(_automatic_selfx_maintenance())
+
+
+async def _stop_selfx_maintenance() -> None:
+    global _SELFX_TASK
+    if _SELFX_TASK is not None:
+        _SELFX_TASK.cancel()
+        try:
+            await _SELFX_TASK
+        except asyncio.CancelledError:
+            pass
+        _SELFX_TASK = None
 
 
 async def _automatic_update_checker() -> None:
@@ -1141,13 +1306,13 @@ async def _stop_update_checker() -> None:
 app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
-        skills_page, tools_page, learning_page, improvements_page,
+        skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, list_skills, create_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect, update_status, check_updates, apply_update,
+        models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
-    on_startup=[_start_update_checker],
-    on_shutdown=[_stop_update_checker],
+    on_startup=[_start_update_checker, _start_selfx_maintenance],
+    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance],
 )
