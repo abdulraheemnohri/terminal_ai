@@ -7,8 +7,8 @@ The terminal REPL is no longer the user interface. `terminal_ai.py` remains the 
 ## Features
 
 - **Litestar web server** with typed HTTP endpoints and generated OpenAPI docs.
-- **Responsive dark dashboard** with Overview, AI Chat, Models, Diagnostics, Memory, Goals, and Settings pages.
-- **Gemini cloud backend** and optional **LiteRT-LM local backend**.
+- **Responsive dark dashboard** with directly addressable Overview (`/overview`), AI Chat (`/chat`), Models (`/models`), Diagnostics (`/diagnostics`), Memory (`/memory`), Goals (`/goals`), and Settings (`/settings`) pages; shared CSS/JavaScript are served from `/static/app.css` and `/static/app.js`.
+- **Gemini cloud backend** and **LiteRT-LM Python API** local inference (`litert_lm.Engine` / `create_conversation`; no CLI subprocess for inference).
 - **Auto / Cloud / Local / Hybrid** backend modes.
 - **Persistent conversation history**, memory facts, goals, and sessions.
 - **Memory manager** to add and forget saved facts.
@@ -85,7 +85,7 @@ HF_TOKEN=replace_with_your_huggingface_token
 - `TERMINAL_AI_MODELS`: override the local model directory.
 - `TERMINAL_AI_GEMINI_MODEL`: override the Gemini model name.
 
-The application loads environment values from the process environment and the local `.env` file. Existing process environment variables take precedence. A local model must already be installed and supported by the LiteRT-LM runtime; the web app does not silently download large model files on startup.
+The application loads environment values from the process environment and the local `.env` file. Existing process environment variables take precedence. A local `.litertlm` model must already be installed and supported by the LiteRT-LM Python API; the web app does not silently download large model files on startup.
 
 ## API overview
 
