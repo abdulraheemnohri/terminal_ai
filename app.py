@@ -100,7 +100,8 @@ def _build_agent() -> core.Agent:
 
     if local_path and mode in {"auto", "local", "hybrid"}:
         try:
-            local = core.LiteRTBackend(local_path)
+            from litert_api_backend import LiteRTPythonBackend
+            local = LiteRTPythonBackend(local_path)
         except Exception as exc:
             if not _ENGINE_ERROR:
                 _ENGINE_ERROR = f"Local backend unavailable: {exc}"
