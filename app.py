@@ -9,6 +9,9 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
+import urllib.request
+import urllib.error
 import time
 import uuid
 import threading
@@ -789,11 +792,94 @@ async def self_reflect() -> dict[str, Any]:
     return {"reflection": record}
 
 
+def _check_github_update() -> dict[str, Any]:
+    settings = _read_settings()
+    branch = settings.get("update_channel", "main")
+    url = f"https://api.github.com/repos/abdulraheemnohri/terminal_ai/commits/{branch}"
+    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Terminal-AI-Updater"})
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub update check failed (HTTP {exc.code}).") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Could not reach GitHub to check updates: {exc}") from exc
+    remote = str(payload.get("sha", ""))
+    local = ""
+    try:
+        result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=3, check=True)
+        local = result.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"repository": "abdulraheemnohri/terminal_ai", "channel": branch,
+            "latest_sha": remote, "local_sha": local or None,
+            "update_available": bool(remote and local and remote != local),
+            "commit_url": payload.get("html_url"),
+            "commit_message": (payload.get("commit", {}).get("message", "") or "").splitlines()[0][:240],
+            "checked_at": time.time()}
+
+
+@get("/api/updates/status")
+async def update_status() -> dict[str, Any]:
+    settings = _read_settings()
+    return {"enabled": bool(settings.get("updates_enabled", False)),
+            "channel": settings.get("update_channel", "main"),
+            "interval_hours": settings.get("update_check_interval_hours", 24),
+            "last_check": settings.get("last_update_check", 0),
+            "last_result": settings.get("last_update_result", "Not checked yet"),
+            "install_method": "git" if (ROOT / ".git").exists() else "manual"}
+
+
+@post("/api/updates/check")
+async def check_updates() -> dict[str, Any]:
+    try:
+        info = await asyncio.to_thread(_check_github_update)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    settings = _read_settings()
+    settings["last_update_check"] = info["checked_at"]
+    settings["last_update_result"] = "Update available" if info["update_available"] else "No update detected"
+    _write_settings(settings)
+    return info
+
+
+@post("/api/updates/apply")
+async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
+    if data.get("confirm") is not True:
+        raise HTTPException(status_code=400, detail="Explicit confirmation is required to apply an update.")
+    if not (ROOT / ".git").exists():
+        raise HTTPException(status_code=400, detail="This installation is not a Git checkout; use your original installation method.")
+    try:
+        status_result = await asyncio.to_thread(
+            lambda: subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True)
+        )
+        if status_result.stdout.strip():
+            raise HTTPException(status_code=409, detail="Update blocked because local files have uncommitted changes.")
+        info = await asyncio.to_thread(_check_github_update)
+        if not info["update_available"]:
+            return {"updated": False, "message": "No newer commit detected.", "restart_required": False}
+        backup_dir = core.BACKUP_DIR / f"pre-update-{int(time.time())}"
+        backup_dir.mkdir(parents=True, exist_ok=False)
+        archive = await asyncio.to_thread(shutil.make_archive, str(backup_dir / "state-backup"), "zip", str(core.STATE_DIR))
+        def pull_fast_forward() -> subprocess.CompletedProcess[str]:
+            subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=ROOT, capture_output=True, text=True, timeout=90, check=True)
+            return subprocess.run(["git", "merge", "--ff-only", "FETCH_HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=90)
+        result = await asyncio.to_thread(pull_fast_forward)
+        if result.returncode:
+            raise RuntimeError((result.stderr or result.stdout or "Git fast-forward update failed.")[:600])
+        return {"updated": True, "message": "Update applied. Restart Terminal AI to load the new code.",
+                "restart_required": True, "backup": archive, "commit": info["latest_sha"]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Update failed. Restart is not automatic. {str(exc)[:500]}") from exc
+
+
 app = Litestar(
     route_handlers=[
         index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
+        goals, add_goal, complete_goal, sessions, models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
