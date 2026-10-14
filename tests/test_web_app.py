@@ -136,3 +136,35 @@ def test_provider_connection_test_rejects_unknown_provider():
     with TestClient(app=app) as client:
         response = client.post("/api/providers/test", json={"provider_id": "unknown-provider"})
     assert response.status_code == 400
+
+
+
+def test_update_status_is_available_without_network():
+    with TestClient(app=app) as client:
+        response = client.get("/api/updates/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["enabled"] is False
+    assert payload["channel"] == "main"
+    assert payload["interval_hours"] == 24
+
+
+def test_update_apply_requires_explicit_confirmation():
+    with TestClient(app=app) as client:
+        response = client.post("/api/updates/apply", json={})
+    assert response.status_code == 400
+
+
+def test_update_interval_is_bounded_and_persisted():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "updates_enabled": True,
+            "update_check_interval_hours": 2,
+        })
+        status = client.get("/api/updates/status")
+        client.patch("/api/settings", json={"updates_enabled": False, "update_check_interval_hours": 24})
+    assert response.status_code == 200
+    assert response.json()["update_check_interval_hours"] == 6
+    assert status.status_code == 200
+    assert status.json()["enabled"] is True
+    assert status.json()["interval_hours"] == 6
