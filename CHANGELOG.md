@@ -2,6 +2,14 @@
 
 This file records notable changes to Terminal AI. Dates describe repository changes, not guarantees of compatibility with every platform.
 
+## Unreleased — local LiteRT-LM inference fixes
+
+- Fix the duplicate module header block that caused Python import/syntax failures.
+- Handle LiteRT-LM 0.18 Message stream chunks and return the visible answer channel instead of dropping all output.
+- Disable Qwen3 thinking for concise chat inference so the output budget is not consumed by hidden reasoning tokens.
+- Add regression tests for LiteRT-LM message parsing and thinking configuration.
+- Document how to use the already-downloaded Qwen3-0.6B model with no cloud API while offline.
+
 ## Unreleased — documentation and installer maintenance
 
 - Updated README and installation guide to match the Litestar web-first architecture, supported provider controls, LiteRT-LM Python API, current UI/API routes, and local storage behavior.

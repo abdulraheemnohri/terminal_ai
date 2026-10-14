@@ -38,19 +38,53 @@ class LiteRTPythonBackend(core.Backend):
 
     @staticmethod
     def _chunk_text(chunk: Any) -> str:
+        """Extract user-facing text from LiteRT-LM stream chunks.
+
+        LiteRT-LM 0.18 can yield Message objects whose visible output is stored
+        in channels rather than a dict's content field. Deliberately do not
+        expose thought/analysis channels as user-facing answers.
+        """
         if isinstance(chunk, str):
             return chunk
-        if not isinstance(chunk, dict):
+
+        if isinstance(chunk, dict):
+            content = chunk.get("content", "")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict) and isinstance(item.get("text"), str):
+                        parts.append(item["text"])
+                return "".join(parts)
             return ""
-        content = chunk.get("content", [])
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
+
+        channels = getattr(chunk, "channels", None)
+        if isinstance(channels, dict):
+            # LiteRT Message chunks can contain thought tokens before the final
+            # answer. Never display internal reasoning as the assistant reply.
+            for key in ("text", "answer", "final", "output_text"):
+                value = channels.get(key)
+                if isinstance(value, str) and value:
+                    return value
+
+        contents = getattr(chunk, "contents", None)
+        items = getattr(contents, "items", contents)
+        if items is not None:
             parts = []
-            for item in content:
-                if isinstance(item, dict) and isinstance(item.get("text"), str):
-                    parts.append(item["text"])
-            return "".join(parts)
+            try:
+                for item in items:
+                    if isinstance(item, dict):
+                        value = item.get("text")
+                    else:
+                        value = getattr(item, "text", None)
+                    if isinstance(value, str) and value:
+                        parts.append(value)
+            except TypeError:
+                pass
+            if parts:
+                return "".join(parts)
+
         return ""
 
     def stream(self, system: str, history: list[core.Msg],
@@ -69,10 +103,18 @@ class LiteRTPythonBackend(core.Backend):
         )
         try:
             with lm.Engine(str(self.model_path), backend=lm.Backend.CPU()) as engine:
+                # Qwen3 defaults to a separate thought channel. Disable
+                # thinking for this chat backend so short responses do not
+                # spend the entire output budget on hidden reasoning tokens.
+                thinking_config = lm.ThinkingConfig(
+                    enable_thinking=False,
+                    thinking_token_budget=0,
+                )
                 with engine.create_conversation(
                     messages=messages or None,
                     system_message=system or None,
                     max_output_tokens=self.max_output_tokens,
+                    thinking_config=thinking_config,
                 ) as conversation:
                     for chunk in conversation.send_message_async(latest_user_message):
                         text = self._chunk_text(chunk)
