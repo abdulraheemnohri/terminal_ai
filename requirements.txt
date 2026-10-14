@@ -1,7 +1,9 @@
-# terminal-ai runtime dependencies
-google-genai        # Gemini cloud backend
-litert-lm           # local 1B model backend
-huggingface_hub     # model downloads from HF
+# Terminal AI web application runtime
+litestar[standard]
+google-genai
+litert-lm
+huggingface_hub
 
 # testing
 pytest
+httpx
