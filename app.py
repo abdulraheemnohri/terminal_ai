@@ -566,9 +566,13 @@ async def diagnostics() -> dict[str, Any]:
 async def get_settings() -> dict[str, Any]:
     _load_env()
     settings = _read_settings()
+    from api_provider_backend import PROVIDERS
+    provider_status = {pid: bool(os.environ.get(info["env"])) for pid, info in PROVIDERS.items()}
+    provider_status["gemini"] = _gemini_key() is not None
     return {
         **settings,
         "gemini_configured": _gemini_key() is not None,
+        "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
     }
