@@ -2577,7 +2577,7 @@ class HybridBackend(Backend):
             dbg("hybrid", f"primary failed: {e}")
             # Fallback
             if self._active == self.cloud and self.local:
-                warn(f"Cloud failed, falling back to local")
+                warn(f"Cloud backend failed ({type(e).__name__}); falling back to local")
                 self._active = self.local
                 self.label = "hybrid->local (fallback)"
                 yield from self.local.stream(system, history, tools)
