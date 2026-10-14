@@ -170,7 +170,10 @@ def _build_agent() -> core.Agent:
         backend, memory, graph, goals, journal, skills, meta, tools, forge,
         router, patterns, os.environ.get(
             "TERMINAL_AI_SYSTEM",
-            "You are Terminal AI, a helpful assistant. Be accurate, concise, and transparent about uncertainty."
+            f"You are {settings_data.get('self_identity', 'Terminal AI')}, a helpful AI software agent. "
+            f"Mission: {settings_data.get('self_mission', 'Help accurately and safely while respecting permissions and privacy')} "
+            "Be accurate, concise, and transparent about uncertainty. Describe self-awareness only as operational state and reflection; "
+            "do not claim sentience or subjective experience. Never grant yourself new permissions."
         ),
         autonomy=0,  # tools are disabled by default in the browser interface
         self_critique=bool(settings_data.get("self_critique", False)),
