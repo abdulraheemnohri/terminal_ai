@@ -54,6 +54,12 @@ def _read_settings() -> dict[str, Any]:
         "self_critique": False,
         "proactive": False,
         "max_ctx_chars": 12000,
+        "active_provider": "gemini",
+        "provider_model": "",
+        "custom_base_url": "",
+        "self_identity": "Terminal AI",
+        "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
+        "self_reflection_enabled": True,
     }
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
