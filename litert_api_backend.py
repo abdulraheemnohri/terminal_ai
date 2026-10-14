@@ -38,19 +38,53 @@ class LiteRTPythonBackend(core.Backend):
 
     @staticmethod
     def _chunk_text(chunk: Any) -> str:
+        """Extract user-facing text from LiteRT-LM stream chunks.
+
+        LiteRT-LM 0.18 can yield Message objects whose visible output is stored
+        in channels rather than a dict's content field. Deliberately do not
+        expose thought/analysis channels as user-facing answers.
+        """
         if isinstance(chunk, str):
             return chunk
-        if not isinstance(chunk, dict):
+
+        if isinstance(chunk, dict):
+            content = chunk.get("content", "")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict) and isinstance(item.get("text"), str):
+                        parts.append(item["text"])
+                return "".join(parts)
             return ""
-        content = chunk.get("content", [])
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
+
+        channels = getattr(chunk, "channels", None)
+        if isinstance(channels, dict):
+            # LiteRT Message chunks can contain thought tokens before the final
+            # answer. Never display internal reasoning as the assistant reply.
+            for key in ("text", "answer", "final", "output_text"):
+                value = channels.get(key)
+                if isinstance(value, str) and value:
+                    return value
+
+        contents = getattr(chunk, "contents", None)
+        items = getattr(contents, "items", contents)
+        if items is not None:
             parts = []
-            for item in content:
-                if isinstance(item, dict) and isinstance(item.get("text"), str):
-                    parts.append(item["text"])
-            return "".join(parts)
+            try:
+                for item in items:
+                    if isinstance(item, dict):
+                        value = item.get("text")
+                    else:
+                        value = getattr(item, "text", None)
+                    if isinstance(value, str) and value:
+                        parts.append(value)
+            except TypeError:
+                pass
+            if parts:
+                return "".join(parts)
+
         return ""
 
     def stream(self, system: str, history: list[core.Msg],
