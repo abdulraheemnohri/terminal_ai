@@ -29,6 +29,12 @@ _LOCK = asyncio.Lock()
 _STARTED_AT = time.time()
 
 
+def _load_env() -> None:
+    env_path = ROOT / ".env"
+    manager = core.EnvManager(env_file=env_path, workspace=ROOT) if env_path.is_file() else core.EnvManager(workspace=ROOT)
+    manager.load(apply=True)
+
+
 def _read_settings() -> dict[str, Any]:
     defaults: dict[str, Any] = {
         "mode": os.environ.get("TERMINAL_AI_MODE", "auto"),
@@ -56,8 +62,10 @@ def _write_settings(settings: dict[str, Any]) -> None:
 
 def _build_agent() -> core.Agent:
     global _BACKEND, _ENGINE_ERROR
+    _ENGINE_ERROR = None
     settings_data = _read_settings()
-    env_mgr = core.EnvManager(workspace=ROOT)
+    _load_env()
+    env_mgr = core.EnvManager(env_file=ROOT / ".env", workspace=ROOT) if (ROOT / ".env").is_file() else core.EnvManager(workspace=ROOT)
     env_mgr.load(apply=True)
 
     registry = core.ModelRegistry()
@@ -133,6 +141,7 @@ def _build_agent() -> core.Agent:
     )
     _BACKEND = backend
     _ENGINE_ERROR = None
+    agent.mode = mode
     return agent
 
 
@@ -157,6 +166,7 @@ async def index() -> Response:
 
 @get("/api/status")
 async def status() -> dict[str, Any]:
+    _load_env()
     settings = _read_settings()
     agent = _AGENT
     return {
@@ -277,6 +287,7 @@ async def sessions() -> dict[str, Any]:
 
 @get("/api/settings")
 async def get_settings() -> dict[str, Any]:
+    _load_env()
     settings = _read_settings()
     return {
         **settings,
