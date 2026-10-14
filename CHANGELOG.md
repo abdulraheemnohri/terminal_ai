@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Self-X Evolution Engine
+
+- Add local Self-X dashboard for diagnostics, operational evaluation, research notes, recovery checkpoints, capability status, and activity history.
+- Add configurable self-diagnostics, advisory repair, research, evaluation, goal, skill, recovery, maintenance, and guarded-autonomy preferences.
+- Add checksummed state checkpoints and explicitly confirmed restore with a safety checkpoint; exclude token and secret files.
+- Add tests for local diagnostics, evaluation, research URL validation, checkpoint security, and recovery.
+
 This file records notable changes to Terminal AI. Dates describe repository changes, not guarantees of compatibility with every platform.
 
 ## Unreleased — local LiteRT-LM inference fixes
