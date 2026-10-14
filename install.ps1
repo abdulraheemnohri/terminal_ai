@@ -7,7 +7,7 @@ if (-not $PyLauncher) {
     throw "Python launcher 'py' was not found. Install Python 3.10+ and retry."
 }
 
-& py -3 -c "import sys; sys.exit(0 if sys.version_info -ge (3, 10) else 1)"
+& py -3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)"
 if ($LASTEXITCODE -ne 0) {
     throw "Python 3.10 or newer is required. Install a supported Python version and retry."
 }
