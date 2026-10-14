@@ -36,13 +36,12 @@
   INSTALL
       pip install google-genai litert-lm huggingface_hub
 
-  RUN
-      export GEMINI_API_KEY="..."
-      export HF_TOKEN="..."   # for gated models
-      python terminal_ai.py                       # auto mode
-      python terminal_ai.py --mode hybrid         # hybrid
-      python terminal_ai.py --mode local          # offline only
-      python terminal_ai.py --auto-download       # fetch local model if missing
+  WEB APP
+      litestar --app app:app run --host 127.0.0.1 --port 8000
+      open http://127.0.0.1:8000 in a browser
+
+  This module is the internal agent engine. The terminal REPL is no longer
+  the supported interface; use app.py for the Litestar web application.
 ================================================================================
 """
 
@@ -3643,8 +3642,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        print()
-        raise SystemExit(130)
+    print(
+        "The terminal interface has been replaced by the Litestar web app.\n"
+        "Install dependencies, then run: litestar --app app:app run "
+        "--host 127.0.0.1 --port 8000"
+    )
+    raise SystemExit(2)
