@@ -1,7 +1,7 @@
 # Terminal AI web application runtime
 litestar[standard]
 google-genai
-litert-lm
+litert-lm-api
 huggingface_hub
 
 # testing
