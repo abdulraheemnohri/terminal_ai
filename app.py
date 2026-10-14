@@ -177,6 +177,41 @@ async def index() -> Response:
     return Response(content=page.read_text(encoding="utf-8"), media_type="text/html")
 
 
+@get("/overview")
+async def overview_page() -> Response:
+    return await index()
+
+
+@get("/chat")
+async def chat_page() -> Response:
+    return await index()
+
+
+@get("/models")
+async def models_page() -> Response:
+    return await index()
+
+
+@get("/diagnostics")
+async def diagnostics_page() -> Response:
+    return await index()
+
+
+@get("/memory")
+async def memory_page() -> Response:
+    return await index()
+
+
+@get("/goals")
+async def goals_page() -> Response:
+    return await index()
+
+
+@get("/settings")
+async def settings_page() -> Response:
+    return await index()
+
+
 @get("/api/status")
 async def status() -> dict[str, Any]:
     _load_env()
@@ -543,7 +578,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
 
 app = Litestar(
     route_handlers=[
-        index, status, chat, clear_chat, memory, remember, forget_memory,
+        index, overview_page, chat_page, models_page, diagnostics_page, memory_page, goals_page, settings_page,
+        status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
