@@ -67,6 +67,10 @@ def _read_settings() -> dict[str, Any]:
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
         "self_reflection_enabled": True,
+        "learning_enabled": True,
+        "self_improvement_enabled": True,
+        "auto_extract_skills": False,
+        "tool_approval_required": True,
         "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
         "updates_enabled": False,
         "update_channel": "main",
@@ -394,6 +398,130 @@ async def sessions() -> dict[str, Any]:
     return {"sessions": agent.session_mgr.list_sessions() if agent.session_mgr else []}
 
 
+@get("/api/skills")
+async def list_skills() -> dict[str, Any]:
+    """List locally stored reusable procedures without requiring a model backend."""
+    library = core.SkillLibrary.load()
+    return {"skills": library.skills, "count": len(library.skills)}
+
+
+@post("/api/skills")
+async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
+    settings = _read_settings()
+    if not settings.get("learning_enabled", True):
+        raise HTTPException(status_code=400, detail="Learning is disabled in Settings.")
+    name = str(data.get("name", "")).strip()
+    context = str(data.get("context", "")).strip()
+    raw_steps = data.get("steps", [])
+    if not name or len(name) > 120:
+        raise HTTPException(status_code=400, detail="Skill name must be 1–120 characters.")
+    if not isinstance(raw_steps, list) or not raw_steps or len(raw_steps) > 20:
+        raise HTTPException(status_code=400, detail="Provide 1–20 skill steps.")
+    steps = [str(step).strip()[:500] for step in raw_steps if str(step).strip()]
+    if not steps:
+        raise HTTPException(status_code=400, detail="At least one non-empty skill step is required.")
+    if len(context) > 1000:
+        raise HTTPException(status_code=400, detail="Skill context must be at most 1000 characters.")
+    library = core.SkillLibrary.load()
+    library.add(name, steps, context)
+    return {"status": "saved", "skill": next(s for s in library.skills if s.get("name") == name)}
+
+
+@post("/api/skills/delete")
+async def delete_skill(data: dict[str, Any]) -> dict[str, Any]:
+    name = str(data.get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Skill name is required.")
+    library = core.SkillLibrary.load()
+    before = len(library.skills)
+    library.skills = [skill for skill in library.skills if skill.get("name") != name]
+    if len(library.skills) == before:
+        raise HTTPException(status_code=404, detail="Skill not found.")
+    library.save()
+    return {"status": "deleted", "name": name}
+
+
+@get("/api/tools")
+async def list_tools() -> dict[str, Any]:
+    """Expose tool capabilities as metadata only; this endpoint never executes tools."""
+    builtins = [
+        {"name": item.get("name", "unknown"), "description": item.get("desc", ""),
+         "arguments": item.get("args", {}), "kind": "built-in",
+         "approval_required": item.get("name") in {"shell", "write_file", "edit_file", "append_file", "delete_file", "copy_file", "env", "forge_tool"}}
+        for item in core.TOOL_SCHEMA
+    ]
+    forge = core.ToolForge()
+    forged = [{"name": name, "description": "User/agent-authored tool; not executable from the web UI.",
+               "arguments": {}, "kind": "forged", "approval_required": True}
+              for name in forge.list_tools()]
+    return {"tools": builtins + forged, "built_in_count": len(builtins), "forged_count": len(forged),
+            "execution_enabled_in_web": False, "approval_required": bool(_read_settings().get("tool_approval_required", True))}
+
+
+@get("/api/learning")
+async def learning_status() -> dict[str, Any]:
+    """Report local learning state without loading a model or doing network work."""
+    settings = _read_settings()
+    skills = core.SkillLibrary.load().skills
+    memory = core.Memory.load()
+    meta = core.MetaLearner.load()
+    patterns = core.PatternLearner.load()
+    strategy_groups = []
+    for problem_type, records in getattr(meta, "strategies", {}).items():
+        if isinstance(records, list):
+            successes = sum(bool(item.get("success")) for item in records if isinstance(item, dict))
+            strategy_groups.append({"problem_type": problem_type, "records": len(records), "successes": successes})
+    pattern_data = getattr(patterns, "patterns", {})
+    if not isinstance(pattern_data, (dict, list)):
+        pattern_data = {}
+    return {
+        "enabled": bool(settings.get("learning_enabled", True)),
+        "auto_extract_skills": bool(settings.get("auto_extract_skills", False)),
+        "memory_facts": len(getattr(memory, "facts", [])),
+        "episodes": len(getattr(memory, "episodes", [])),
+        "skills_count": len(skills),
+        "strategy_groups": strategy_groups,
+        "pattern_count": len(pattern_data),
+        "meta_strategy_count": sum(group["records"] for group in strategy_groups),
+        "notice": "Learning stores explicit memories, reusable procedures, and outcome records locally; it does not modify model weights.",
+    }
+
+
+@get("/api/self/improvements")
+async def self_improvements() -> dict[str, Any]:
+    """Return evidence-based, deterministic improvement ideas; never modify code or permissions."""
+    settings = _read_settings()
+    if not settings.get("self_improvement_enabled", True):
+        return {"enabled": False, "proposals": [], "notice": "Self-improvement proposals are disabled in Settings."}
+    proposals = []
+    if _AGENT is None:
+        proposals.append({"id": "initialize-backend", "title": "Configure and verify a model backend",
+                          "reason": "The agent has not been initialized in this process.",
+                          "action": "Review provider settings or install the configured local LiteRT-LM model.",
+                          "risk": "low"})
+    if not core.SkillLibrary.load().skills:
+        proposals.append({"id": "create-first-skill", "title": "Create a reusable skill",
+                          "reason": "No reusable procedures are saved yet.",
+                          "action": "Document a tested workflow in the Skills page.",
+                          "risk": "low"})
+    if not bool(settings.get("tool_approval_required", True)):
+        proposals.append({"id": "restore-tool-approval", "title": "Require approval for risky tools",
+                          "reason": "The safety setting is disabled.",
+                          "action": "Enable tool approval in Settings before adding any execution capability.",
+                          "risk": "high"})
+    if not bool(settings.get("auto_extract_skills", False)):
+        proposals.append({"id": "review-learning", "title": "Review and save successful procedures",
+                          "reason": "Automatic skill extraction is off, so new skills should be reviewed and saved manually.",
+                          "action": "Use Skills to capture verified steps after successful tasks.",
+                          "risk": "low"})
+    proposals.append({"id": "review-backups", "title": "Verify local state backups",
+                      "reason": "Recovery depends on recent, restorable state backups.",
+                      "action": "Check the state directory and keep backups before manual updates.",
+                      "risk": "low"})
+    return {"enabled": True, "proposals": proposals,
+            "notice": "Proposals are advisory. They do not patch source code, change permissions, run commands, or install packages."}
+
+
 @get("/api/models")
 async def models() -> dict[str, Any]:
     """Return model registry metadata without making network requests or loading weights."""
@@ -685,6 +813,9 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         current["self_mission"] = str(data["self_mission"]).strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
+    for setting_key in ("learning_enabled", "self_improvement_enabled", "auto_extract_skills", "tool_approval_required"):
+        if setting_key in data:
+            current[setting_key] = bool(data[setting_key])
     if "updates_enabled" in data:
         current["updates_enabled"] = bool(data["updates_enabled"])
     if "update_channel" in data:
@@ -752,8 +883,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@get("/api/self/status")
-async def self_status() -> dict[str, Any]:
+def _self_status_payload() -> dict[str, Any]:
+    """Build self-status data without calling a decorated Litestar handler."""
     settings = _read_settings()
     reflection_file = core.STATE_DIR / "self_reflection.json"
     try:
@@ -765,12 +896,21 @@ async def self_status() -> dict[str, Any]:
         "identity": settings.get("self_identity", "Terminal AI"),
         "mission": settings.get("self_mission", ""),
         "reflection_enabled": bool(settings.get("self_reflection_enabled", True)),
+        "learning_enabled": bool(settings.get("learning_enabled", True)),
+        "self_improvement_enabled": bool(settings.get("self_improvement_enabled", True)),
+        "auto_extract_skills": bool(settings.get("auto_extract_skills", False)),
+        "tool_approval_required": bool(settings.get("tool_approval_required", True)),
         "agent_initialized": agent is not None,
         "backend": getattr(getattr(agent, "backend", None), "label", None),
         "mode": settings.get("mode", "auto"),
         "last_reflection": reflection,
         "notice": "Operational self-model and reflection are software features; they do not establish sentience or subjective experience.",
     }
+
+
+@get("/api/self/status")
+async def self_status() -> dict[str, Any]:
+    return _self_status_payload()
 
 
 @post("/api/self/reflect")
@@ -780,7 +920,7 @@ async def self_reflect() -> dict[str, Any]:
         if not settings.get("self_reflection_enabled", True):
             raise HTTPException(status_code=400, detail="Self-reflection is disabled in Settings.")
         agent = _get_agent()
-        state = await self_status()
+        state = _self_status_payload()
         prompt = (
             "Review the supplied operational state. Do not claim feelings or sentience. "
             "Summarize capabilities, limitations, risks, and next improvements. "
