@@ -192,6 +192,11 @@ async def models_page() -> Response:
     return await index()
 
 
+@get("/sessions")
+async def sessions_page() -> Response:
+    return await index()
+
+
 @get("/diagnostics")
 async def diagnostics_page() -> Response:
     return await index()
@@ -578,7 +583,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
 
 app = Litestar(
     route_handlers=[
-        index, overview_page, chat_page, models_page, diagnostics_page, memory_page, goals_page, settings_page,
+        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
