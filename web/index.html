@@ -181,7 +181,7 @@
 <div class="field"><label><input type="checkbox" id="setting-self-skills" style="width:auto;margin-right:8px"> Enable reusable self-skills</label></div>
 <div class="field"><label><input type="checkbox" id="setting-self-recovery" style="width:auto;margin-right:8px"> Enable self-recovery checkpoints</label></div>
 <div class="field"><label><input type="checkbox" id="setting-self-maintenance" style="width:auto;margin-right:8px"> Enable maintenance suggestions</label></div>
-<div class="field"><label><input type="checkbox" id="setting-self-autonomous" style="width:auto;margin-right:8px"> Enable limited autonomous maintenance scheduling</label><p>Currently only a preference flag; does not execute commands, repairs, or updates automatically.</p></div>
+<div class="field"><label><input type="checkbox" id="setting-self-autonomous" style="width:auto;margin-right:8px"> Enable safe autonomous maintenance checks</label><p>When enabled, the background worker runs local diagnostics/evaluation at the selected interval. It does not execute commands, apply repairs, or install updates.</p></div>
 <div class="field"><label><input type="checkbox" id="setting-self-checkpoint" style="width:auto;margin-right:8px"> Create recovery checkpoints before supported changes</label></div>
 <div class="field"><label for="setting-checkpoint-retention">Recovery checkpoint retention (1–30)</label><input type="number" id="setting-checkpoint-retention" min="1" max="30" step="1" value="10"></div>
 <div class="field"><label for="setting-evaluation-interval">Self-evaluation interval preference (hours, 1–168)</label><input type="number" id="setting-evaluation-interval" min="1" max="168" step="1" value="24"></div>
