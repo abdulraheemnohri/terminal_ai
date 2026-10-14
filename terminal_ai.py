@@ -2588,11 +2588,11 @@ class Agent:
         self.backup = backup
         self.auto_backup_every = max(0, int(auto_backup_every))
         self._turn_count = 0
-        self.critic = Critic(backend, enabled=self_critique and autonomy >= 3)
+        self.critic = Critic(backend, enabled=self_critique)
         self.observer = Observer(backend, memory, graph, enabled=autonomy >= 3)
         self.dreamer = Dreamer(backend, memory, journal)
         self.tools.dreamer = self.dreamer
-        self.advisor = ProactiveAdvisor(backend, enabled=proactive and autonomy >= 4)
+        self.advisor = ProactiveAdvisor(backend, enabled=proactive)
         self.history: list[Msg] = []
         # v4.2: tunable tool rounds + history limit from settings
         self.max_tool_rounds = max(1, int(Agent.MAX_TOOL_ROUNDS))
@@ -2736,7 +2736,7 @@ class Agent:
             final_answer = "(reached max tool rounds)"
             self.meta.record(problem_type, strategy_used, False)
 
-        if self.autonomy >= 3 and final_answer:
+        if self.self_critique and final_answer:
             refined = self.critic.refine(system, user_msg, final_answer)
             if refined != final_answer:
                 sys.stdout.write(paint("    ðª refined\n", C.DIM))
@@ -2748,7 +2748,7 @@ class Agent:
         if final_answer and (not self.history or self.history[-1].text != final_answer):
             self.history.append(Msg("model", final_answer))
 
-        if self.autonomy >= 4:
+        if self.proactive:
             suggestion = self.advisor.suggest(self.history, self.goals.active())
             if suggestion:
                 sys.stdout.write(paint("    ð¡ ", C.BYELLOW) +
