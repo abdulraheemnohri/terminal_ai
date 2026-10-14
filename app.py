@@ -434,18 +434,26 @@ async def providers() -> dict[str, Any]:
     """Discover available provider integrations and configuration state."""
     _load_env()
     local_files = [p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()]
-    return {
-        "providers": [
-            {"id": "gemini", "label": "Google Gemini", "kind": "cloud",
-             "configured": _gemini_key() is not None, "requires_network": True},
-            {"id": "litert-lm", "label": "LiteRT-LM", "kind": "local",
-             "configured": bool(local_files), "requires_network": False},
-            {"id": "huggingface-hub", "label": "Hugging Face Hub", "kind": "model-source",
-             "configured": True, "requires_network": True,
-             "token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())},
-        ],
-        "active_mode": _read_settings()["mode"],
-    }
+    from api_provider_backend import PROVIDERS
+    cloud_providers = [
+        {"id": "gemini", "label": "Google Gemini", "kind": "cloud",
+         "configured": _gemini_key() is not None, "requires_network": True},
+    ]
+    cloud_providers.extend(
+        {"id": pid, "label": info["label"], "kind": "cloud",
+         "configured": bool(os.environ.get(info["env"])), "requires_network": True,
+         "protocol": info["protocol"], "default_model": info["default_model"]}
+        for pid, info in PROVIDERS.items()
+    )
+    cloud_providers.extend([
+        {"id": "litert-lm", "label": "LiteRT-LM Python API", "kind": "local",
+         "configured": bool(local_files), "requires_network": False},
+        {"id": "huggingface-hub", "label": "Hugging Face Hub", "kind": "model-source",
+         "configured": True, "requires_network": True,
+         "token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())},
+    ])
+    return {"providers": cloud_providers, "active_mode": _read_settings()["mode"],
+            "active_provider": _read_settings().get("active_provider", "gemini")}
 
 
 @get("/api/downloads")
