@@ -459,7 +459,7 @@ async def sessions() -> dict[str, Any]:
 async def create_session(data: dict[str, Any]) -> dict[str, Any]:
     global _ACTIVE_SESSION
     name = str(data.get("name", "")).strip() or f"session-{time.strftime('%Y%m%d-%H%M%S')}"
-    if len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", "\\\\", "\\0")):
+    if len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Session name must be 1–80 characters without path separators.")
     manager = core.SessionManager()
     safe = manager._safe_name(name)
