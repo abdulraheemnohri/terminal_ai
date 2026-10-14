@@ -322,6 +322,11 @@ async def improvements_page() -> Response:
     return await _index_response()
 
 
+@get("/selfx")
+async def selfx_page() -> Response:
+    return await _index_response()
+
+
 @get("/api/status")
 async def status() -> dict[str, Any]:
     _load_env()
@@ -1260,7 +1265,7 @@ async def _stop_update_checker() -> None:
 app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
-        skills_page, tools_page, learning_page, improvements_page,
+        skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, list_skills, create_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
