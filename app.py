@@ -668,7 +668,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    backend_changed = bool(str(data.get("api_key", "")).strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url"))
+    backend_changed = bool(str(data.get("api_key", "")).strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url", "self_identity", "self_mission"))
     if backend_changed:
         if _AGENT is not None:
             try:
