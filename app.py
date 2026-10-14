@@ -209,7 +209,6 @@ def _get_agent() -> core.Agent:
     return _AGENT
 
 
-@get("/")
 async def _index_response() -> Response:
     page = WEB_DIR / "index.html"
     if not page.is_file():
