@@ -14,6 +14,7 @@
   <div><div class="nav-label">WORKSPACE</div><nav class="nav" id="nav">
     <button class="active" data-view="overview"><span class="ico">◈</span><span class="nav-text">Overview</span></button>
     <button data-view="chat"><span class="ico">✧</span><span class="nav-text">AI Chat</span></button>
+    <button data-view="sessions"><span class="ico">◷</span><span class="nav-text">Sessions</span></button>
     <button data-view="models"><span class="ico">▣</span><span class="nav-text">Models</span></button>
     <button data-view="diagnostics"><span class="ico">⌁</span><span class="nav-text">Diagnostics</span></button>
     <button data-view="memory"><span class="ico">◉</span><span class="nav-text">Memory</span></button>
@@ -52,6 +53,16 @@
 
   <section class="view" id="view-goals">
     <div class="grid"><article class="card span-4"><div class="card-head"><h2>Create a goal</h2></div><form id="goal-form"><div class="field"><label for="goal-text">Goal</label><textarea id="goal-text" maxlength="2000" placeholder="What do you want to achieve?" required></textarea></div><button class="btn primary" type="submit">Create goal</button><div id="goal-error" class="error"></div></form></article><article class="card span-8"><div class="card-head"><h2>Goal tracker</h2><button class="btn" id="refresh-goals">Refresh</button></div><div class="list" id="goal-list"><div class="empty">Loading goals…</div></div></article></div>
+  </section>
+
+  <section class="view" id="view-sessions">
+    <div class="grid">
+      <article class="card span-12">
+        <div class="card-head"><div><h2>Saved sessions</h2><p style="margin:5px 0 0">Browse locally stored conversation snapshots.</p></div><button class="btn" id="refresh-sessions">Refresh</button></div>
+        <div class="list" id="session-list"><div class="empty">Loading sessions…</div></div>
+        <div id="sessions-error" class="error"></div>
+      </article>
+    </div>
   </section>
 
   <section class="view" id="view-models">
