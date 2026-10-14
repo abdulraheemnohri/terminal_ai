@@ -853,6 +853,12 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
     if not (ROOT / ".git").exists():
         raise HTTPException(status_code=400, detail="This installation is not a Git checkout; use your original installation method.")
     try:
+        remote_result = await asyncio.to_thread(
+            lambda: subprocess.run(["git", "remote", "get-url", "origin"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True)
+        )
+        origin = remote_result.stdout.strip().lower().removesuffix(".git").rstrip("/")
+        if origin not in {"https://github.com/abdulraheemnohri/terminal_ai", "git@github.com:abdulraheemnohri/terminal_ai"}:
+            raise HTTPException(status_code=400, detail="Update blocked: Git origin does not match the official Terminal AI repository.")
         status_result = await asyncio.to_thread(
             lambda: subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, timeout=5, check=True)
         )
@@ -871,6 +877,10 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
                         continue
                     zf.write(path, path.relative_to(core.STATE_DIR))
         await asyncio.to_thread(create_state_backup)
+        try:
+            archive.chmod(0o600)
+        except OSError:
+            pass
         def pull_fast_forward() -> subprocess.CompletedProcess[str]:
             subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=ROOT, capture_output=True, text=True, timeout=90, check=True)
             return subprocess.run(["git", "merge", "--ff-only", "FETCH_HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=90)
