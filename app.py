@@ -491,7 +491,7 @@ async def learning_status() -> dict[str, Any]:
         if isinstance(records, list):
             successes = sum(bool(item.get("success")) for item in records if isinstance(item, dict))
             strategy_groups.append({"problem_type": problem_type, "records": len(records), "successes": successes})
-    pattern_data = getattr(patterns, "patterns", {})
+    pattern_data = getattr(patterns, "task_counts", {})
     if not isinstance(pattern_data, (dict, list)):
         pattern_data = {}
     return {
