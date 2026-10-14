@@ -1,166 +1,125 @@
-# ⬢ terminal-ai — Hybrid Self-Evolving Terminal Agent (v4.2.0)
+# ⬢ Terminal AI — Litestar Web Agent (v4.2.0)
 
-A single-file Python terminal AI agent that combines **Google Gemini (cloud)** with
-**LiteRT-LM (local 1B models)**, learns from every conversation, and evolves itself
-through goals, skills, tool forging, and memory consolidation.
+Terminal AI is a local-first Python AI agent with a **Litestar web application** as its primary interface. It supports Google Gemini for cloud inference and LiteRT-LM for compatible local models, with persistent memory, goals, sessions, and agent settings.
+
+The terminal REPL is no longer the user interface. `terminal_ai.py` remains the internal agent engine used by the web app; start the application with `app.py`.
 
 ## Features
 
-- 🧭 **Task Router** — auto-selects the best model per prompt (coding → Pro, math → 3 Pro, privacy → local)
-- 🔄 **Hybrid Mode** — cloud + local with automatic fallback (no duplicate output on mid-stream failure)
-- 📥 **Auto Downloader** — fetches local models from Hugging Face on demand
-- 🩺 **Self-Diagnosis** — `/diagnose` checks cloud, local, memory, and disk health
-- 📈 **Pattern Learner** — learns your task patterns over time (`/patterns`)
-- 🧠 **Memory + Knowledge Graph** — persistent facts, entities, relations
-- 🎯 **Goals + Journal** — multi-step planning with self-reflection
-- 🛠 **Skills + Tool Forge** — learned procedures, self-written tools
-- 💤 **Dreamer** — offline memory consolidation (`/dream`)
-- 👁 **Observer** — auto-extracts learnings from each turn
-- 🪞 **Self-Critique** — critique + refine pass (`--self-critique`)
-- ⚙️ **Settings Manager** — persistent `settings.json`, `/set`, `/settings`
-- 📊 **Usage Stats** — per-backend turns/chars/time, `/usage`
-- 💾 **Sessions** — save/load conversations, `--resume last`
-- 🗂 **File Tools** — `list_dir`, `edit_file`, `append_file`, `delete_file`, `copy_file`, `grep_files`, `web_search`
-- ♻️ **Cloud Retries** — exponential backoff on Gemini stream failures
-- 🗄 **Auto-Backup** — periodic memory snapshots (`--auto-backup-every N`)
-- 🔐 **Env Manager** *(new in 4.2)* — `.env` file support: autoload at startup,
-  `/env`, `/env-set`, `/env-get`, `/env-unset`, `/env-save`, `--env-file`;
-  secrets are masked in output
-- 🖥 **System Tools** *(new in 4.2)* — `sys_info`, `now`, `find_files`,
-  `read_lines`, `env` agent tools
-- ⚙️ **More Settings** *(new in 4.2)* — `debug`, `history_limit`, `tool_rounds`,
-  `ask_delete`, `env_autoload` (all live or persisted)
+- **Litestar web server** with typed HTTP endpoints and generated OpenAPI docs.
+- **Responsive dark dashboard** with Overview, AI Chat, Memory, Goals, and Settings pages.
+- **Gemini cloud backend** and optional **LiteRT-LM local backend**.
+- **Auto / Cloud / Local / Hybrid** backend modes.
+- **Persistent conversation history**, memory facts, goals, and sessions.
+- **Memory manager** to add and forget saved facts.
+- **Goal tracker** to create and complete goals.
+- **Self-critique and proactive settings** persisted locally.
+- **API documentation** at `/schema/swagger` and ReDoc at `/schema`.
+- **Local-first storage** under `~/.terminal_ai/`; local models under `~/terminal-ai/models/`.
+- **Safe default:** web chat starts with agent tool execution disabled. Do not expose the server to untrusted networks.
 
 ## Install
 
-```bash
-pip install google-genai litert-lm huggingface_hub
-```
+Python 3.10+ is recommended. From the repository root:
 
-## Quick Start
+### Linux / macOS / WSL
 
 ```bash
-export GEMINI_API_KEY="..."      # cloud (required for cloud/hybrid/auto)
-export HF_TOKEN="hf_..."         # optional, for gated HF models
-
-# …or put them in a .env file (loaded automatically, see .env.example)
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 cp .env.example .env
-
-python terminal_ai.py                        # auto mode (default)
-python terminal_ai.py --mode hybrid           # cloud + local fallback
-python terminal_ai.py --mode local            # offline only
-python terminal_ai.py --auto-download        # fetch local model if missing
-python terminal_ai.py --resume last          # resume last conversation
-python terminal_ai.py --diagnose             # health check and exit
-python terminal_ai.py --env-file secrets.env # use a custom .env file
-python terminal_ai.py -p "explain quicksort" # one-shot prompt
 ```
 
-## Modes
+Edit `.env` locally and add your own `GEMINI_API_KEY`. Keep real credentials out of Git.
 
-| Mode | Behaviour |
-|---|---|
-| `auto` | Task Router picks the best model per prompt (DEFAULT) |
-| `cloud` | Force Gemini only |
-| `local` | Force LiteRT-LM only |
-| `hybrid` | Try cloud, automatically fall back to local on failure |
+### Windows PowerShell
 
-## Key Commands
-
-```
-/help            all commands        /set k v        change a setting
-/models          list models         /settings       show settings
-/route <text>    preview routing     /usage          usage stats
-/diagnose        self-diagnostic     /save-session   save conversation
-/backup          backup memory       /load-session n load a session
-/goal <text>     set a goal          /sessions       list sessions
-/dream           memory consolidation /export f.md  export transcript
-/env [pattern]   list env vars       /env-set k v    set + persist var
-/env-get k       show one var        /env-unset k    remove a var
-/env-save        write .env file     /history [n]    show recent messages
-/sysinfo         system info         /debug on|off   toggle debug logs
-/reset           factory reset       /quit           exit
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env
 ```
 
-## Settings (persisted in `~/.terminal_ai/settings.json`)
+### Setup helpers
 
-`mode`, `gemini_model`, `system`, `autonomy`, `temperature`, `top_p`, `top_k`,
-`max_tokens`, `chat_template`, `max_ctx_chars`, `self_critique`, `proactive`,
-`confirm_shell`, `shell_timeout`, `auto_backup_every`, `cloud_retries`,
-`debug`, `history_limit`, `tool_rounds`, `ask_delete`, `env_autoload`
+- Linux/macOS/WSL: `sh install.sh`
+- Windows PowerShell: `./install.ps1`
+
+## Run the web application
 
 ```bash
-/set temperature 0.5      # live-changeable
-/set mode local           # applies on next restart
-/set tool_rounds 5        # live: max agent tool-call rounds per turn
-/set history_limit 20     # caps kept conversation messages
-/set debug on             # live: verbose debug logging
+# Development mode (reload on code changes)
+.venv/bin/litestar --app app:app run --reload --host 127.0.0.1 --port 8000
+
+# Or use Uvicorn directly
+.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-## Environment (.env) Support
+On Windows, use `.venv\Scripts\litestar.exe` or `.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000`.
 
-`EnvManager` loads a `.env` file at startup (search order: `TERMINAL_AI_ENV`,
-`./.env`, `~/.terminal_ai/.env`) and exports it into the environment without
-overwriting existing variables. See `.env.example`. The agent also has an
-`env` tool for reading/setting env vars (secrets like API keys/tokens/passwords
-are always masked).
+Open **http://127.0.0.1:8000** in your browser. API docs: **http://127.0.0.1:8000/schema/swagger**.
 
-## State
+For development, you can also run `python -m litestar --app app:app run --reload` where supported by the installed Litestar CLI.
 
-Everything lives in `~/.terminal_ai/` (override with `TERMINAL_AI_STATE`):
-memory.json, graph.json, goals.json, journal.md, skills.json, meta.json,
-patterns.json, tools.json, settings.json, stats.json, sessions/, backups/
+## Configure models
 
-Local models live in `~/terminal-ai/models/` (override with `TERMINAL_AI_MODELS`).
+Example local `.env` file:
 
-## Security
+```dotenv
+GEMINI_API_KEY=replace_with_your_real_key
+HF_TOKEN=replace_with_your_huggingface_token
+# Optional: TERMINAL_AI_MODE=auto
+```
 
-- Shell tool denies destructive commands (`rm -rf /`, `mkfs`, `dd if=`, fork bombs)
-- and asks confirmation for `sudo`, `pip install`, `rm`, `chmod`, …
-- `delete_file` asks for confirmation (toggle with `ask_delete` setting);
-  forged tools reject `import`/`exec`/`eval`
-- File tools resolve paths safely; `~` expansion fixed in 4.1
-- `.env` values with secret-looking names are masked in all output;
-  `.env` is git-ignored
-- Secrets are never hardcoded: `GEMINI_API_KEY` / `HF_TOKEN` env vars or `.env` only
+- `GEMINI_API_KEY`: required for Gemini cloud mode.
+- `HF_TOKEN`: optional; needed only for gated Hugging Face downloads.
+- `TERMINAL_AI_MODE`: optional initial mode: `auto`, `cloud`, `local`, or `hybrid`.
+- `TERMINAL_AI_STATE`: override the state directory.
+- `TERMINAL_AI_MODELS`: override the local model directory.
+- `TERMINAL_AI_GEMINI_MODEL`: override the Gemini model name.
 
-## Tests
+The application loads environment values from the process environment and the local `.env` file. Existing process environment variables take precedence. A local model must already be installed and supported by the LiteRT-LM runtime; the web app does not silently download large model files on startup.
+
+## API overview
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/status` | Health and backend status |
+| POST | `/api/chat` | Send a chat message |
+| POST | `/api/chat/clear` | Clear the active conversation |
+| GET | `/api/memory` | Read saved memory |
+| POST | `/api/memory` | Save a fact |
+| POST | `/api/memory/forget` | Forget facts matching a key |
+| GET | `/api/goals` | List goals |
+| POST | `/api/goals` | Create a goal |
+| POST | `/api/goals/{goal_id}/complete` | Complete a goal |
+| GET | `/api/sessions` | List saved sessions |
+| GET / PATCH | `/api/settings` | Read/update app settings |
+
+## Storage
+
+- State: `~/.terminal_ai/` (or `TERMINAL_AI_STATE`)
+- Local models: `~/terminal-ai/models/` (or `TERMINAL_AI_MODELS`)
+- Web settings: `~/.terminal_ai/web_settings.json`
+
+## Security notes
+
+- The web app binds to `127.0.0.1` in the documented run commands.
+- Tool execution is disabled in the web chat by default.
+- Never put real API keys in source files, issues, screenshots, or commits.
+- Before exposing the service on a LAN or public host, add authentication, CSRF protections, rate limiting, and a reverse proxy/TLS configuration.
+- The app is self-hosted; it does not require Firebase or a mandatory hosted database.
+
+## Development and tests
 
 ```bash
-pip install pytest
-pytest tests/ -v
+python -m py_compile app.py terminal_ai.py
+python -m pytest
 ```
 
-CI runs the full suite on every push to `main` and reports results to the
-"CI Test Report" issue.
-
-## License
-
-MIT
-
----
-
-## اردو میں
-
-**terminal-ai** ایک واحد فائل Python ٹرمینل ایجنٹ ہے جو Gemini (کلاؤڈ) اور LiteRT-LM
-(لوکل ماڈل) کو ملاتا ہے۔ ہر بات چیت سے یہ سیکھتا ہے — فیکٹس، صلاحیتیں، اور اہداف
-محفوظ کرتا ہے۔
-
-v4.2 نئے فیچرز: **`.env` فائل سپورٹ** (apikeyز `.env` میں رکھیں، خودکار لوڈ ہوتی ہیں)،
-نئے سسٹم ٹولز (`sys_info`، `now`، `find_files`، `read_lines`، `env`)، اور مزید
-سیٹنگز (`debug`، `history_limit`، `tool_rounds`، `ask_delete`، `env_autoload`)۔
-سیکرٹ کلیدز (`/env`) آؤٹ پٹ میں ہمیشہ ماسک رہتی ہیں۔
-
-چلانے کے لیے: `pip install google-genai litert-lm huggingface_hub`، پھر
-`GEMINI_API_KEY` سیٹ کریں (یا `.env` فائل بنائیں) اور `python terminal_ai.py` چلائیں۔
-
-
-## Installation and Configuration Guide
-
-For complete setup instructions for **Windows PowerShell, Linux, macOS, WSL, and Termux**, environment variables, model modes, persistent settings, diagnostics, upgrades, and uninstalling, see **[INSTALL.md](INSTALL.md)**.
-
-Convenience setup scripts are also included:
-- Windows PowerShell: `install.ps1`
-- Linux / macOS / WSL: `sh install.sh`
-
-These scripts create a project-local `.venv`, install dependencies, create `.env` from `.env.example` when needed, and run a Python syntax check. Edit `.env` to add secrets; never commit real API keys.
+Litestar documentation: https://docs.litestar.dev/2/
