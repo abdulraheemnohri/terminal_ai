@@ -82,3 +82,22 @@ def test_model_detail_endpoint_returns_registered_model():
     assert response.json()["name"] == "gemma-3-1b-it"
     assert "installed" in response.json()
     assert missing.status_code == 404
+
+
+def test_dashboard_pages_are_directly_addressable():
+    pages = ["/overview", "/chat", "/models", "/diagnostics", "/memory", "/goals", "/settings"]
+    with TestClient(app=app) as client:
+        for path in pages:
+            response = client.get(path)
+            assert response.status_code == 200, path
+            assert "Terminal AI" in response.text, path
+
+
+def test_dashboard_assets_are_served_separately():
+    with TestClient(app=app) as client:
+        css = client.get("/static/app.css")
+        js = client.get("/static/app.js")
+    assert css.status_code == 200
+    assert "font-family" in css.text
+    assert js.status_code == 200
+    assert "routeViews" in js.text
