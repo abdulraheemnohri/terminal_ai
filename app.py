@@ -339,6 +339,29 @@ async def models() -> dict[str, Any]:
 
 
 
+
+@get("/api/models/{model_id:str}")
+async def model_detail(model_id: str) -> dict[str, Any]:
+    """Return details for one registered model, including whether its artifact is installed."""
+    model = core.ModelRegistry().get(model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    installed_path = None
+    if model.kind == "local":
+        for path in core.MODELS_DIR.glob("*.litertlm"):
+            normalized = path.name.lower().replace("-", "")
+            if model.name.lower().replace("-", "") in normalized or (
+                model.hf_file and Path(model.hf_file).name.lower() == path.name.lower()
+            ):
+                installed_path = str(path)
+                break
+    return {
+        "name": model.name, "display": model.display, "kind": model.kind,
+        "tier": model.tier, "strengths": model.strengths, "size": model.size,
+        "hf_repo": model.hf_repo or None, "hf_file": model.hf_file or None,
+        "installed": installed_path is not None, "path": installed_path,
+    }
+
 @get("/api/providers")
 async def providers() -> dict[str, Any]:
     """Discover available provider integrations and configuration state."""
@@ -520,7 +543,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
 app = Litestar(
     route_handlers=[
         index, status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
+        goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
