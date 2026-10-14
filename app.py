@@ -420,6 +420,8 @@ async def goals() -> dict[str, Any]:
 
 @post("/api/goals")
 async def add_goal(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_goals_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-goal tracking is disabled in Settings.")
     text = str(data.get("text", "")).strip()
     if not text or len(text) > 2000:
         raise HTTPException(status_code=400, detail="Goal must be 1–2000 characters.")
@@ -453,6 +455,8 @@ async def list_skills() -> dict[str, Any]:
 @post("/api/skills")
 async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
     settings = _read_settings()
+    if not settings.get("self_skills_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-skills are disabled in Settings.")
     if not settings.get("learning_enabled", True):
         raise HTTPException(status_code=400, detail="Learning is disabled in Settings.")
     name = str(data.get("name", "")).strip()
@@ -477,6 +481,8 @@ async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/skills/delete")
 async def delete_skill(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("self_skills_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-skills are disabled in Settings.")
     name = str(data.get("name", "")).strip()
     if not name:
         raise HTTPException(status_code=400, detail="Skill name is required.")
@@ -541,8 +547,8 @@ async def learning_status() -> dict[str, Any]:
 async def self_improvements() -> dict[str, Any]:
     """Return evidence-based, deterministic improvement ideas; never modify code or permissions."""
     settings = _read_settings()
-    if not settings.get("self_improvement_enabled", True):
-        return {"enabled": False, "proposals": [], "notice": "Self-improvement proposals are disabled in Settings."}
+    if not settings.get("self_improvement_enabled", True) or not settings.get("self_repair_enabled", True) or not settings.get("self_maintenance_enabled", True):
+        return {"enabled": False, "proposals": [], "notice": "Self-improvement, advisory repair, or maintenance suggestions are disabled in Settings."}
     proposals = []
     if _AGENT is None:
         proposals.append({"id": "initialize-backend", "title": "Configure and verify a model backend",
@@ -918,6 +924,12 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         manager.load(apply=True)
         if not manager.set(env_name, str(data["api_key"]).strip(), persist=True):
             raise HTTPException(status_code=400, detail="Could not save API key.")
+    if current.get("self_auto_checkpoint", True) and any(current.get(k) != previous.get(k) for k in current if k != "last_update_check"):
+        try:
+            engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
+            await asyncio.to_thread(engine.create_checkpoint)
+        except OSError:
+            logger.warning("Automatic pre-settings checkpoint failed", exc_info=True)
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
