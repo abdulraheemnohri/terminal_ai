@@ -810,3 +810,15 @@ def test_agent_history_limit_trim(tmp_path):
     agent._trim()
     assert len(agent.history) == 3
     assert agent.history[-1].text == "m4"
+
+
+def test_spinner_does_not_write_animation_when_stdout_is_not_tty(monkeypatch):
+    class NonTTY:
+        def isatty(self):
+            return False
+
+    monkeypatch.setattr(tai, "COLOR", True)
+    monkeypatch.setattr(tai.sys, "stdout", NonTTY())
+    spinner = tai.Spinner()
+    spinner.start()
+    assert spinner._t is None
