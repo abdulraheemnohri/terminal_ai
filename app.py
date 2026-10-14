@@ -277,6 +277,26 @@ async def self_page() -> Response:
     return await _index_response()
 
 
+@get("/skills")
+async def skills_page() -> Response:
+    return await _index_response()
+
+
+@get("/tools")
+async def tools_page() -> Response:
+    return await _index_response()
+
+
+@get("/learning")
+async def learning_page() -> Response:
+    return await _index_response()
+
+
+@get("/improvements")
+async def improvements_page() -> Response:
+    return await _index_response()
+
+
 @get("/api/status")
 async def status() -> dict[str, Any]:
     _load_env()
