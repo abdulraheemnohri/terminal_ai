@@ -10,6 +10,8 @@ import json
 import os
 import shutil
 import time
+import uuid
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,8 @@ _BACKEND: core.Backend | None = None
 _ENGINE_ERROR: str | None = None
 _LOCK = asyncio.Lock()
 _STARTED_AT = time.time()
+_DOWNLOAD_JOBS: dict[str, dict[str, Any]] = {}
+_DOWNLOAD_LOCK = threading.Lock()
 
 
 def _load_env() -> None:
@@ -334,6 +338,97 @@ async def models() -> dict[str, Any]:
     }
 
 
+
+@get("/api/providers")
+async def providers() -> dict[str, Any]:
+    """Discover available provider integrations and configuration state."""
+    _load_env()
+    local_files = [p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()]
+    return {
+        "providers": [
+            {"id": "gemini", "label": "Google Gemini", "kind": "cloud",
+             "configured": _gemini_key() is not None, "requires_network": True},
+            {"id": "litert-lm", "label": "LiteRT-LM", "kind": "local",
+             "configured": bool(local_files), "requires_network": False},
+            {"id": "huggingface-hub", "label": "Hugging Face Hub", "kind": "model-source",
+             "configured": True, "requires_network": True,
+             "token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())},
+        ],
+        "active_mode": _read_settings()["mode"],
+    }
+
+
+@get("/api/downloads")
+async def downloads() -> dict[str, Any]:
+    """Return dynamic download-job states, safe for polling from the browser."""
+    with _DOWNLOAD_LOCK:
+        jobs = [dict(job) for job in _DOWNLOAD_JOBS.values()]
+    return {"downloads": sorted(jobs, key=lambda job: job["created_at"], reverse=True)}
+
+
+async def _run_model_download(job_id: str, repo_id: str, filename: str) -> None:
+    with _DOWNLOAD_LOCK:
+        _DOWNLOAD_JOBS[job_id]["status"] = "downloading"
+    try:
+        from huggingface_hub import hf_hub_download
+        core.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        target = core.MODELS_DIR / Path(filename).name
+        def download() -> str:
+            return str(hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                token=os.environ.get("HF_TOKEN") or None,
+                local_dir=str(core.MODELS_DIR),
+            ))
+        task = asyncio.create_task(asyncio.to_thread(download))
+        while not task.done():
+            try:
+                size = target.stat().st_size if target.is_file() else 0
+            except OSError:
+                size = 0
+            with _DOWNLOAD_LOCK:
+                _DOWNLOAD_JOBS[job_id]["bytes_downloaded"] = size
+            await asyncio.sleep(0.5)
+        result_path = await task
+        resolved = Path(result_path).resolve()
+        models_root = core.MODELS_DIR.resolve()
+        if models_root not in resolved.parents:
+            raise RuntimeError("Resolved download path is outside the configured models directory.")
+        with _DOWNLOAD_LOCK:
+            job = _DOWNLOAD_JOBS[job_id]
+            job.update(status="completed", path=str(resolved),
+                       bytes_downloaded=resolved.stat().st_size if resolved.is_file() else job["bytes_downloaded"],
+                       finished_at=time.time())
+    except Exception as exc:
+        with _DOWNLOAD_LOCK:
+            job = _DOWNLOAD_JOBS[job_id]
+            job.update(status="failed", error=str(exc)[:1000], finished_at=time.time())
+
+
+@post("/api/models/download")
+async def start_model_download(data: dict[str, Any]) -> dict[str, Any]:
+    """Download a registry-listed LiteRT-LM artifact after an explicit UI/API request."""
+    model_id = str(data.get("model_id", "")).strip()
+    if data.get("confirm") is not True:
+        raise HTTPException(status_code=400, detail="Set confirm=true to explicitly approve the model download.")
+    model = core.ModelRegistry().get(model_id)
+    if model is None or model.kind != "local":
+        raise HTTPException(status_code=404, detail="Unknown local model ID. Choose a model from GET /api/models.")
+    if not model.hf_repo or not model.hf_file or not model.hf_file.endswith(".litertlm"):
+        raise HTTPException(status_code=400, detail="This registry entry does not identify a supported .litertlm artifact.")
+    with _DOWNLOAD_LOCK:
+        if any(j["model_id"] == model_id and j["status"] in {"queued", "downloading"} for j in _DOWNLOAD_JOBS.values()):
+            raise HTTPException(status_code=409, detail="A download for this model is already active.")
+        job_id = uuid.uuid4().hex
+        _DOWNLOAD_JOBS[job_id] = {
+            "id": job_id, "model_id": model_id, "display": model.display,
+            "repo_id": model.hf_repo, "filename": model.hf_file,
+            "status": "queued", "bytes_downloaded": 0, "path": None,
+            "error": None, "created_at": time.time(), "finished_at": None,
+        }
+    asyncio.create_task(_run_model_download(job_id, model.hf_repo, model.hf_file))
+    return {"job_id": job_id, "status": "queued", "message": "Download queued. Poll GET /api/downloads for progress."}
+
 @get("/api/diagnostics")
 async def diagnostics() -> dict[str, Any]:
     """Fast local diagnostics; intentionally avoids cloud calls and model loading."""
@@ -425,7 +520,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
 app = Litestar(
     route_handlers=[
         index, status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, diagnostics, get_settings, update_settings,
+        goals, add_goal, complete_goal, sessions, models, providers, downloads, start_model_download, diagnostics, get_settings, update_settings,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
