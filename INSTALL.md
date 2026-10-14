@@ -1,100 +1,122 @@
-# Terminal AI — Litestar Web Installation
+# Terminal AI — Installation and Troubleshooting
 
-Terminal AI now uses a browser dashboard served by Litestar. The old terminal REPL is not the supported interface; `terminal_ai.py` is retained as the internal agent engine imported by `app.py`.
+This guide installs the local-first Litestar web app. The dashboard is the supported interface; `terminal_ai.py` is its internal agent engine.
 
-## Requirements
+## 1. Requirements
 
-- Python 3.10 or newer
-- Git
-- A browser
-- Gemini API key for cloud inference, or a compatible local LiteRT-LM runtime and model
-- Internet access for installing Python packages; local inference can run offline after setup
+- Python 3.10 or newer.
+- Git.
+- A browser.
+- Internet access to install packages.
+- A cloud provider API key **or** a compatible local LiteRT-LM model/runtime.
 
-## Linux / macOS / WSL
+Python 3.12 is used in CI. LiteRT-LM package and model support depends on the platform and architecture; local inference is optional and may not install on every system.
+
+## 2. Linux, macOS, or WSL
 
 ```bash
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
 cd terminal_ai
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp .env.example .env
+sh install.sh
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Edit `.env` with your own credentials using a local editor:
+Open http://127.0.0.1:8000. Keep the terminal open and stop the server with Ctrl+C.
 
-```dotenv
-GEMINI_API_KEY=replace_with_your_real_gemini_key
-HF_TOKEN=replace_with_your_huggingface_token
-```
-
-Start the dashboard:
+For development with automatic reload:
 
 ```bash
 .venv/bin/litestar --app app:app run --reload --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. API documentation is available at http://127.0.0.1:8000/schema/swagger.
+## 3. Windows 10/11 — PowerShell
 
-## Windows 10 / 11 (PowerShell)
-
-Install Python and Git, then run:
+Install Python 3.10+ and Git, then run:
 
 ```powershell
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
 Set-Location terminal_ai
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
-.\.venv\Scripts\litestar.exe --app app:app run --reload --host 127.0.0.1 --port 8000
-```
-
-If the Litestar executable is unavailable, use:
-
-```powershell
+.\install.ps1
 .\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-## Termux
+If script execution policy prevents running the installer, you can run the same commands manually in PowerShell, or use `powershell -ExecutionPolicy Bypass -File .\install.ps1` if permitted by your device policy. Do not change system policy globally just for this project.
+
+Development server:
+
+```powershell
+.\.venv\Scripts\litestar.exe --app app:app run --reload --host 127.0.0.1 --port 8000
+```
+
+If the Litestar executable is unavailable, use the Uvicorn command above.
+
+## 4. Termux (Android terminal)
 
 ```bash
 pkg update
 pkg install python git
 git clone https://github.com/abdulraheemnohri/terminal_ai.git
 cd terminal_ai
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp .env.example .env
-nano .env
-uvicorn app:app --host 127.0.0.1 --port 8000
+sh install.sh
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Some LiteRT-LM packages may not support all Termux/Android architectures. If local runtime installation is unavailable, use Gemini mode or a supported Linux/Windows environment. Keep the server bound to localhost unless you deliberately configure access controls.
+Open the address in a browser on the same device. Some Python wheels, especially LiteRT-LM runtime packages, may not support Termux/Android or your device architecture. If installation fails on a platform-specific runtime dependency, use a supported Linux/Windows environment or troubleshoot that dependency separately. Do not assume cloud inference requires LiteRT-LM to work.
 
-## Configure credentials
+## 5. Configure an AI provider
 
-- Gemini key: https://aistudio.google.com/app/apikey
-- Hugging Face token: https://huggingface.co/settings/tokens
+The installer copies `.env.example` to `.env` only if no `.env` already exists. Open `.env` in a local editor and replace placeholders as needed.
 
-Never commit `.env` or paste real keys into issues. `.env.example` contains placeholders only; verify the current example values before copying. Process environment variables override values loaded from the dotenv file.
+```dotenv
+GEMINI_API_KEY=replace_with_your_real_gemini_api_key
+HF_TOKEN=replace_with_your_huggingface_token
+# TERMINAL_AI_MODE=auto
+```
 
-## Start and stop
+- Gemini: https://aistudio.google.com/app/apikey
+- Hugging Face token for gated downloads (optional): https://huggingface.co/settings/tokens
 
-Run the Litestar command in a terminal and leave it running while you use the browser. Stop the server with Ctrl+C. For a stable local session without auto-reload:
+Other cloud providers can be configured in **Settings → Cloud AI provider**. Enter the provider's API key and optionally a model ID. Keys are written to the local `.env` file; do not share this file. Custom remote endpoints require HTTPS; HTTP is accepted only for loopback/local endpoints.
+
+Supported initial modes: `auto`, `cloud`, `local`, `hybrid`. The app will not silently download a large local model at startup. Select and confirm a model download in the Models page.
+
+## 6. Local models and storage
+
+Default locations:
+
+- State/settings: `~/.terminal_ai/`
+- Models: `~/terminal-ai/models/`
+
+Override with `TERMINAL_AI_STATE` and `TERMINAL_AI_MODELS`. Local inference requires a compatible `.litertlm` artifact and a supported LiteRT-LM Python API runtime. No CLI subprocess is used for inference.
+
+## 7. Verify the installation
+
+The installer runs Python syntax checks. To run the unit tests manually:
+
+Linux/macOS/WSL/Termux:
 
 ```bash
-.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m pytest -q
 ```
 
-## Troubleshooting
+Windows:
 
-- **Backend not ready:** configure `GEMINI_API_KEY`, or install LiteRT-LM and place a compatible `.litertlm` model under the configured models directory.
-- **Port busy:** change `--port 8000` to another local port such as `--port 8001`.
-- **LiteRT-LM installation fails:** check upstream package support for your operating system and Python version; this does not necessarily indicate a Litestar issue.
-- **API docs:** visit `/schema/swagger`.
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+To check the installed dependencies:
+
+```bash
+.venv/bin/python -m pip check
+```
+
+## 8. Troubleshooting
+
+- **Port 8000 is busy:** use port 8001 in the start command and open http://127.0.0.1:8001.
+- **No provider configured:** choose a provider in Settings and configure its key, or install a compatible local model.
+- **Provider connection test fails:** check the key, account/model access, network connectivity, and model ID. Do not paste secrets into bug reports.
+- **LiteRT-LM fails to install:** confirm support for your OS, Python version, and CPU architecture. The cloud backends are separate from the local LiteRT-LM runtime.
+- **Dashboard doesn't load:** check the terminal traceback and verify you started from the repository root with the virtual environment activated.
+- **Settings don't take effect:** restart the app after changing process-level environment variables.
+- **Keep it private:** default to localhost. Do not bind to `0.0.0.0` on an untrusted network without authentication and other protections.
