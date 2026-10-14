@@ -102,6 +102,7 @@ The application loads environment values from the process environment and the lo
 | POST | `/api/goals/{goal_id}/complete` | Complete a goal |
 | GET | `/api/sessions` | List saved sessions |
 | GET | `/api/models` | List supported models and installed local files |
+| GET | `/api/models/{model_id}` | Get one registered model and installation state |
 | GET | `/api/providers` | Discover provider integrations and configuration |
 | POST | `/api/models/download` | Queue an explicitly confirmed registered `.litertlm` download |
 | GET | `/api/downloads` | List background download jobs and observed progress |
