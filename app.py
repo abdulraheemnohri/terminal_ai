@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -292,6 +293,82 @@ async def sessions() -> dict[str, Any]:
     return {"sessions": agent.session_mgr.list_sessions() if agent.session_mgr else []}
 
 
+@get("/api/models")
+async def models() -> dict[str, Any]:
+    """Return model registry metadata without making network requests or loading weights."""
+    registry = core.ModelRegistry()
+    installed = {p.name: str(p) for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()}
+    entries = []
+    for model in registry.all_models():
+        item = {
+            "name": model.name,
+            "display": model.display,
+            "kind": model.kind,
+            "tier": model.tier,
+            "strengths": model.strengths,
+            "size": model.size,
+            "installed": False,
+            "path": None,
+            "hf_repo": model.hf_repo or None,
+            "hf_file": model.hf_file or None,
+        }
+        if model.kind == "local":
+            match = next((name for name in installed if model.name.lower().split("-")[0] in name.lower()), None)
+            if match:
+                item["installed"] = True
+                item["path"] = installed[match]
+        entries.append(item)
+    for filename, path in installed.items():
+        if not any(item["path"] == path for item in entries):
+            entries.append({
+                "name": filename, "display": filename, "kind": "local",
+                "tier": "installed", "strengths": ["local", "offline"],
+                "size": "", "installed": True, "path": path,
+                "hf_repo": None, "hf_file": None,
+            })
+    return {
+        "models": entries,
+        "models_dir": str(core.MODELS_DIR),
+        "installed_count": len(installed),
+        "cloud_configured": _gemini_key() is not None,
+    }
+
+
+@get("/api/diagnostics")
+async def diagnostics() -> dict[str, Any]:
+    """Fast local diagnostics; intentionally avoids cloud calls and model loading."""
+    state_files = [
+        core.MEMORY_FILE, core.GRAPH_FILE, core.GOALS_FILE, core.JOURNAL_FILE,
+        core.SKILLS_FILE, core.META_FILE, core.PATTERNS_FILE,
+    ]
+    try:
+        disk = shutil.disk_usage(core.MODELS_DIR)
+        disk_info = {
+            "total_gb": round(disk.total / (1024 ** 3), 2),
+            "free_gb": round(disk.free / (1024 ** 3), 2),
+        }
+    except OSError:
+        disk_info = {"error": "Unable to read disk usage"}
+    return {
+        "application": {"ok": True, "interface": "Litestar Web UI", "version": core.__version__},
+        "backend": {
+            "ready": _AGENT is not None and _BACKEND is not None,
+            "label": getattr(_BACKEND, "label", None),
+            "last_error": _ENGINE_ERROR,
+            "gemini_key_configured": _gemini_key() is not None,
+            "local_model_count": sum(1 for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()),
+        },
+        "storage": {
+            "state_dir": str(core.STATE_DIR),
+            "models_dir": str(core.MODELS_DIR),
+            "state_files": {p.name: p.exists() for p in state_files},
+            "state_bytes": sum(p.stat().st_size for p in state_files if p.is_file()),
+            "disk": disk_info,
+        },
+        "runtime": {"python": __import__("sys").version.split()[0], "platform": __import__("platform").platform()},
+    }
+
+
 @get("/api/settings")
 async def get_settings() -> dict[str, Any]:
     _load_env()
@@ -348,7 +425,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
 app = Litestar(
     route_handlers=[
         index, status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, get_settings, update_settings,
+        goals, add_goal, complete_goal, sessions, models, diagnostics, get_settings, update_settings,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
