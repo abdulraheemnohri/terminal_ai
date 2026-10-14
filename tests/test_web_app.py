@@ -57,14 +57,14 @@ def test_provider_discovery_is_dynamic_and_local():
 
 def test_download_requires_explicit_confirmation():
     with TestClient(app=app) as client:
-        response = client.post("/api/models/download", json={"model_id": "gemma-3-1b-it"})
+        response = client.post("/api/models/download", json={"model_id": "qwen3-0.6b"})
     assert response.status_code == 400
 
 
-def test_download_rejects_non_litert_registry_entry():
+def test_download_rejects_unregistered_model():
     with TestClient(app=app) as client:
         response = client.post("/api/models/download", json={"model_id": "qwen3-1b", "confirm": True})
-    assert response.status_code == 400
+    assert response.status_code == 404
 
 
 def test_download_jobs_endpoint_is_available():
@@ -76,10 +76,12 @@ def test_download_jobs_endpoint_is_available():
 
 def test_model_detail_endpoint_returns_registered_model():
     with TestClient(app=app) as client:
-        response = client.get("/api/models/gemma-3-1b-it")
+        response = client.get("/api/models/qwen3-0.6b")
         missing = client.get("/api/models/not-registered")
     assert response.status_code == 200
-    assert response.json()["name"] == "gemma-3-1b-it"
+    assert response.json()["name"] == "qwen3-0.6b"
+    assert response.json()["hf_repo"] == "litert-community/Qwen3-0.6B"
+    assert response.json()["hf_file"] == "Qwen3-0.6B.litertlm"
     assert "installed" in response.json()
     assert missing.status_code == 404
 
@@ -182,3 +184,14 @@ def test_self_reflection_returns_diagnostic_error_when_agent_initialization_fail
     assert response.status_code == 502
     assert "Self-reflection failed" in response.json()["detail"]
     assert "simulated backend initialization failure" in response.json()["detail"]
+
+
+def test_local_registry_uses_qwen3_06b_without_gemma_models():
+    import terminal_ai as core
+
+    registry = core.ModelRegistry()
+    assert set(registry.local) == {"qwen3-0.6b"}
+    model = registry.local["qwen3-0.6b"]
+    assert model.hf_repo == "litert-community/Qwen3-0.6B"
+    assert model.hf_file == "Qwen3-0.6B.litertlm"
+    assert model.size == "0.6B"
