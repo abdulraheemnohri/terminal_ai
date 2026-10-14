@@ -456,6 +456,39 @@ async def providers() -> dict[str, Any]:
             "active_provider": _read_settings().get("active_provider", "gemini")}
 
 
+
+@post("/api/providers/test")
+async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
+    _load_env()
+    provider_id = str(data.get("provider_id", "gemini")).strip().lower()
+    model = str(data.get("model", "")).strip() or None
+    api_key = str(data.get("api_key", "")).strip()
+    started = time.time()
+    try:
+        if provider_id == "gemini":
+            key = api_key or _gemini_key()
+            backend = core.GeminiBackend(model=model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"), api_key=key)
+        else:
+            from api_provider_backend import APIProviderBackend, PROVIDERS
+            info = PROVIDERS.get(provider_id)
+            if info is None:
+                raise HTTPException(status_code=400, detail="Unknown provider.")
+            key = api_key or os.environ.get(info["env"], "")
+            endpoint = str(data.get("base_url", "")).strip() or None
+            if provider_id == "custom-openai" and endpoint and not endpoint.startswith(("https://", "http://127.0.0.1", "http://localhost")):
+                raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
+            backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
+        answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
+        backend.close()
+        if not answer:
+            raise RuntimeError("Provider returned an empty response.")
+        return {"ok": True, "provider_id": provider_id, "model": model, "elapsed_ms": round((time.time() - started) * 1000), "message": "Connection successful."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @get("/api/downloads")
 async def downloads() -> dict[str, Any]:
     """Return dynamic download-job states, safe for polling from the browser."""
@@ -700,7 +733,7 @@ app = Litestar(
     route_handlers=[
         index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page,
         status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, models, model_detail, providers, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
+        goals, add_goal, complete_goal, sessions, models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
