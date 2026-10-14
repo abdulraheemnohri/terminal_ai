@@ -87,7 +87,7 @@ def test_model_detail_endpoint_returns_registered_model():
 
 
 def test_dashboard_pages_are_directly_addressable():
-    pages = ["/overview", "/chat", "/sessions", "/models", "/diagnostics", "/memory", "/goals", "/self", "/settings"]
+    pages = ["/overview", "/chat", "/sessions", "/models", "/diagnostics", "/memory", "/goals", "/self", "/skills", "/tools", "/learning", "/improvements", "/settings"]
     with TestClient(app=app) as client:
         for path in pages:
             response = client.get(path)
@@ -195,3 +195,47 @@ def test_local_registry_uses_qwen3_06b_without_gemma_models():
     assert model.hf_repo == "litert-community/Qwen3-0.6B"
     assert model.hf_file == "Qwen3-0.6B.litertlm"
     assert model.size == "0.6B"
+
+
+def test_self_reflection_uses_internal_status_helper_and_succeeds(monkeypatch, tmp_path):
+    import app as web_app
+
+    class FakeBackend:
+        label = "test-backend"
+
+        def stream(self, system, history, tools=None):
+            yield "Operational review completed. One improvement: add regression tests."
+
+    class FakeAgent:
+        backend = FakeBackend()
+
+    monkeypatch.setattr(web_app, "_get_agent", lambda: FakeAgent())
+    monkeypatch.setattr(web_app.core, "STATE_DIR", tmp_path)
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/self/reflect", json={})
+    assert response.status_code == 200
+    assert "Operational review completed" in response.json()["reflection"]["text"]
+    assert (tmp_path / "self_reflection.json").is_file()
+
+
+def test_skills_tools_learning_and_improvement_apis_are_available_without_model():
+    with TestClient(app=app) as client:
+        skills = client.get("/api/skills")
+        tools = client.get("/api/tools")
+        learning = client.get("/api/learning")
+        improvements = client.get("/api/self/improvements")
+    assert skills.status_code == 200
+    assert "skills" in skills.json()
+    assert tools.status_code == 200
+    assert tools.json()["execution_enabled_in_web"] is False
+    assert tools.json()["built_in_count"] > 0
+    assert learning.status_code == 200
+    assert "memory_facts" in learning.json()
+    assert improvements.status_code == 200
+    assert "proposals" in improvements.json()
+
+
+def test_skill_creation_validates_steps_and_saves_locally():
+    with TestClient(app=app) as client:
+        invalid = client.post("/api/skills", json={"name": "Empty skill", "steps": []})
+    assert invalid.status_code == 400
