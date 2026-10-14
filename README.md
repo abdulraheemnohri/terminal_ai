@@ -1,147 +1,156 @@
-# ⬢ Terminal AI — Litestar Web Agent (v4.2.0)
+# Terminal AI — Local-First Web Agent
 
-Terminal AI is a local-first Python AI agent with a **Litestar web application** as its primary interface. It supports Google Gemini for cloud inference and LiteRT-LM for compatible local models, with persistent memory, goals, sessions, and agent settings.
+Terminal AI is a Python agent served through a Litestar web dashboard. The browser UI is the primary interface; `terminal_ai.py` is the internal agent engine imported by `app.py`.
 
-The terminal REPL is no longer the user interface. `terminal_ai.py` remains the internal agent engine used by the web app; start the application with `app.py`.
+## What it includes
 
-## Features
+- Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Goals, Self-awareness, and Settings.
+- Local-first state and model storage; no Firebase or mandatory hosted database.
+- Cloud providers: Google Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
+- Local inference through the LiteRT-LM **Python API** when a compatible `.litertlm` model and runtime are available. The app does not use a CLI subprocess for inference.
+- Auto, Cloud, Local, and Hybrid backend modes.
+- Persistent sessions, memory facts, goals, provider configuration, and operational self-review.
+- Explicitly confirmed model downloads from the registered model catalog; no silent model downloads on startup.
+- OpenAPI docs at `/schema/swagger` and ReDoc at `/schema`.
 
-- **Litestar web server** with typed HTTP endpoints and generated OpenAPI docs.
-- **Responsive dark dashboard** with directly addressable Overview (`/overview`), AI Chat (`/chat`), Sessions (`/sessions`), Models (`/models`), Diagnostics (`/diagnostics`), Memory (`/memory`), Goals (`/goals`), Self-awareness (`/self`), and Settings (`/settings`) pages; shared CSS/JavaScript are served from `/static/app.css` and `/static/app.js`.
-- **Cloud AI providers:** Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
-- **LiteRT-LM Python API** local inference (`litert_lm.Engine` / `create_conversation`; no CLI subprocess for inference).
-- **Auto / Cloud / Local / Hybrid** backend modes.
-- **Persistent conversation history**, memory facts, goals, and sessions.
-- **Memory manager** to add and forget saved facts.
-- **Goal tracker** to create and complete goals.
-- **Self-critique and proactive settings** persisted locally.
-- **Provider control panel** for provider selection, model override, API key setup, custom HTTPS/local endpoint, and configured-key status without exposing secrets.
-- **Self-awareness / Self-X page** for agent identity, mission, operational state, and explicit self-review; this is operational introspection, not a claim of sentience.
-- **Dynamic provider discovery API** (`/api/providers`) and background model-download jobs with status polling (`/api/downloads`).
-- **Explicitly confirmed model downloads** from registry-listed Hugging Face `.litertlm` artifacts; no automatic download at startup.
-- **API documentation** at `/schema/swagger` and ReDoc at `/schema`.
-- **Local-first storage** under `~/.terminal_ai/`; local models under `~/terminal-ai/models/`.
-- **Safe default:** web chat starts with agent tool execution disabled. Do not expose the server to untrusted networks.
+The self-awareness page displays the configured identity, mission, runtime state, and user-triggered operational review. This is software introspection, not evidence of sentience or subjective experience. Reflection cannot grant the agent new permissions.
 
-## Install
+## Requirements
 
-Python 3.10+ is recommended. From the repository root:
+- Python 3.10 or newer (Python 3.12 is used by CI).
+- Git and a modern browser.
+- Internet access for package installation and cloud APIs / model downloads.
+- For cloud inference, a key for the selected provider.
+- For local inference, a compatible LiteRT-LM Python runtime and model supported by the target platform. LiteRT-LM support varies by operating system, Python version, and CPU architecture.
+
+## Quick start
 
 ### Linux / macOS / WSL
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-cp .env.example .env
+git clone https://github.com/abdulraheemnohri/terminal_ai.git
+cd terminal_ai
+sh install.sh
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
-
-Edit `.env` locally and add your own `GEMINI_API_KEY`. Keep real credentials out of Git.
 
 ### Windows PowerShell
 
 ```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-notepad .env
+git clone https://github.com/abdulraheemnohri/terminal_ai.git
+Set-Location terminal_ai
+.\install.ps1
+.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-### Setup helpers
-
-- Linux/macOS/WSL: `sh install.sh`
-- Windows PowerShell: `./install.ps1`
-
-## Run the web application
+### Termux
 
 ```bash
-# Development mode (reload on code changes)
-.venv/bin/litestar --app app:app run --reload --host 127.0.0.1 --port 8000
-
-# Or use Uvicorn directly
-.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
+pkg update
+pkg install python git
+git clone https://github.com/abdulraheemnohri/terminal_ai.git
+cd terminal_ai
+sh install.sh
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-On Windows, use `.venv\Scripts\litestar.exe` or `.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000`.
+Open **http://127.0.0.1:8000**. Keep the server running while using the UI. Stop it with Ctrl+C. The setup scripts install dependencies and run Python syntax checks; they do not automatically start the server or run the full test suite.
 
-Open **http://127.0.0.1:8000** in your browser. API docs: **http://127.0.0.1:8000/schema/swagger**.
+If the `litestar` executable is installed, the equivalent development command is:
 
-For development, you can also run `python -m litestar --app app:app run --reload` where supported by the installed Litestar CLI.
+```bash
+.venv/bin/litestar --app app:app run --reload --host 127.0.0.1 --port 8000
+```
 
-## Configure models
+On Windows, use `.venv\Scripts\litestar.exe` with the same arguments. Uvicorn is the documented portable fallback.
 
-Example local `.env` file:
+## Configuration
+
+The setup script creates `.env` from `.env.example` only when `.env` does not already exist. Edit `.env` locally; never commit real credentials.
+
+Example:
 
 ```dotenv
-GEMINI_API_KEY=replace_with_your_real_key
+GEMINI_API_KEY=replace_with_your_real_gemini_api_key
 HF_TOKEN=replace_with_your_huggingface_token
-# Optional: TERMINAL_AI_MODE=auto
+# TERMINAL_AI_MODE=auto
 ```
 
-- `GEMINI_API_KEY`: required for Gemini cloud mode.
-- `HF_TOKEN`: optional; needed only for gated Hugging Face downloads.
+- `GEMINI_API_KEY`: Gemini cloud inference.
+- `HF_TOKEN`: optional token for gated Hugging Face model downloads.
 - `TERMINAL_AI_MODE`: optional initial mode: `auto`, `cloud`, `local`, or `hybrid`.
-- `TERMINAL_AI_STATE`: override the state directory.
-- `TERMINAL_AI_MODELS`: override the local model directory.
-- `TERMINAL_AI_GEMINI_MODEL`: override the Gemini model name.
+- `TERMINAL_AI_STATE`: override local state directory.
+- `TERMINAL_AI_MODELS`: override local model directory.
+- `TERMINAL_AI_GEMINI_MODEL`: override Gemini model.
+- Provider-specific keys are listed in Settings and in `api_provider_backend.py`; examples include `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `TOGETHER_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY`, `FIREWORKS_API_KEY`, `CEREBRAS_API_KEY`, and `TERMINAL_AI_CUSTOM_API_KEY`.
 
-The application loads environment values from the process environment and the local `.env` file. Existing process environment variables take precedence. A local `.litertlm` model must already be installed and supported by the LiteRT-LM Python API; the web app does not silently download large model files on startup.
+Cloud mode uses the selected provider. Auto and Hybrid may combine cloud and local inference according to the configured backend behavior. API keys are stored in the local environment configuration and are not returned by the settings API. Custom remote endpoints must use HTTPS; HTTP is permitted only for loopback/local endpoints.
+
+## Main UI pages
+
+| Page | Purpose |
+|---|---|
+| Overview | Runtime and agent status |
+| Chat | Conversation with the configured backend |
+| Sessions | Saved conversation sessions |
+| Models | Registry, installed local models, and confirmed downloads |
+| Diagnostics | Runtime, storage, and backend diagnostics |
+| Memory | View, add, and forget memory facts |
+| Goals | Create and complete goals |
+| Self-awareness | Identity, mission, status, and manual operational review |
+| Settings | Backend mode, providers, model, endpoint, and agent preferences |
 
 ## API overview
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/status` | Health and backend status |
+| GET | `/api/status` | Runtime and backend status |
 | POST | `/api/chat` | Send a chat message |
-| POST | `/api/chat/clear` | Clear the active conversation |
-| GET | `/api/memory` | Read saved memory |
-| POST | `/api/memory` | Save a fact |
-| POST | `/api/memory/forget` | Forget facts matching a key |
-| GET | `/api/goals` | List goals |
-| POST | `/api/goals` | Create a goal |
+| POST | `/api/chat/clear` | Clear active conversation |
+| GET / POST | `/api/memory` | Read or save memory |
+| POST | `/api/memory/forget` | Forget matching memory facts |
+| GET / POST | `/api/goals` | List or create goals |
 | POST | `/api/goals/{goal_id}/complete` | Complete a goal |
-| GET | `/api/sessions` | List saved sessions |
-| GET | `/api/models` | List supported models and installed local files |
-| GET | `/api/models/{model_id}` | Get one registered model and installation state |
-| GET | `/api/providers` | Discover provider integrations and configuration |
-| POST | `/api/models/download` | Queue an explicitly confirmed registered `.litertlm` download |
-| GET | `/api/downloads` | List background download jobs and observed progress |
-| GET | `/api/diagnostics` | Local app, runtime, storage, and backend diagnostics |
-| GET / PATCH | `/api/settings` | Read/update app settings |
+| GET | `/api/sessions` | List sessions |
+| GET | `/api/models` | Model catalog and installation state |
+| GET | `/api/models/{model_id}` | One model's metadata/state |
+| GET | `/api/providers` | Provider inventory and configuration status |
+| POST | `/api/providers/test` | Test the selected provider connection |
+| POST | `/api/models/download` | Queue an explicitly requested model download |
+| GET | `/api/downloads` | Download job status |
+| GET | `/api/diagnostics` | Local diagnostics |
+| GET / PATCH | `/api/settings` | Read or update settings |
+| GET | `/api/self/status` | Operational self-model and review status |
+| POST | `/api/self/reflect` | Run a manual operational self-review |
 
-## Storage
+## Storage locations
 
-- State: `~/.terminal_ai/` (or `TERMINAL_AI_STATE`)
-- Local models: `~/terminal-ai/models/` (or `TERMINAL_AI_MODELS`)
-- Web settings: `~/.terminal_ai/web_settings.json`
-
-## Security notes
-
-- The web app binds to `127.0.0.1` in the documented run commands.
-- Tool execution is disabled in the web chat by default.
-- Never put real API keys in source files, issues, screenshots, or commits.
-- Before exposing the service on a LAN or public host, add authentication, CSRF protections, rate limiting, and a reverse proxy/TLS configuration.
-- The app is self-hosted; it does not require Firebase or a mandatory hosted database.
+- State and web settings: `~/.terminal_ai/` by default.
+- Model files: `~/terminal-ai/models/` by default.
+- Override these locations with `TERMINAL_AI_STATE` and `TERMINAL_AI_MODELS`.
 
 ## Development and tests
 
+Activate the virtual environment, then run:
+
 ```bash
-python -m py_compile app.py terminal_ai.py
-python -m pytest
+.venv/bin/python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py
+.venv/bin/python -m pytest -q
 ```
 
-Litestar documentation: https://docs.litestar.dev/2/
+On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`. Tests isolate application state using temporary directories. Live cloud provider credentials are not required for the unit tests.
 
+## Security notes
 
-## Cloud API provider configuration
+- Default documented commands bind to `127.0.0.1`; keep this for a private local deployment.
+- Never commit `.env`, API keys, tokens, or model files.
+- Do not expose the dashboard to untrusted networks without authentication, CSRF protections, rate limiting, and TLS/reverse-proxy configuration.
+- Tool execution should remain disabled unless you understand and trust the enabled capabilities.
+- Treat model outputs and internet research as untrusted input.
 
-Open Settings → Cloud AI provider, choose a provider, optionally enter a model ID, and paste its API key. The app writes credentials to the local .env file and never returns the key to the browser. Cloud mode uses the selected provider; Auto and Hybrid can use it alongside a local .litertlm model. LiteRT-LM remains the local inference runtime.
+## Documentation
 
-Supported provider environment keys include OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, TOGETHER_API_KEY, MISTRAL_API_KEY, XAI_API_KEY, FIREWORKS_API_KEY, CEREBRAS_API_KEY, and TERMINAL_AI_CUSTOM_API_KEY. Custom endpoints require HTTPS, except loopback URLs for local servers.
-
-## Operational self-awareness
-
-The Self-awareness page exposes the agent identity, mission, backend/mode state, and a user-triggered operational self-review. Reviews are saved locally in ~/.terminal_ai/self_reflection.json. This is a software self-model and reflection workflow; it does not imply subjective experience or consciousness. The review cannot execute tools or grant itself additional permissions.
+- Installation and troubleshooting: [INSTALL.md](INSTALL.md)
+- Release history: [CHANGELOG.md](CHANGELOG.md)
+- Litestar docs: https://docs.litestar.dev/2/
+- LiteRT-LM upstream: https://github.com/google-ai-edge/LiteRT-LM
