@@ -316,7 +316,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="max_ctx_chars must be an integer.")
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
-    global _AGENT
+    global _AGENT, _BACKEND
     if current["mode"] != getattr(_AGENT, "mode", None):
         if _AGENT is not None:
             try:
@@ -324,6 +324,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             except Exception:
                 pass
         _AGENT = None
+        _BACKEND = None
     elif _AGENT is not None:
         _AGENT.self_critique = bool(current.get("self_critique", False))
         _AGENT.critic.enabled = _AGENT.self_critique
