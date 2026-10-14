@@ -72,3 +72,13 @@ def test_download_jobs_endpoint_is_available():
         response = client.get("/api/downloads")
     assert response.status_code == 200
     assert "downloads" in response.json()
+
+
+def test_model_detail_endpoint_returns_registered_model():
+    with TestClient(app=app) as client:
+        response = client.get("/api/models/gemma-3-1b-it")
+        missing = client.get("/api/models/not-registered")
+    assert response.status_code == 200
+    assert response.json()["name"] == "gemma-3-1b-it"
+    assert "installed" in response.json()
+    assert missing.status_code == 404
