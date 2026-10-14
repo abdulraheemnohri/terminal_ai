@@ -15,6 +15,7 @@ import urllib.error
 import time
 import uuid
 import threading
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,7 @@ def _read_settings() -> dict[str, Any]:
             defaults.update(saved)
     except (OSError, json.JSONDecodeError):
         pass
+    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     defaults["autonomy"] = 0  # Web default stays tool-disabled until explicitly enabled in a future guarded UI.
@@ -640,6 +642,7 @@ async def get_settings() -> dict[str, Any]:
         "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
     }
 
 
@@ -743,6 +746,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "provider_configured": provider_status,
         "state_dir": str(core.STATE_DIR),
         "models_dir": str(core.MODELS_DIR),
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
     }
 
 
@@ -860,7 +864,14 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
             return {"updated": False, "message": "No newer commit detected.", "restart_required": False}
         backup_dir = core.BACKUP_DIR / f"pre-update-{int(time.time())}"
         backup_dir.mkdir(parents=True, exist_ok=False)
-        archive = await asyncio.to_thread(shutil.make_archive, str(backup_dir / "state-backup"), "zip", str(core.STATE_DIR))
+        archive = backup_dir / "state-backup.zip"
+        def create_state_backup() -> None:
+            with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for path in core.STATE_DIR.rglob("*"):
+                    if not path.is_file() or backup_dir in path.parents:
+                        continue
+                    zf.write(path, path.relative_to(core.STATE_DIR))
+        await asyncio.to_thread(create_state_backup)
         def pull_fast_forward() -> subprocess.CompletedProcess[str]:
             subprocess.run(["git", "fetch", "--quiet", "origin", "main"], cwd=ROOT, capture_output=True, text=True, timeout=90, check=True)
             return subprocess.run(["git", "merge", "--ff-only", "FETCH_HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=90)
@@ -868,12 +879,56 @@ async def apply_update(data: dict[str, Any]) -> dict[str, Any]:
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout or "Git fast-forward update failed.")[:600])
         return {"updated": True, "message": "Update applied. Restart Terminal AI to load the new code.",
-                "restart_required": True, "backup": archive, "commit": info["latest_sha"]}
+                "restart_required": True, "backup": str(archive), "commit": info["latest_sha"]}
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Update failed. Restart is not automatic. {str(exc)[:500]}") from exc
 
+
+
+_UPDATE_TASK: asyncio.Task | None = None
+
+
+async def _automatic_update_checker() -> None:
+    while True:
+        try:
+            settings = _read_settings()
+            if settings.get("updates_enabled", False):
+                interval = max(6, min(168, int(settings.get("update_check_interval_hours", 24)))) * 3600
+                last_check = float(settings.get("last_update_check", 0) or 0)
+                if time.time() - last_check >= interval:
+                    info = await asyncio.to_thread(_check_github_update)
+                    settings["last_update_check"] = info["checked_at"]
+                    settings["last_update_result"] = "Update available" if info["update_available"] else "No update detected"
+                    _write_settings(settings)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            try:
+                settings = _read_settings()
+                settings["last_update_result"] = f"Update check failed: {str(exc)[:180]}"
+                _write_settings(settings)
+            except Exception:
+                pass
+        await asyncio.sleep(60)
+
+
+async def _start_update_checker() -> None:
+    global _UPDATE_TASK
+    if _UPDATE_TASK is None or _UPDATE_TASK.done():
+        _UPDATE_TASK = asyncio.create_task(_automatic_update_checker())
+
+
+async def _stop_update_checker() -> None:
+    global _UPDATE_TASK
+    if _UPDATE_TASK is not None:
+        _UPDATE_TASK.cancel()
+        try:
+            await _UPDATE_TASK
+        except asyncio.CancelledError:
+            pass
+        _UPDATE_TASK = None
 
 app = Litestar(
     route_handlers=[
@@ -883,4 +938,6 @@ app = Litestar(
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
+    on_startup=[_start_update_checker],
+    on_shutdown=[_stop_update_checker],
 )
