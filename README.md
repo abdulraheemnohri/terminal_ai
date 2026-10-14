@@ -7,7 +7,7 @@ The terminal REPL is no longer the user interface. `terminal_ai.py` remains the 
 ## Features
 
 - **Litestar web server** with typed HTTP endpoints and generated OpenAPI docs.
-- **Responsive dark dashboard** with Overview, AI Chat, Memory, Goals, and Settings pages.
+- **Responsive dark dashboard** with Overview, AI Chat, Models, Diagnostics, Memory, Goals, and Settings pages.
 - **Gemini cloud backend** and optional **LiteRT-LM local backend**.
 - **Auto / Cloud / Local / Hybrid** backend modes.
 - **Persistent conversation history**, memory facts, goals, and sessions.
@@ -99,6 +99,8 @@ The application loads environment values from the process environment and the lo
 | POST | `/api/goals` | Create a goal |
 | POST | `/api/goals/{goal_id}/complete` | Complete a goal |
 | GET | `/api/sessions` | List saved sessions |
+| GET | `/api/models` | List supported models and installed local files |
+| GET | `/api/diagnostics` | Local app, runtime, storage, and backend diagnostics |
 | GET / PATCH | `/api/settings` | Read/update app settings |
 
 ## Storage
