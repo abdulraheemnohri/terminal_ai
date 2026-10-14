@@ -60,9 +60,13 @@ class LiteRTPythonBackend(core.Backend):
         lm = self._litert_lm
         messages = [
             self._message(item.role, item.text)
-            for item in history
+            for item in history[:-1]
             if item.role in {"user", "assistant"} and item.text
         ]
+        latest_user_message = next(
+            (item.text for item in reversed(history) if item.role == "user" and item.text),
+            "",
+        )
         try:
             with lm.Engine(str(self.model_path), backend=lm.Backend.CPU()) as engine:
                 with engine.create_conversation(
@@ -70,9 +74,7 @@ class LiteRTPythonBackend(core.Backend):
                     system_message=system or None,
                     max_output_tokens=self.max_output_tokens,
                 ) as conversation:
-                    for chunk in conversation.send_message_async(
-                        messages[-1]["content"] if messages else ""
-                    ):
+                    for chunk in conversation.send_message_async(latest_user_message):
                         text = self._chunk_text(chunk)
                         if text:
                             yield text
