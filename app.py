@@ -595,6 +595,39 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             current["max_ctx_chars"] = max(2000, min(50000, int(data["max_ctx_chars"])))
         except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="max_ctx_chars must be an integer.")
+    if "active_provider" in data:
+        from api_provider_backend import PROVIDERS
+        provider_id = str(data["active_provider"]).strip().lower()
+        if provider_id != "gemini" and provider_id not in PROVIDERS:
+            raise HTTPException(status_code=400, detail="Unknown AI provider.")
+        current["active_provider"] = provider_id
+    if "provider_model" in data:
+        current["provider_model"] = str(data["provider_model"]).strip()[:200]
+    if "custom_base_url" in data:
+        base_url = str(data["custom_base_url"]).strip()
+        if base_url and not base_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
+            raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
+        current["custom_base_url"] = base_url[:500]
+    if "self_identity" in data:
+        current["self_identity"] = str(data["self_identity"]).strip()[:120] or "Terminal AI"
+    if "self_mission" in data:
+        current["self_mission"] = str(data["self_mission"]).strip()[:1000]
+    if "self_reflection_enabled" in data:
+        current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
+    if "api_key" in data and str(data["api_key"]).strip():
+        provider_id = str(current.get("active_provider", "gemini"))
+        if provider_id == "gemini":
+            env_name = "GEMINI_API_KEY"
+        else:
+            from api_provider_backend import PROVIDERS
+            provider_info = PROVIDERS.get(provider_id)
+            if not provider_info:
+                raise HTTPException(status_code=400, detail="Unknown provider for API key.")
+            env_name = provider_info["env"]
+        manager = core.EnvManager(env_file=ROOT / ".env", workspace=ROOT)
+        manager.load(apply=True)
+        if not manager.set(env_name, str(data["api_key"]).strip(), persist=True):
+            raise HTTPException(status_code=400, detail="Could not save API key.")
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
