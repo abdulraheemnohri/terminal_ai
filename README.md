@@ -7,13 +7,16 @@ The terminal REPL is no longer the user interface. `terminal_ai.py` remains the 
 ## Features
 
 - **Litestar web server** with typed HTTP endpoints and generated OpenAPI docs.
-- **Responsive dark dashboard** with directly addressable Overview (`/overview`), AI Chat (`/chat`), Sessions (`/sessions`), Models (`/models`), Diagnostics (`/diagnostics`), Memory (`/memory`), Goals (`/goals`), and Settings (`/settings`) pages; shared CSS/JavaScript are served from `/static/app.css` and `/static/app.js`.
-- **Gemini cloud backend** and **LiteRT-LM Python API** local inference (`litert_lm.Engine` / `create_conversation`; no CLI subprocess for inference).
+- **Responsive dark dashboard** with directly addressable Overview (`/overview`), AI Chat (`/chat`), Sessions (`/sessions`), Models (`/models`), Diagnostics (`/diagnostics`), Memory (`/memory`), Goals (`/goals`), Self-awareness (`/self`), and Settings (`/settings`) pages; shared CSS/JavaScript are served from `/static/app.css` and `/static/app.js`.
+- **Cloud AI providers:** Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
+- **LiteRT-LM Python API** local inference (`litert_lm.Engine` / `create_conversation`; no CLI subprocess for inference).
 - **Auto / Cloud / Local / Hybrid** backend modes.
 - **Persistent conversation history**, memory facts, goals, and sessions.
 - **Memory manager** to add and forget saved facts.
 - **Goal tracker** to create and complete goals.
 - **Self-critique and proactive settings** persisted locally.
+- **Provider control panel** for provider selection, model override, API key setup, custom HTTPS/local endpoint, and configured-key status without exposing secrets.
+- **Self-awareness / Self-X page** for agent identity, mission, operational state, and explicit self-review; this is operational introspection, not a claim of sentience.
 - **Dynamic provider discovery API** (`/api/providers`) and background model-download jobs with status polling (`/api/downloads`).
 - **Explicitly confirmed model downloads** from registry-listed Hugging Face `.litertlm` artifacts; no automatic download at startup.
 - **API documentation** at `/schema/swagger` and ReDoc at `/schema`.
@@ -131,3 +134,14 @@ python -m pytest
 ```
 
 Litestar documentation: https://docs.litestar.dev/2/
+
+
+## Cloud API provider configuration
+
+Open Settings → Cloud AI provider, choose a provider, optionally enter a model ID, and paste its API key. The app writes credentials to the local .env file and never returns the key to the browser. Cloud mode uses the selected provider; Auto and Hybrid can use it alongside a local .litertlm model. LiteRT-LM remains the local inference runtime.
+
+Supported provider environment keys include OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, TOGETHER_API_KEY, MISTRAL_API_KEY, XAI_API_KEY, FIREWORKS_API_KEY, CEREBRAS_API_KEY, and TERMINAL_AI_CUSTOM_API_KEY. Custom endpoints require HTTPS, except loopback URLs for local servers.
+
+## Operational self-awareness
+
+The Self-awareness page exposes the agent identity, mission, backend/mode state, and a user-triggered operational self-review. Reviews are saved locally in ~/.terminal_ai/self_reflection.json. This is a software self-model and reflection workflow; it does not imply subjective experience or consciousness. The review cannot execute tools or grant itself additional permissions.
