@@ -168,3 +168,17 @@ def test_update_interval_is_bounded_and_persisted():
     assert status.status_code == 200
     assert status.json()["enabled"] is True
     assert status.json()["interval_hours"] == 6
+
+
+def test_self_reflection_returns_diagnostic_error_when_agent_initialization_fails(monkeypatch):
+    import app as web_app
+
+    def fail_initialization():
+        raise RuntimeError("simulated backend initialization failure")
+
+    monkeypatch.setattr(web_app, "_get_agent", fail_initialization)
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/self/reflect", json={})
+    assert response.status_code == 502
+    assert "Self-reflection failed" in response.json()["detail"]
+    assert "simulated backend initialization failure" in response.json()["detail"]
