@@ -11,7 +11,7 @@ The **Self-X** web dashboard adds operational self-identity/status, local diagno
 - **Self-repair:** evidence-based proposals only; no automatic source edits, shell execution, dependency installation, or permission changes.
 - **Self-research:** manually curated local research notes with optional HTTP(S) source references; notes remain unverified and URLs are not fetched automatically.
 - **Self-evaluation:** deterministic operational readiness checks, not an intelligence benchmark.
-- **Self-goals / self-skills:** existing goal planner and reviewed reusable procedure library, controlled by independent settings.
+- **Self-goals / self-skills:** existing goal planner and reviewed reusable procedure library, controlled by independent settings. AI can draft a skill from a described workflow; the user reviews/edits it before saving. Generated skills are instructions, never executable code.
 - **Self-learning:** local memories, skill procedures, and outcome records; no model-weight training.
 - **Self-recovery:** checksummed allowlisted state checkpoints and explicitly confirmed restore; restores create a safety checkpoint first and exclude Hugging Face tokens and other secret files.
 - **Self-maintenance:** advisory proposals and manual update review. When explicitly enabled, a background worker runs local diagnostics/evaluation at the configured interval. It does not execute commands, apply repairs, install dependencies, or update source code.
@@ -25,7 +25,8 @@ Self-X data is stored locally in the Terminal AI state directory. Keep the web U
 - Cloud providers: Google Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
 - Local inference through the LiteRT-LM **Python API** when a compatible `.litertlm` model and runtime are available. The app does not use a CLI subprocess for inference.
 - Auto, Cloud, Local, and Hybrid backend modes.
-- Persistent sessions, memory facts, goals, provider configuration, and operational self-review.
+- Persistent sessions with create/open/delete and active conversation restoration, memory facts, goals, provider configuration, and operational self-review.
+- Natural-language AI settings proposals with a strict allowlist and explicit review/apply step; the assistant cannot change credentials or tool-approval policy.
 - Explicitly confirmed model downloads from the registered model catalog; no silent model downloads on startup.
 - OpenAPI docs at `/schema/swagger` and ReDoc at `/schema`.
 
@@ -136,7 +137,12 @@ The LiteRT-LM adapter uses the Python API, not a `litert-lm` shell command. It d
 | POST | `/api/memory/forget` | Forget matching memory facts |
 | GET / POST | `/api/goals` | List or create goals |
 | POST | `/api/goals/{goal_id}/complete` | Complete a goal |
-| GET | `/api/sessions` | List sessions |
+| GET | `/api/sessions` | List sessions and active session |
+| POST | `/api/sessions/new` | Create and activate a session |
+| POST | `/api/sessions/select` | Load a saved session into chat |
+| POST | `/api/sessions/delete` | Delete a saved session |
+| POST | `/api/skills/generate` | Generate an unverified skill draft |
+| POST | `/api/ai/settings/propose` | Propose whitelisted settings changes; never applies them directly |
 | GET | `/api/models` | Model catalog and installation state |
 | GET | `/api/models/{model_id}` | One model's metadata/state |
 | GET | `/api/providers` | Provider inventory and configuration status |

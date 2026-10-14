@@ -20,8 +20,28 @@ async function loadGoals(){const list=$("goal-list");list.innerHTML='<div class=
 $("goal-list").addEventListener("click",async e=>{const b=e.target.closest("[data-complete]");if(!b)return;try{await api("/api/goals/"+encodeURIComponent(b.dataset.complete)+"/complete",{method:"POST",body:"{}"});await loadGoals();await loadStatus();}catch(err){$("goal-error").textContent=err.message;}});
 $("refresh-goals").addEventListener("click",loadGoals);
 $("goal-form").addEventListener("submit",async e=>{e.preventDefault();$("goal-error").textContent="";try{await api("/api/goals",{method:"POST",body:JSON.stringify({text:$("goal-text").value})});$("goal-text").value="";await loadGoals();await loadStatus();}catch(err){$("goal-error").textContent=err.message;}});
-async function loadSessions(){const list=$("session-list");list.innerHTML='<div class="empty">Loading saved sessions…</div>';try{const data=await api("/api/sessions");const sessions=data.sessions||[];list.innerHTML=sessions.length?sessions.map(name=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(name)+'</b><span class="badge">Saved locally</span></div><p class="muted">Conversation snapshot stored on this device.</p></div>').join(""):'<div class="empty">No saved sessions yet. A session is saved after a successful chat turn.</div>';$("sessions-error").textContent="";}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
+async function loadSessions(){
+ const list=$("session-list");list.innerHTML='<div class="empty">Loading saved sessions…</div>';
+ try{
+  const data=await api("/api/sessions");const sessions=data.sessions||[];
+  list.innerHTML=sessions.length?sessions.map(name=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(name)+'</b><span class="badge">'+(name===data.active_session?'Active':'Saved locally')+'</span></div><div class="row" style="margin-top:10px;gap:8px"><button class="btn primary" data-select-session="'+escapeHtml(name)+'">'+(name===data.active_session?'Reload session':'Open session')+'</button><button class="btn danger" data-delete-session="'+escapeHtml(name)+'">Delete</button></div></div>').join(""):'<div class="empty">No saved sessions yet. Create a session to begin.</div>';
+  $("sessions-error").textContent="";
+ }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
+}
 $("refresh-sessions").addEventListener("click",loadSessions);
+$("session-new-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("sessions-error").textContent="";
+ try{await api("/api/sessions/new",{method:"POST",body:JSON.stringify({name:$("session-new-name").value})});$("session-new-name").value="";$("messages").innerHTML='<div class="welcome" id="welcome"><div class="orb">✧</div><h2>New conversation</h2><p>New session created. Send a message to begin.</p></div>';await loadSessions();showView("chat");}
+ catch(err){$("sessions-error").textContent=err.message;}
+});
+$("session-list").addEventListener("click",async e=>{
+ const open=e.target.closest("[data-select-session]");
+ const del=e.target.closest("[data-delete-session]");
+ try{
+  if(open){const result=await api("/api/sessions/select",{method:"POST",body:JSON.stringify({name:open.dataset.selectSession})});$("messages").innerHTML="";if((result.history||[]).length){for(const m of result.history)addMessage(m.role==="assistant"?"assistant":"user",m.text);}else{$("messages").innerHTML='<div class="welcome" id="welcome"><div class="orb">✧</div><h2>Empty session</h2><p>Send a message to begin this conversation.</p></div>';}await loadSessions();showView("chat");}
+  else if(del){if(!confirm("Permanently delete session '"+del.dataset.deleteSession+"'?"))return;await api("/api/sessions/delete",{method:"POST",body:JSON.stringify({name:del.dataset.deleteSession})});await loadSessions();}
+ }catch(err){$("sessions-error").textContent=err.message;}
+});
 async function loadModels(){const list=$("model-list");list.innerHTML='<div class="empty">Loading model inventory…</div>'; $("models-error").textContent="";try{const data=await api("/api/models");$("model-count").textContent=data.installed_count+" local model file(s)";$("model-dir").textContent="Directory: "+data.models_dir;const models=data.models||[];list.innerHTML=models.length?models.map(m=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(m.display||m.name)+'</b><span class="badge">'+escapeHtml(m.kind)+(m.installed?' · installed':'')+'</span></div><p>'+escapeHtml(m.name)+' · '+escapeHtml(m.tier||'model')+(m.size?' · '+escapeHtml(m.size):'')+'</p><p>Strengths: '+escapeHtml((m.strengths||[]).join(', ')||'not specified')+'</p>'+(m.path?'<p>Path: '+escapeHtml(m.path)+'</p>':'')+(m.hf_repo?'<p>Source: '+escapeHtml(m.hf_repo+'/'+(m.hf_file||''))+'</p>':'')+(!m.installed&&m.kind==="local"&&m.hf_file&&m.hf_file.endsWith(".litertlm")?'<button class="btn primary" data-download-model="'+escapeHtml(m.name)+'">Download model</button>':'')+'</div>').join(""):'<div class="empty">No model entries are registered.</div>';}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
 $("refresh-models").addEventListener("click",loadModels);
 async function loadProviders(){const list=$("provider-list");try{const data=await api("/api/providers");list.innerHTML=(data.providers||[]).map(p=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(p.label)+'</b><span class="badge">'+(p.configured?'Configured':'Not configured')+'</span></div><p>'+escapeHtml(p.kind)+' · '+(p.requires_network?'Network required':'Local/offline capable')+'</p>'+(p.token_configured!==undefined?'<p>Hugging Face token: '+(p.token_configured?'configured':'optional / not configured')+'</p>':'')+'</div>').join("");}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
@@ -238,6 +258,15 @@ async function loadSkills(){
  }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
 }
 $("refresh-skills").addEventListener("click",loadSkills);
+$("skill-generate-form").addEventListener("submit",async e=>{
+ e.preventDefault();const button=$("skill-generate-btn");button.disabled=true;button.textContent="Generating draft…";$("skill-error").textContent="";$("skill-draft-notice").textContent="";
+ try{
+  const result=await api("/api/skills/generate",{method:"POST",body:JSON.stringify({task:$("skill-generate-task").value,context:$("skill-generate-context").value})});
+  const d=result.draft||{};$("skill-name").value=d.name||"";$("skill-context").value=d.context||"";$("skill-steps").value=(d.steps||[]).join("\n");
+  $("skill-draft-notice").textContent=result.notice||"Review and edit the draft, then press Save skill.";
+ }catch(err){$("skill-error").textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Generate skill draft with AI";}
+});
 $("skill-form").addEventListener("submit",async e=>{
  e.preventDefault();$("skill-error").textContent="";
  const steps=$("skill-steps").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
@@ -288,6 +317,23 @@ $("improvement-list").addEventListener("click",async e=>{
  catch(err){$("improvements-error").textContent=err.message;}
 });
 
+$("ai-settings-form").addEventListener("submit",async e=>{
+ e.preventDefault();const button=$("ai-settings-propose");button.disabled=true;button.textContent="Preparing proposal…";$("ai-settings-error").textContent="";$("ai-settings-preview").textContent="";$("ai-settings-apply").disabled=true;window.__aiSettingsProposal=null;
+ try{
+  const proposal=await api("/api/ai/settings/propose",{method:"POST",body:JSON.stringify({request:$("ai-settings-request").value})});
+  window.__aiSettingsProposal=proposal.changes||{};
+  $("ai-settings-preview").textContent=JSON.stringify({explanation:proposal.explanation,changes:proposal.changes,notice:proposal.notice},null,2);
+  $("ai-settings-apply").disabled=!Object.keys(window.__aiSettingsProposal).length;
+ }catch(err){$("ai-settings-error").textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Ask AI to propose settings";}
+});
+$("ai-settings-apply").addEventListener("click",async()=>{
+ const changes=window.__aiSettingsProposal;if(!changes||!Object.keys(changes).length)return;
+ if(!confirm("Apply these reviewed settings changes? Backend changes may reset the active agent."))return;
+ $("ai-settings-error").textContent="";$("ai-settings-apply").disabled=true;
+ try{await api("/api/settings",{method:"PATCH",body:JSON.stringify(changes)});$("ai-settings-preview").textContent="Settings applied. Review the current values below.";window.__aiSettingsProposal=null;await loadSettings();await loadStatus();}
+ catch(err){$("ai-settings-error").textContent=err.message;$("ai-settings-apply").disabled=false;}
+});
 const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
 const initialView=routeViews[location.pathname]||new URLSearchParams(location.search).get("view");
 if(titles[initialView])showView(initialView);

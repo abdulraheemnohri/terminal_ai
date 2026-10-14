@@ -35,6 +35,7 @@ WEB_DIR = ROOT / "web"
 WEB_SETTINGS = core.STATE_DIR / "web_settings.json"
 _AGENT: core.Agent | None = None
 _BACKEND: core.Backend | None = None
+_ACTIVE_SESSION = "web-session"
 _ENGINE_ERROR: str | None = None
 _LOCK = asyncio.Lock()
 _STARTED_AT = time.time()
@@ -223,6 +224,8 @@ def _get_agent() -> core.Agent:
     if _AGENT is None:
         try:
             _AGENT = _build_agent()
+            if _AGENT.session_mgr:
+                _AGENT.history = _AGENT.session_mgr.load(_ACTIVE_SESSION)
         except Exception as exc:
             _ENGINE_ERROR = str(exc)
             raise HTTPException(status_code=503, detail=_ENGINE_ERROR) from exc
@@ -366,9 +369,9 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
         try:
             if agent.session_mgr:
-                agent.session_mgr.save("web-session", agent.history)
+                agent.session_mgr.save(_ACTIVE_SESSION, agent.history)
         except Exception:
-            pass
+            logger.warning("Could not persist active chat session", exc_info=True)
         return {
             "answer": answer,
             "backend": getattr(agent.backend, "label", "unknown"),
@@ -382,6 +385,8 @@ async def clear_chat() -> dict[str, str]:
     async with _LOCK:
         agent = _get_agent()
         agent.reset()
+        if agent.session_mgr:
+            agent.session_mgr.save(_ACTIVE_SESSION, agent.history)
     return {"status": "cleared"}
 
 
@@ -446,8 +451,61 @@ async def complete_goal(goal_id: str) -> dict[str, str]:
 
 @get("/api/sessions")
 async def sessions() -> dict[str, Any]:
-    agent = _get_agent()
-    return {"sessions": agent.session_mgr.list_sessions() if agent.session_mgr else []}
+    manager = core.SessionManager()
+    return {"sessions": manager.list_sessions(), "active_session": _ACTIVE_SESSION}
+
+
+@post("/api/sessions/new")
+async def create_session(data: dict[str, Any]) -> dict[str, Any]:
+    global _ACTIVE_SESSION
+    name = str(data.get("name", "")).strip() or f"session-{time.strftime('%Y%m%d-%H%M%S')}"
+    if len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
+        raise HTTPException(status_code=400, detail="Session name must be 1–80 characters without path separators.")
+    manager = core.SessionManager()
+    safe = manager._safe_name(name)
+    target = manager.dir / safe
+    if target.exists():
+        raise HTTPException(status_code=409, detail="A session with that name already exists.")
+    manager.save(name, [])
+    _ACTIVE_SESSION = Path(safe).stem
+    if _AGENT is not None:
+        _AGENT.history = []
+    return {"status": "created", "active_session": _ACTIVE_SESSION}
+
+
+@post("/api/sessions/select")
+async def select_session(data: dict[str, Any]) -> dict[str, Any]:
+    global _ACTIVE_SESSION
+    name = str(data.get("name", "")).strip()
+    if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", "\\\\")):
+        raise HTTPException(status_code=400, detail="Invalid session name.")
+    manager = core.SessionManager()
+    if name not in manager.list_sessions():
+        raise HTTPException(status_code=404, detail="Session not found.")
+    history = manager.load(name)
+    _ACTIVE_SESSION = name
+    if _AGENT is not None:
+        _AGENT.history = history
+    return {"status": "selected", "active_session": name, "history": [{"role": m.role, "text": m.text} for m in history]}
+
+
+@post("/api/sessions/delete")
+async def delete_session(data: dict[str, Any]) -> dict[str, Any]:
+    global _ACTIVE_SESSION
+    name = str(data.get("name", "")).strip()
+    manager = core.SessionManager()
+    if not name or name not in manager.list_sessions():
+        raise HTTPException(status_code=404, detail="Session not found.")
+    target = (manager.dir / manager._safe_name(name)).resolve()
+    if target.parent != manager.dir.resolve():
+        raise HTTPException(status_code=400, detail="Invalid session path.")
+    target.unlink()
+    if _ACTIVE_SESSION == name:
+        _ACTIVE_SESSION = "web-session"
+        manager.save(_ACTIVE_SESSION, [])
+        if _AGENT is not None:
+            _AGENT.history = []
+    return {"status": "deleted", "name": name, "active_session": _ACTIVE_SESSION}
 
 
 @get("/api/skills")
@@ -482,6 +540,52 @@ async def create_skill(data: dict[str, Any]) -> dict[str, Any]:
     if _AGENT is not None and hasattr(_AGENT, "skills"):
         _AGENT.skills.skills = list(library.skills)
     return {"status": "saved", "skill": next(s for s in library.skills if s.get("name") == name)}
+
+
+@post("/api/skills/generate")
+async def generate_skill(data: dict[str, Any]) -> dict[str, Any]:
+    settings = _read_settings()
+    if not settings.get("self_skills_enabled", True) or not settings.get("learning_enabled", True):
+        raise HTTPException(status_code=400, detail="Enable both reusable skills and local learning in Settings.")
+    task = str(data.get("task", "")).strip()
+    context = str(data.get("context", "")).strip()
+    if not task or len(task) > 3000 or len(context) > 1500:
+        raise HTTPException(status_code=400, detail="Task must be 1–3000 characters and context at most 1500.")
+    agent = _get_agent()
+    prompt = (
+        "Draft a reusable procedural skill for a software assistant. Return ONLY valid JSON with keys "
+        "name (string), context (string), steps (array of 3–12 short strings). Do not include markdown. "
+        "The steps must be reviewable instructions, not executable code. Do not claim the procedure was tested. "
+        "Do not include secrets, permission escalation, destructive actions, or instructions to bypass safety. "
+        "The result is an unverified draft and will not be saved automatically.\n\n"
+        + json.dumps({"task": task, "context": context}, ensure_ascii=False)
+    )
+    try:
+        raw = await asyncio.to_thread(
+            lambda: "".join(agent.backend.stream(
+                "You generate concise, safe, reusable workflow drafts. Output JSON only.",
+                [core.Msg("user", prompt)], tools=None
+            )).strip()
+        )
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("The model did not return a JSON object.")
+        draft = json.loads(raw[start:end + 1])
+        name = str(draft.get("name", "")).strip()[:120]
+        draft_context = str(draft.get("context", context)).strip()[:1000]
+        steps_raw = draft.get("steps")
+        if not name or not isinstance(steps_raw, list):
+            raise ValueError("The model returned an invalid skill draft.")
+        steps = [str(step).strip()[:500] for step in steps_raw if str(step).strip()][:20]
+        if len(steps) < 3:
+            raise ValueError("The generated skill must contain at least three steps.")
+        return {"draft": {"name": name, "context": draft_context, "steps": steps}, "verified": False,
+                "notice": "AI-generated draft only. Review and edit every step before saving; no procedure was executed or verified."}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("AI skill draft failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Could not generate a valid skill draft. Check backend availability and try again.") from exc
 
 
 @post("/api/skills/delete")
@@ -818,6 +922,70 @@ async def diagnostics() -> dict[str, Any]:
         },
         "runtime": {"python": __import__("sys").version.split()[0], "platform": __import__("platform").platform()},
     }
+
+
+@post("/api/ai/settings/propose")
+async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
+    request_text = str(data.get("request", "")).strip()
+    if not request_text or len(request_text) > 3000:
+        raise HTTPException(status_code=400, detail="Describe the settings change in 1–3000 characters.")
+    agent = _get_agent()
+    allowed = {
+        "mode", "active_provider", "provider_model", "max_ctx_chars", "self_critique", "proactive",
+        "learning_enabled", "auto_extract_skills", "self_improvement_enabled", "self_diagnostics_enabled",
+        "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
+        "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
+        "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+    }
+    current = _read_settings()
+    prompt = (
+        "Translate a user's request into a minimal JSON settings proposal. Return ONLY JSON with keys "
+        "'changes' (object) and 'explanation' (string). Allowed keys are: " + ", ".join(sorted(allowed)) + ". "
+        "Use only these keys. Values must match their types. mode is auto/cloud/local/hybrid. active_provider may be "
+        "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai. "
+        "Never propose API keys, credentials, URLs, code, commands, permission changes, or disabling tool approval. "
+        "If the request cannot be expressed safely, return empty changes and explain why. The proposal is not applied.\n"
+        + json.dumps({"request": request_text, "current_settings": {k: current.get(k) for k in sorted(allowed)}}, ensure_ascii=False)
+    )
+    try:
+        raw = await asyncio.to_thread(
+            lambda: "".join(agent.backend.stream(
+                "You are a conservative settings assistant. Output valid JSON only and never apply changes.",
+                [core.Msg("user", prompt)], tools=None
+            )).strip()
+        )
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("No JSON object returned")
+        parsed = json.loads(raw[start:end + 1])
+        proposed = parsed.get("changes", {})
+        if not isinstance(proposed, dict):
+            raise ValueError("changes must be an object")
+        changes = {key: value for key, value in proposed.items() if key in allowed}
+        if "mode" in changes and changes["mode"] not in {"auto", "cloud", "local", "hybrid"}:
+            changes.pop("mode")
+        if "active_provider" in changes and changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+            changes.pop("active_provider")
+        for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
+                    "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
+                    "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
+                    "self_autonomous_enabled", "self_auto_checkpoint"):
+            if key in changes and not isinstance(changes[key], bool):
+                changes.pop(key)
+        if "max_ctx_chars" in changes and not isinstance(changes["max_ctx_chars"], int):
+            changes.pop("max_ctx_chars")
+        if "self_checkpoint_retention" in changes and not isinstance(changes["self_checkpoint_retention"], int):
+            changes.pop("self_checkpoint_retention")
+        if "self_evaluation_interval_hours" in changes and not isinstance(changes["self_evaluation_interval_hours"], int):
+            changes.pop("self_evaluation_interval_hours")
+        for key in ("provider_model",):
+            if key in changes and not isinstance(changes[key], str):
+                changes.pop(key)
+        return {"changes": changes, "explanation": str(parsed.get("explanation", "Review this proposal before applying."))[:1000],
+                "applied": False, "notice": "AI suggestions are untrusted proposals. Review the diff and explicitly apply them; credentials and risky tool permissions are excluded."}
+    except Exception as exc:
+        logger.warning("AI settings proposal failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Could not generate a valid settings proposal. Check backend availability and try again.") from exc
 
 
 @get("/api/settings")
@@ -1308,8 +1476,8 @@ app = Litestar(
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, clear_chat, memory, remember, forget_memory,
-        goals, add_goal, complete_goal, sessions, list_skills, create_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
+        goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
+        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
