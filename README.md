@@ -14,6 +14,8 @@ The terminal REPL is no longer the user interface. `terminal_ai.py` remains the 
 - **Memory manager** to add and forget saved facts.
 - **Goal tracker** to create and complete goals.
 - **Self-critique and proactive settings** persisted locally.
+- **Dynamic provider discovery API** (`/api/providers`) and background model-download jobs with status polling (`/api/downloads`).
+- **Explicitly confirmed model downloads** from registry-listed Hugging Face `.litertlm` artifacts; no automatic download at startup.
 - **API documentation** at `/schema/swagger` and ReDoc at `/schema`.
 - **Local-first storage** under `~/.terminal_ai/`; local models under `~/terminal-ai/models/`.
 - **Safe default:** web chat starts with agent tool execution disabled. Do not expose the server to untrusted networks.
@@ -100,6 +102,9 @@ The application loads environment values from the process environment and the lo
 | POST | `/api/goals/{goal_id}/complete` | Complete a goal |
 | GET | `/api/sessions` | List saved sessions |
 | GET | `/api/models` | List supported models and installed local files |
+| GET | `/api/providers` | Discover provider integrations and configuration |
+| POST | `/api/models/download` | Queue an explicitly confirmed registered `.litertlm` download |
+| GET | `/api/downloads` | List background download jobs and observed progress |
 | GET | `/api/diagnostics` | Local app, runtime, storage, and backend diagnostics |
 | GET / PATCH | `/api/settings` | Read/update app settings |
 
