@@ -863,3 +863,53 @@ def test_litert_chunk_text_keeps_legacy_string_and_dict_support():
     assert LiteRTPythonBackend._chunk_text({
         "content": [{"type": "text", "text": "hello"}]
     }) == "hello"
+
+
+
+def test_litert_stream_disables_thinking_and_emits_final_answer():
+    captured = {}
+
+    class FakeConversation:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def send_message_async(self, prompt):
+            assert prompt == "Reply briefly"
+            yield SimpleNamespace(channels={"thought": "hidden reasoning"}, contents=[])
+            yield SimpleNamespace(channels={"text": "OFFLINE OK"}, contents=[])
+
+    class FakeEngine:
+        def __init__(self, *args, **kwargs):
+            captured["engine"] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def create_conversation(self, **kwargs):
+            captured["conversation"] = kwargs
+            return FakeConversation()
+
+    backend = object.__new__(LiteRTPythonBackend)
+    backend.model_path = Path("/tmp/fake.litertlm")
+    backend.max_output_tokens = 64
+    backend._litert_lm = SimpleNamespace(
+        Engine=FakeEngine,
+        Backend=SimpleNamespace(CPU=lambda: "cpu"),
+        ThinkingConfig=lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+
+    answer = "".join(backend.stream(
+        "Be concise",
+        [tai.Msg(role="user", text="Reply briefly")],
+    ))
+
+    assert answer == "OFFLINE OK"
+    config = captured["conversation"]["thinking_config"]
+    assert config.enable_thinking is False
+    assert config.thinking_token_budget == 0
