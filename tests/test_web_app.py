@@ -213,7 +213,7 @@ def test_self_reflection_uses_internal_status_helper_and_succeeds(monkeypatch, t
     monkeypatch.setattr(web_app.core, "STATE_DIR", tmp_path)
     with TestClient(app=web_app.app) as client:
         response = client.post("/api/self/reflect", json={})
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert "Operational review completed" in response.json()["reflection"]["text"]
     assert (tmp_path / "self_reflection.json").is_file()
 
