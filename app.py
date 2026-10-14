@@ -60,6 +60,12 @@ def _read_settings() -> dict[str, Any]:
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
         "self_reflection_enabled": True,
+        "hf_token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists()),
+        "updates_enabled": False,
+        "update_channel": "main",
+        "update_check_interval_hours": 24,
+        "last_update_check": 0,
+        "last_update_result": "Not checked yet",
     }
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
@@ -199,51 +205,65 @@ def _get_agent() -> core.Agent:
 
 
 @get("/")
-async def index() -> Response:
+async def _index_response() -> Response:
     page = WEB_DIR / "index.html"
     if not page.is_file():
         raise HTTPException(status_code=500, detail="Web UI file is missing.")
-    return Response(content=page.read_text(encoding="utf-8"), media_type="text/html")
+    try:
+        content = page.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Web UI file could not be read.") from exc
+    return Response(content=content, media_type="text/html")
+
+
+@get("/")
+async def index() -> Response:
+    return await _index_response()
 
 
 @get("/overview")
 async def overview_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/chat")
 async def chat_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/models")
 async def models_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/sessions")
 async def sessions_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/diagnostics")
 async def diagnostics_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/memory")
 async def memory_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/goals")
 async def goals_page() -> Response:
-    return await index()
+    return await _index_response()
 
 
 @get("/settings")
 async def settings_page() -> Response:
-    return await index()
+    return await _index_response()
+
+
+@get("/self")
+async def self_page() -> Response:
+    return await _index_response()
 
 
 @get("/api/status")
@@ -511,7 +531,7 @@ async def _run_model_download(job_id: str, repo_id: str, filename: str) -> None:
             return str(hf_hub_download(
                 repo_id=repo_id,
                 filename=filename,
-                token=os.environ.get("HF_TOKEN") or None,
+                token=os.environ.get("HF_TOKEN") or (core.HF_TOKEN_FILE.read_text(encoding="utf-8").strip() if core.HF_TOKEN_FILE.exists() else None),
                 local_dir=str(core.MODELS_DIR),
             ))
         task = asyncio.create_task(asyncio.to_thread(download))
@@ -534,9 +554,15 @@ async def _run_model_download(job_id: str, repo_id: str, filename: str) -> None:
                        bytes_downloaded=resolved.stat().st_size if resolved.is_file() else job["bytes_downloaded"],
                        finished_at=time.time())
     except Exception as exc:
+        message = str(exc)
+        if "401" in message or "Unauthorized" in message or "gated" in message.lower():
+            message = ("Hugging Face denied access. Verify the repository/file name, accept any model access terms, "
+                       "and configure a read token in Settings if required. Detail: " + message[:350])
+        elif "404" in message or "Entry Not Found" in message:
+            message = "Model file not found; verify the repository ID and exact filename. Detail: " + message[:350]
         with _DOWNLOAD_LOCK:
             job = _DOWNLOAD_JOBS[job_id]
-            job.update(status="failed", error=str(exc)[:1000], finished_at=time.time())
+            job.update(status="failed", error=message[:1000], finished_at=time.time())
 
 
 @post("/api/models/download")
@@ -651,6 +677,29 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         current["self_mission"] = str(data["self_mission"]).strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
+    if "updates_enabled" in data:
+        current["updates_enabled"] = bool(data["updates_enabled"])
+    if "update_channel" in data:
+        channel = str(data["update_channel"]).strip().lower()
+        if channel != "main":
+            raise HTTPException(status_code=400, detail="Only the main update channel is currently supported.")
+        current["update_channel"] = channel
+    if "update_check_interval_hours" in data:
+        try:
+            current["update_check_interval_hours"] = max(6, min(168, int(data["update_check_interval_hours"])))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Update interval must be 6–168 hours.")
+    if "hf_token" in data and str(data["hf_token"]).strip():
+        token = str(data["hf_token"]).strip()
+        if len(token) > 500:
+            raise HTTPException(status_code=400, detail="Hugging Face token is too long.")
+        core.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        core.HF_TOKEN_FILE.write_text(token, encoding="utf-8")
+        try:
+            core.HF_TOKEN_FILE.chmod(0o600)
+        except OSError:
+            pass
+        os.environ["HF_TOKEN"] = token
     if "api_key" in data and str(data["api_key"]).strip():
         provider_id = str(current.get("active_provider", "gemini"))
         if provider_id == "gemini":
@@ -723,7 +772,15 @@ async def self_reflect() -> dict[str, Any]:
     agent = _get_agent()
     state = await self_status()
     prompt = "Review the supplied operational state. Do not claim feelings or sentience. Summarize capabilities, limitations, risks, and next improvements. Do not execute tools or change settings.\\n\\n" + json.dumps({k: v for k, v in state.items() if k != "last_reflection"}, ensure_ascii=False)
-    answer = "".join(agent.backend.stream("You are an evidence-based software-agent self-audit component.", [core.Msg("user", prompt)], tools=None)).strip()
+    try:
+        def run_reflection() -> str:
+            return "".join(agent.backend.stream(
+                "You are an evidence-based software-agent self-audit component.",
+                [core.Msg("user", prompt)], tools=None
+            )).strip()
+        answer = await asyncio.to_thread(run_reflection)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Self-review model request failed: {str(exc)[:500]}") from exc
     if not answer:
         raise HTTPException(status_code=502, detail="The selected backend returned an empty self-review.")
     record = {"text": answer, "created_at": time.time(), "backend": getattr(agent.backend, "label", "unknown")}
@@ -734,7 +791,7 @@ async def self_reflect() -> dict[str, Any]:
 
 app = Litestar(
     route_handlers=[
-        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page,
+        index, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, models, model_detail, providers, test_provider_connection, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, self_reflect,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
