@@ -288,6 +288,6 @@ $("improvement-list").addEventListener("click",async e=>{
  catch(err){$("improvements-error").textContent=err.message;}
 });
 
-const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/settings":"settings"};
+const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
 const initialView=routeViews[location.pathname]||new URLSearchParams(location.search).get("view");
 if(titles[initialView])showView(initialView);
