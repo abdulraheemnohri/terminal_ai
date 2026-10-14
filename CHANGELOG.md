@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add session creation, selection/restoration, deletion, and active-session persistence to the web UI.
+- Add reviewed AI-generated skill drafts and natural-language settings proposals with explicit user approval.
+- Add regression tests for new API routes and browser controls.
+
+
 ## Unreleased — Self-X Evolution Engine
 
 - Add local Self-X dashboard for diagnostics, operational evaluation, research notes, recovery checkpoints, capability status, and activity history.
