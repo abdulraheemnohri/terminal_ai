@@ -246,13 +246,10 @@ class ModelRegistry:
     ]
 
     LOCAL_MODELS = [
-        ModelInfo("gemma-3-1b-it", "Gemma 3 1B IT", "local", "local",
-                  ["private", "offline", "fast", "chat"],
-                  hf_repo="litert-community/Gemma3-1B-IT", hf_file="gemma3-1b-it-int4.litertlm",
-                  size="1B"),
-        ModelInfo("qwen3-1b", "Qwen3 1B", "local", "local",
-                  ["private", "offline", "multilingual"],
-                  hf_repo="Qwen/Qwen3-1B", hf_file="model.bin", size="1B"),
+        ModelInfo("qwen3-0.6b", "Qwen3 0.6B LiteRT-LM", "local", "local",
+                  ["private", "offline", "multilingual", "small", "chat"],
+                  hf_repo="litert-community/Qwen3-0.6B",
+                  hf_file="Qwen3-0.6B.litertlm", size="0.6B"),
     ]
 
     def __init__(self):
