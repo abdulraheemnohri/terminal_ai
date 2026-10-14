@@ -84,7 +84,7 @@ def _build_agent() -> core.Agent:
     downloader = core.AutoDownloader(registry)
     router = core.TaskRouter(registry)
     key = _gemini_key()
-    local_path = downloader.find_local_model()
+    local_path = next((p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()), None)
     cloud: core.Backend | None = None
     local: core.Backend | None = None
     mode = settings_data["mode"]
