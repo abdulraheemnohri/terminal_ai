@@ -85,7 +85,7 @@ def test_model_detail_endpoint_returns_registered_model():
 
 
 def test_dashboard_pages_are_directly_addressable():
-    pages = ["/overview", "/chat", "/models", "/diagnostics", "/memory", "/goals", "/settings"]
+    pages = ["/overview", "/chat", "/sessions", "/models", "/diagnostics", "/memory", "/goals", "/settings"]
     with TestClient(app=app) as client:
         for path in pages:
             response = client.get(path)
