@@ -106,6 +106,30 @@ This section documents the remaining refactor work accurately; the large legacy 
 
 
 
+## Current task lifecycle data flow
+
+```text
+UI / client
+   │
+   ▼
+Litestar agentic routes
+   ├── AdaptivePlanner + task-intelligence heuristics
+   ├── TaskLifecycleStore (bounded SQLite ledger)
+   ├── CommandControl (authoritative operation status + audit)
+   └── LearningStore (verified, human-reviewed outcomes)
+```
+
+The task ledger is an orchestration record, not a tool runner. It stores a bounded goal and plan, then may link to one existing Command Control operation. A detail read synchronizes task status with the linked operation. Verification is accepted only for an operation recorded as executed; learning review is accepted only after passing verification. Failed verification cannot be reset by a later status sync.
+
+| API | Responsibility | Does not do |
+|---|---|---|
+| `POST /api/agentic/tasks` | Store a bounded plan | Execute plan steps |
+| `GET /api/agentic/tasks` | List/filter task records | Dispatch tools |
+| `GET /api/agentic/tasks/{task_id}` | Read and sync linked operation status | Approve or execute |
+| `POST /api/agentic/tasks/{task_id}/operation` | Link one existing operation | Create or approve an operation |
+| `POST /api/agentic/tasks/{task_id}/verify` | Store operator verification evidence | Prove evidence authenticity |
+| `POST /api/agentic/tasks/{task_id}/review` | Add a reviewed outcome to learning | Change permissions or train model weights |
+
 ## Approval-aware task lifecycle
 
 - `application/task_lifecycle.py` persists bounded task records in `task_lifecycle.sqlite3`, including the goal, plan steps, task category, selected algorithm, risk, linked Command Control operation, execution status, verification evidence, and reviewed outcome.
