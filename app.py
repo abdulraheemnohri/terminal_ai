@@ -895,6 +895,32 @@ async def control_skills_import(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+@get("/api/control/skills/export.yaml")
+async def control_skills_export_yaml() -> Response:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="YAML support is unavailable. Install PyYAML.") from exc
+    return Response(content=yaml.safe_dump(_COMMAND_CONTROL.export_skills(), sort_keys=False, allow_unicode=True),
+                    media_type="application/yaml")
+
+
+@post("/api/control/skills/import.yaml")
+async def control_skills_import_yaml(data: dict[str, Any]) -> dict[str, Any]:
+    content = data.get("content")
+    if not isinstance(content, str) or len(content) > 200000:
+        raise HTTPException(status_code=400, detail="Provide YAML content under 200 KB.")
+    try:
+        import yaml
+        payload = yaml.safe_load(content)
+        result = _COMMAND_CONTROL.import_skills(payload)
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="YAML support is unavailable. Install PyYAML.") from exc
+    except (ValueError, yaml.YAMLError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid skill YAML: {str(exc)[:300]}") from exc
+    return result
+
+
 @websocket("/ws/events")
 async def control_events(socket: WebSocket) -> None:
     """Stream audit/action summaries. Never streams hidden reasoning or prompt contents."""
