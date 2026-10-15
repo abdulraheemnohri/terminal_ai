@@ -95,6 +95,7 @@
         <div class="field"><label><input type="checkbox" id="control-global-auto" style="width:auto;margin-right:8px" disabled> Global auto-execution (locked off)</label><p class="muted">This web agent does not support unrestricted auto-execution.</p></div>
         <div class="field"><label for="control-allowlist">Allowlisted executable names (comma separated)</label><textarea id="control-allowlist" rows="3"></textarea></div>
         <div class="field"><label for="control-blocklist">Blocked executable names (comma separated)</label><textarea id="control-blocklist" rows="3"></textarea></div>
+        <div class="field"><label>Per-tool controls (metadata only; execution stays disabled)</label><div class="list" id="control-tool-toggles"><div class="empty">Loading tool controls…</div></div></div>
         <div class="field"><label for="control-tool-rules">Per-tool auto-execution rules (JSON object)</label><textarea id="control-tool-rules" rows="3" placeholder='{"read_file": false, "shell": false}'></textarea><p class="muted">Rules are recorded for policy visibility only; they do not bypass approval or enable execution.</p></div>
         <button class="btn primary" id="control-save-policy">Save policy</button><div id="control-policy-error" class="error"></div>
       </article>
