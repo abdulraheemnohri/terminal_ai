@@ -34,6 +34,7 @@ from command_control import CommandControl
 from routers.control import create_control_router
 from routers.health import create_health_router
 from routers.chat import create_chat_router
+from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
@@ -1974,6 +1975,7 @@ app = Litestar(
         status, chat, clear_chat, memory, remember, forget_memory,
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_control_router(_COMMAND_CONTROL),
+        create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR),
         create_health_router(ROOT, core.STATE_DIR),
         create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
