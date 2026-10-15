@@ -206,6 +206,13 @@ class SelfXEngine:
         return {"restored": restored, "safety_checkpoint": safety_backup["id"],
                 "checkpoint_id": checkpoint_id}
 
+    def record_event(self, kind: str, summary: str) -> dict[str, Any]:
+        """Persist a bounded, non-secret audit event for autonomous maintenance."""
+        data = self._read()
+        self._event(data, kind, summary)
+        self._write(data)
+        return data.get("events", [])[-1]
+
     def status(self) -> dict[str, Any]:
         data = self._read()
         return {
