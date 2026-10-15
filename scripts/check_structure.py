@@ -11,6 +11,7 @@ REQUIRED_FILES = (
     "requirements.txt",
     "command_control.py",
     "api_schemas.py",
+    "application/task_intelligence.py",
     "web/index.html",
     "web/app.js",
     "web/app.css",
