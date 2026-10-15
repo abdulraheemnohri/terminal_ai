@@ -1,3 +1,9 @@
+## Unreleased — reviewed recovery learning
+
+- Add a separate outcome-review step after successful recovery verification; verification alone does not feed learning.
+- Add idempotent learning source references and database migration so retries of the review request cannot create duplicate samples.
+- Add a Self-X review control, API documentation, and regression coverage for pre-verification blocking and repeated requests.
+
 # Changelog
 
 ## Unreleased — recovery execution tracking and verification
