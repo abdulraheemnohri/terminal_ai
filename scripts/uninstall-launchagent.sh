@@ -4,4 +4,4 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 TARGET="$ROOT/uninstall-launchagent.sh"
 [ -f "$TARGET" ] || { echo "Missing script: $TARGET" >&2; exit 1; }
-exec "$TARGET" "$@"
+exec sh "$TARGET" "$@"
