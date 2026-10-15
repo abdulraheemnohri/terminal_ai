@@ -13,7 +13,7 @@ REQUIRED_FILES = (
     "api_schemas.py",
     "web/index.html",
     "web/app.js",
-    "web/styles.css",
+    "web/app.css",
 )
 REQUIRED_DIRS = ("agent", "routers", "tests", "docs", "scripts")
 
