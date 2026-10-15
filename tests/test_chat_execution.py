@@ -92,6 +92,8 @@ def test_safe_web_tool_registry_rejects_unlisted_tools():
     registry = web_app.SafeWebToolRegistry(object())
     assert registry.call("shell", {"cmd": "echo unsafe"}).startswith("error:")
     assert registry.call("write_file", {"path": "x", "content": "bad"}).startswith("error:")
+    assert "sensitive paths" in registry.call("read_workspace_file", {"path": ".env"})
+    assert "sensitive paths" in registry.call("read_workspace_file", {"path": "secrets/token.txt"})
 
 
 def test_agent_settings_validate_styles_and_boolean_types(monkeypatch, tmp_path):
