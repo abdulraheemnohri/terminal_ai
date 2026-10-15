@@ -1,0 +1,2 @@
+# Optional Redis-backed background queue for Self-X maintenance/checkpointing
+arq[redis]>=0.26,<1.0
