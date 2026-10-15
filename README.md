@@ -292,7 +292,7 @@ Tracked tasks can collect up to three recovery proposals after a linked Command 
 
 ## Maintenance scripts
 
-The dashboard now supports browser-local light/dark theme switching, transient system-status notifications, and interface preferences for compact layout, larger text, and reduced motion. These preferences do not alter agent permissions or backend configuration.
+The dashboard now supports browser-local light/dark theme switching, transient API status notifications, a bounded local health timeline, searchable collections, and interface preferences for compact layout, larger text, and reduced motion. Presentation history stays in this browser and does not alter agent permissions or backend configuration.
 
 The `scripts/` directory is the central operational entrypoint catalog. Start with [scripts/README.md](scripts/README.md).
 
