@@ -129,6 +129,25 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             "adaptive_signals": signals,
         }, "execution_started": False}
 
+    @get("/learning/summary")
+    async def learning_summary() -> dict[str, Any]:
+        return {"generated_at": time.time(), **learning_store.summary()}
+
+    @post("/learning/outcome")
+    async def record_learning_outcome(data: dict[str, Any]) -> dict[str, Any]:
+        try:
+            record = learning_store.record(
+                task_type=data.get("task_type"), algorithm=data.get("algorithm"),
+                outcome=data.get("outcome"), rating=data.get("rating"), verified=data.get("verified"),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        control.audit("agentic", "learning.outcome_recorded", record["task_type"], {
+            "algorithm": record["algorithm"], "outcome": record["outcome"],
+            "rating": record["rating"], "verified": record["verified"],
+        })
+        return {"record": record, "stored": True, "permissions_changed": False}
+
     @get("/world-model")
     async def list_world_facts(subject: str | None = None) -> dict[str, Any]:
         facts = world.model.query(subject)
@@ -175,5 +194,6 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"skill": validated, "saved": False, "execution_started": False}
 
     return Router(path="/api/agentic", route_handlers=[
-        agentic_status, plan, list_world_facts, observe_world_fact, validate_skill,
+        agentic_status, plan, learning_summary, record_learning_outcome,
+        list_world_facts, observe_world_fact, validate_skill,
     ])
