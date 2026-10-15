@@ -509,7 +509,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             "session": _ACTIVE_SESSION,
             "status": "failed",
             "execution": trace,
-            "error": str(exc.detail)[:240],
+            "error": f"HTTP {exc.status_code}",
         })
         raise
 
