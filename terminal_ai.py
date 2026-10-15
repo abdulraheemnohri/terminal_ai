@@ -66,6 +66,11 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
+from agentic_features import (
+    needs_planning, persona_instruction, planning_instruction,
+    recovery_instruction, validate_tool_calls,
+)
+
 try:
     import readline  # noqa: F401
 except Exception:
@@ -2566,7 +2571,11 @@ class Agent:
                  settings: Optional[SettingsManager] = None,
                  session_mgr: Optional[SessionManager] = None,
                  backup: Optional[AutoBackup] = None,
-                 auto_backup_every: int = 0):
+                 auto_backup_every: int = 0,
+                 allowed_tool_names: Optional[set[str]] = None,
+                 agentic_planning: bool = True,
+                 agentic_recovery: bool = True,
+                 persona: str = "helpful"):
         self.backend = backend
         self.memory = memory
         self.graph = graph
@@ -2588,6 +2597,11 @@ class Agent:
         self.session_mgr = session_mgr
         self.backup = backup
         self.auto_backup_every = max(0, int(auto_backup_every))
+        self.allowed_tool_names = set(allowed_tool_names) if allowed_tool_names is not None else None
+        self.agentic_planning = bool(agentic_planning)
+        self.agentic_recovery = bool(agentic_recovery)
+        self.persona = persona if persona in {"helpful", "technical", "coach", "concise", "creative"} else "helpful"
+        self.max_recovery_attempts = 2
         self._turn_count = 0
         self.critic = Critic(backend, enabled=self_critique)
         self.observer = Observer(backend, memory, graph, enabled=autonomy >= 3)
@@ -2614,6 +2628,10 @@ class Agent:
     def _system_prompt(self, user_query: str) -> str:
         parts = [self.base_system]
         parts.append(f"Today is {time.strftime('%A, %B %d, %Y')}.")
+        parts.append(persona_instruction(self.persona))
+        plan_hint = planning_instruction(user_query, enabled=self.agentic_planning)
+        if plan_hint:
+            parts.append(plan_hint)
         problem_type = self._classify_problem(user_query)
 
         mem = self.memory.context_block(user_query)
@@ -2635,7 +2653,15 @@ class Agent:
         if mblock:
             parts.append(mblock)
         if self.autonomy >= 1:
-            parts.append(self.tools.schema_prompt())
+            schema = [item for item in TOOL_SCHEMA
+                      if self.allowed_tool_names is None or item.get("name") in self.allowed_tool_names]
+            lines = ["You may call tools by emitting <tool_call>{\\"name\\":\\"...\\",\\"args\\":{...}}</tool_call> on its own line.",
+                     "Available tools:"]
+            for item in schema:
+                args = ", ".join(f"{key}: {value}" for key, value in item.get("args", {}).items())
+                lines.append(f"  - {item['name']}({args}): {item.get('desc', '')}")
+            lines.append("After each tool result, reconsider the task and either call another listed tool or call done.")
+            parts.append("\\n".join(lines))
         if self.autonomy >= 4:
             parts.append(
                 "SELF-EVOLUTION MODE: You have goals, journal, and skill extraction. "
@@ -2658,9 +2684,11 @@ class Agent:
         spinner = Spinner()
         spinner.start()
         first = True
+        schema = [item for item in TOOL_SCHEMA
+                  if self.allowed_tool_names is None or item.get("name") in self.allowed_tool_names]
         try:
             for chunk in self.backend.stream(system, history,
-                                             tools=TOOL_SCHEMA if self.autonomy >= 1 else None):
+                                             tools=schema if self.autonomy >= 1 else None):
                 if first:
                     spinner.stop()
                     sys.stdout.write(paint("â ", C.BCYAN) +
@@ -2677,7 +2705,13 @@ class Agent:
         text = "".join(buf)
         if not first:
             print()
-        calls = parse_tool_calls(text) if self.autonomy >= 1 else []
+        raw_calls = parse_tool_calls(text) if self.autonomy >= 1 else []
+        validation = validate_tool_calls(
+            raw_calls, schema,
+            allowed_names=self.allowed_tool_names,
+        ) if raw_calls else None
+        self._last_tool_call_rejections = validation.rejected if validation else []
+        calls = validation.accepted if validation else []
         return text, calls
 
     def dream(self) -> str:
@@ -2695,12 +2729,31 @@ class Agent:
         model_name = getattr(self.backend, 'model', getattr(self.backend, 'label', 'unknown'))
 
         final_answer = ""
+        recovery_attempts = 0
         rounds = 0
         tool_calls_used = 0
         strategy_used = "direct"
         while rounds < self.max_tool_rounds:
             rounds += 1
-            text, calls = self._stream_collect(system, self.history)
+            try:
+                text, calls = self._stream_collect(system, self.history)
+            except Exception as exc:
+                if not self.agentic_recovery or recovery_attempts >= self.max_recovery_attempts:
+                    raise
+                recovery_attempts += 1
+                system += "\\n\\n" + recovery_instruction(
+                    exc, recovery_attempts, self.max_recovery_attempts
+                )
+                dbg("recovery", f"model attempt failed ({type(exc).__name__}); retry {recovery_attempts}/{self.max_recovery_attempts}")
+                continue
+
+            if not calls and getattr(self, "_last_tool_call_rejections", []):
+                rejection = "; ".join(self._last_tool_call_rejections[:3])
+                self.history.append(Msg("tool", "Tool-call validation rejected the model output: " + rejection))
+                if rounds < self.max_tool_rounds and self.autonomy >= 2:
+                    continue
+                final_answer = "I could not safely validate the requested tool call. Please retry with a more specific request."
+                break
 
             if not calls:
                 final_answer = text.strip()
