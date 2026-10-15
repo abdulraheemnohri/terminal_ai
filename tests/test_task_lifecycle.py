@@ -58,3 +58,74 @@ def test_operation_can_only_be_linked_once(tmp_path):
         assert "linked once" in str(exc)
     else:
         raise AssertionError("task must not be rebound to a different operation")
+
+
+
+def test_recovery_proposals_are_bounded_and_never_execute(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    proposal = store.propose(task_id="task-a", failure_category="timeout",
+                             error_summary="Connection timed out")
+    assert proposal["attempt"] == 1
+    assert proposal["status"] == "proposed"
+    assert proposal["may_retry_after_review"] is True
+    assert proposal["execution_started"] is False
+    approved = store.review(task_id="task-a", proposal_id=proposal["id"],
+                            decision="approve", reviewer="operator", note="Checked idempotency")
+    assert approved["status"] == "approved_for_replanning"
+    assert approved["execution_started"] is False
+    for _ in range(2):
+        store.propose(task_id="task-a", failure_category="transient_network",
+                      error_summary="Temporary network failure")
+    try:
+        store.propose(task_id="task-a", failure_category="timeout", error_summary="Fourth attempt")
+    except ValueError as exc:
+        assert "maximum 3" in str(exc)
+    else:
+        raise AssertionError("proposal count must be capped at three")
+
+
+def test_recovery_policy_blocks_unsafe_retry_approval(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    unsafe = store.propose(task_id="task-b", failure_category="permission",
+                           error_summary="Access denied")
+    assert unsafe["retry_policy"] == "no_retry_recommended"
+    try:
+        store.review(task_id="task-b", proposal_id=unsafe["id"],
+                     decision="approve", reviewer="operator")
+    except ValueError as exc:
+        assert "not eligible for retry approval" in str(exc)
+    else:
+        raise AssertionError("permission failures must not be approved as retries")
+    rejected = store.review(task_id="task-b", proposal_id=unsafe["id"],
+                            decision="reject", reviewer="operator")
+    assert rejected["status"] == "rejected"
+    assert rejected["execution_started"] is False
+
+
+def test_recovery_proposal_validation_and_single_review(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    try:
+        store.propose(task_id="task-c", failure_category="made_up",
+                      error_summary="Bad category")
+    except ValueError as exc:
+        assert "failure_category" in str(exc)
+    else:
+        raise AssertionError("unknown categories must be rejected")
+    proposal = store.propose(task_id="task-c", failure_category="validation",
+                             error_summary="Input schema mismatch")
+    approved = store.review(task_id="task-c", proposal_id=proposal["id"],
+                            decision="approve", reviewer="operator")
+    assert approved["retry_policy"] == "requires_change_and_fresh_approval"
+    try:
+        store.review(task_id="task-c", proposal_id=proposal["id"],
+                     decision="reject", reviewer="operator")
+    except ValueError as exc:
+        assert "already been reviewed" in str(exc)
+    else:
+        raise AssertionError("proposal review must be single-use")
