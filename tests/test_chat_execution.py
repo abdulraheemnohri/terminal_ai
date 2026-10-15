@@ -66,3 +66,17 @@ def test_chat_run_history_endpoint_is_available_without_model():
     assert response.status_code == 200
     assert isinstance(response.json()["runs"], list)
     assert response.json()["retention_limit"] == 50
+
+
+def test_advanced_chat_controls_and_script_are_served():
+    with TestClient(app=web_app.app) as client:
+        page = client.get("/chat")
+        script = client.get("/static/chat-enhancements.js")
+
+    assert page.status_code == 200
+    assert "chat-export-md" in page.text
+    assert "chat-setting-font" in page.text
+    assert "chat-execution-trace" in page.text
+    assert script.status_code == 200
+    assert "sendMessage" in script.text
+    assert "localStorage" in script.text
