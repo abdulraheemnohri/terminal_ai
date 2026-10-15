@@ -288,7 +288,7 @@ export TERMINAL_AI_ARQ_ENABLED=1
 arq maintenance_worker.WorkerSettings
 ```
 
-Start the web application with the same environment variables. The manual Self-X maintenance and checkpoint endpoints enqueue ARQ jobs when queue mode is enabled; otherwise they retain the local fallback. Keep Redis private and use authentication/TLS if it is hosted remotely. The existing interval scheduler remains a local fallback and only supports the three documented safe job types.
+Start the web application with the same environment variables. The manual Self-X maintenance and checkpoint endpoints enqueue ARQ jobs when queue mode is enabled; otherwise they retain the local fallback. Keep Redis private and use authentication/TLS if it is hosted remotely. The interval scheduler dispatches the three documented safe job types to ARQ when queue mode is enabled; otherwise it runs them in the web process as a local fallback.
 
 Run the focused tests with:
 
