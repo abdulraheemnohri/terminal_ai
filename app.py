@@ -1469,7 +1469,6 @@ async def selfx_status() -> dict[str, Any]:
     return data
 
 
-@post("/api/selfx/maintenance/run")
 async def _enqueue_arq_job(function_name: str, *args: Any) -> str | None:
     """Enqueue a background job only when explicitly configured; otherwise use local workers."""
     if os.environ.get("TERMINAL_AI_ARQ_ENABLED", "").strip() != "1":
@@ -1494,6 +1493,7 @@ async def _enqueue_arq_job(function_name: str, *args: Any) -> str | None:
         raise HTTPException(status_code=503, detail="Could not reach the configured Redis/ARQ queue.") from exc
 
 
+@post("/api/selfx/maintenance/run")
 async def selfx_run_maintenance() -> dict[str, Any]:
     """Run one bounded local maintenance cycle on explicit user request."""
     settings = _read_settings()
