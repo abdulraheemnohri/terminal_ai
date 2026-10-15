@@ -428,6 +428,17 @@ async function loadSkillEvolution(){
  }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
 }
 if($("skill-evolution-refresh"))$("skill-evolution-refresh").addEventListener("click",loadSkillEvolution);
+if($("skill-evolution-from-learning"))$("skill-evolution-from-learning").addEventListener("click",async()=>{
+ const button=$("skill-evolution-from-learning");const error=$("skill-evolution-error");error.textContent="";
+ if(!confirm("Create a non-executable skill draft from repeated, explicitly verified outcomes? It will remain unapproved and cannot execute tools or change permissions."))return;
+ button.disabled=true;button.textContent="Preparing draft…";
+ try{
+  const result=await api("/api/agentic/skills/proposals/from-learning",{method:"POST",body:"{}"});
+  error.textContent=result.notice||"Draft created; human review is still required.";
+  await loadSkillEvolution();await loadControlAudit();
+ }catch(err){error.textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Draft from reviewed learning";}
+});
 if($("skill-evolution-form"))$("skill-evolution-form").addEventListener("submit",async e=>{
  e.preventDefault();$("skill-evolution-error").textContent="";
  const steps=$("evolution-steps").value.split("\n").map(x=>x.trim()).filter(Boolean);
