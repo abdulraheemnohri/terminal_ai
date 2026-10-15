@@ -2075,7 +2075,7 @@ class ToolRegistry:
 def parse_tool_calls(text: str) -> list[dict]:
     """Parse tagged JSON tool calls, including nested objects and arrays."""
     out = []
-    for match in re.finditer(r"<tool_call>\\s*(.*?)\\s*</tool_call>", text, re.S):
+    for match in re.finditer(r"<tool_call>\s*(.*?)\s*</tool_call>", text, re.S):
         payload = match.group(1).strip()
         try:
             obj, _end = json.JSONDecoder().raw_decode(payload)
@@ -2090,7 +2090,7 @@ def parse_tool_calls(text: str) -> list[dict]:
             pass
         # Preserve the historical malformed-call fallback for diagnostics;
         # the validator will reject any unsafe or unknown tool before dispatch.
-        name_match = re.search(r'"name"\\s*:\\s*"([^"]+)"', payload)
+        name_match = re.search(r'"name"\s*:\s*"([^"]+)"', payload)
         if name_match:
             out.append({"name": name_match.group(1), "args": {}})
     return out
