@@ -128,6 +128,10 @@ async function loadSettings(){
   $("setting-goal-generation").checked=data.self_goal_generation_enabled!==false;
   $("setting-max-goals").value=data.self_max_goals_per_cycle||3;
   $("setting-tool-approval").checked=data.tool_approval_required!==false;
+  $("setting-long-memory").checked=data.long_term_memory_enabled!==false;
+  $("setting-conversation-archive").checked=data.conversation_archive_enabled!==false;
+  $("setting-workspace-tools").checked=data.workspace_tools_enabled!==false;
+  $("setting-scheduler").checked=data.scheduled_tasks_enabled!==false;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
   $("update-interval").value=data.update_check_interval_hours||24;
@@ -231,7 +235,11 @@ $("settings-form").addEventListener("submit",async e=>{
    self_checkpoint_interval_hours:Number($("setting-checkpoint-interval").value),
    self_goal_generation_enabled:$("setting-goal-generation").checked,
    self_max_goals_per_cycle:Number($("setting-max-goals").value),
-   tool_approval_required:$("setting-tool-approval").checked
+   tool_approval_required:$("setting-tool-approval").checked,
+   long_term_memory_enabled:$("setting-long-memory").checked,
+   conversation_archive_enabled:$("setting-conversation-archive").checked,
+   workspace_tools_enabled:$("setting-workspace-tools").checked,
+   scheduled_tasks_enabled:$("setting-scheduler").checked
   })});
   $("setting-hf-token").value="";
   $("settings-saved").textContent="Saved";$("setting-api-key").value="";
