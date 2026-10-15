@@ -91,3 +91,43 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}.app{display:gri
 @media(max-width:560px){#view-overview .overview-hero{align-items:flex-start}#view-overview .overview-orb{display:none}#view-overview .overview-hero .row{align-items:stretch}#view-overview .overview-hero .btn{font-size:11px;padding:9px}#view-overview .quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#view-overview .overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .response-meta{display:block;margin-top:10px;padding-top:8px;border-top:1px solid #26334b;color:var(--muted);font-size:10px;line-height:1.5}
+
+/* Advanced chat controls and execution monitor */
+.chat-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:#0c1423}
+.chat-search-wrap{display:grid;gap:6px;min-width:min(100%,240px);flex:1;font-size:11px;color:var(--muted)}
+.chat-search-wrap input{width:100%;min-height:36px}
+.chat-toolbar-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.chat-toolbar-actions .btn{font-size:11px;padding:8px 10px}
+.chat-settings{position:relative}
+.chat-settings summary{list-style:none;cursor:pointer}
+.chat-settings summary::-webkit-details-marker{display:none}
+.chat-settings-panel{position:absolute;z-index:20;right:0;top:calc(100% + 8px);width:min(330px,calc(100vw - 40px));padding:14px;display:grid;gap:12px;border:1px solid var(--line);border-radius:12px;background:#111b2d;box-shadow:0 16px 42px #0008}
+.chat-settings-panel label{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--text)}
+.chat-settings-panel input[type=checkbox]{width:auto}
+.chat-settings-panel input[type=range]{width:100%}
+.chat-settings-panel p{font-size:10px;line-height:1.5;margin:0}
+#messages{font-size:var(--chat-font-size,14px)}
+#messages.compact .message{padding:10px 12px;margin-bottom:8px}
+.message-time{display:block;margin-top:6px;color:var(--muted);font-size:10px;opacity:.75}
+.message-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.message-action{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#0e192a;color:var(--muted);font-size:10px;cursor:pointer}
+.message-action:hover,.message-action.selected{border-color:var(--cyan);color:var(--cyan)}
+.message.pending .message-body{color:var(--cyan)}
+.chat-code{white-space:pre;overflow:auto;padding:12px;border:1px solid var(--line);border-radius:9px;background:#070d17;font-size:.9em;line-height:1.55}
+.chat-inline-code{padding:2px 5px;border-radius:5px;background:#070d17;color:#9de5ff}
+.chat-list-line{display:block;padding-left:8px}
+.chat-execution{margin-top:14px;padding:16px}
+.chat-execution h3{font-size:15px;margin:0}
+.execution-summary{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:11px;color:var(--muted)}
+.execution-step{display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;align-items:start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.execution-step-number{display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:#18253b;color:var(--cyan);font-size:11px}
+.execution-step-content b{font-size:12px;text-transform:capitalize}
+.execution-step-content p{font-size:11px;color:var(--muted);margin:4px 0 0;overflow-wrap:anywhere}
+.execution-step-status{font-size:10px;padding:3px 6px;border-radius:6px;background:#293246;color:var(--muted)}
+.execution-step-status.completed{color:var(--green);background:#78e6ad14}
+.execution-step-status.warning{color:#ffc779;background:#ffc77914}
+.execution-step-status.failed{color:#ff8d9a;background:#ff8d9a14}
+.execution-step small{font-size:10px;color:var(--muted);white-space:nowrap}
+.execution-footnote{font-size:10px;margin:12px 0 0}
+#messages > .message[hidden]{display:none!important}
+@media(max-width:680px){.chat-toolbar{align-items:stretch}.chat-toolbar-actions{width:100%}.chat-toolbar-actions .btn{flex:1}.chat-settings-panel{position:fixed;right:16px;top:120px}.execution-step{grid-template-columns:26px minmax(0,1fr);}.execution-step-status,.execution-step small{grid-column:2;justify-self:start}.chat-execution{padding:12px}}
