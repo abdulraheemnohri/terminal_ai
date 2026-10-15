@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — recovery execution tracking and verification
+
+- Expose the new recovery operation status in task history and allow one-time independent verification only after Command Control records successful execution.
+- Persist bounded verification evidence and block premature or duplicate verification; never auto-retry after a failed verification.
+
 ## Unreleased — fresh operation handoff for recovery
 
 - Register all recovery API routes and add a one-shot transition from an approved recovery proposal to a new pending Command Control operation.
