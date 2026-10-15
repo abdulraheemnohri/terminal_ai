@@ -282,10 +282,12 @@ async function loadTaskLifecycle(){
    if(t.status==="planned")actions+='<button class="btn primary" data-task-link="'+id+'">Link Command Control operation</button>';
    if(t.status==="executed")actions+='<button class="btn primary" data-task-verify="'+id+'">Verify result</button>';
    if(t.status==="verified")actions+='<button class="btn primary" data-task-review="'+id+'">Review outcome</button>';
+   if(t.operation_id&&["failed","expired"].includes(t.execution_status))actions+='<button class="btn" data-task-recovery="'+id+'">Draft recovery proposal</button>';
+   const recovery=(t.recovery_proposals||[]).map(p=>'<div class="list-item"><b>Recovery attempt '+escapeHtml(p.attempt)+' · '+escapeHtml(p.failure_category)+'</b><p>'+escapeHtml(p.error_summary)+'</p><p class="muted">Policy: '+escapeHtml(p.retry_policy)+' · Status: '+escapeHtml(p.status)+'</p><ol>'+((p.recovery_steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join(""))+'</ol></div>').join("");
    const steps=(t.steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join("");
    const verify=t.verification?'<p><b>Verification:</b> '+(t.verification.passed?"Passed":"Failed")+' · '+escapeHtml(t.verification.evidence)+'</p>':"";
    const review=t.review?'<p><b>Reviewed:</b> '+escapeHtml(t.review.outcome)+' · rating '+escapeHtml(t.review.rating)+'/5</p>':"";
-   return '<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+id.slice(0,12)+' · '+escapeHtml(t.goal)+'</b><span class="badge">'+status+'</span></div><p class="muted">Risk: '+escapeHtml(t.risk)+' · Type: '+escapeHtml(t.task_type)+' · Algorithm: '+escapeHtml(t.algorithm)+' · Updated: '+escapeHtml(new Date(t.updated_at*1000).toLocaleString())+'</p>'+(t.operation_id?'<p>Linked operation: <code>'+escapeHtml(t.operation_id)+'</code> · status: '+escapeHtml(t.execution_status||"unknown")+'</p>':'<p class="muted">No Command Control operation linked.</p>')+'<details><summary>Planned steps</summary><ol>'+steps+'</ol></details>'+verify+review+'<div class="row" style="margin-top:10px">'+actions+'</div></div>';
+   return '<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+id.slice(0,12)+' · '+escapeHtml(t.goal)+'</b><span class="badge">'+status+'</span></div><p class="muted">Risk: '+escapeHtml(t.risk)+' · Type: '+escapeHtml(t.task_type)+' · Algorithm: '+escapeHtml(t.algorithm)+' · Updated: '+escapeHtml(new Date(t.updated_at*1000).toLocaleString())+'</p>'+(t.operation_id?'<p>Linked operation: <code>'+escapeHtml(t.operation_id)+'</code> · status: '+escapeHtml(t.execution_status||"unknown")+'</p>':'<p class="muted">No Command Control operation linked.</p>')+'<details><summary>Planned steps</summary><ol>'+steps+'</ol></details>'+verify+review+(recovery?'<details><summary>Recovery proposals ('+(t.recovery_proposals||[]).length+')</summary>'+recovery+'</details>':'')+'<div class="row" style="margin-top:10px">'+actions+'</div></div>';
   }).join(""):'<div class="empty">No tracked tasks yet. Create a plan to start a lifecycle record.</div>';
  }catch(e){err.textContent=e.message;}
 }
@@ -320,6 +322,19 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
    const ratingText=prompt("Reviewer rating from 1 to 5","4"),rating=Number(ratingText);
    if(!Number.isInteger(rating)||rating<1||rating>5)return;
    await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskReview)+"/review",{outcome,rating,reviewer:"operator"});
+  }else if(b.dataset.taskRecovery){
+   const category=prompt("Failure category: timeout, transient_network, rate_limit, missing_dependency, validation, permission, destructive, unknown","timeout");
+   if(!["timeout","transient_network","rate_limit","missing_dependency","validation","permission","destructive","unknown"].includes(category))return;
+   const summary=prompt("Short error summary (max 500 chars; do not include secrets):");
+   if(!summary||!summary.trim())return;
+   const taskId=encodeURIComponent(b.dataset.taskRecovery);
+   const result=await run("/api/agentic/tasks/"+taskId+"/recovery-proposals",{failure_category:category,error_summary:summary.trim()});
+   const proposal=result.proposal;
+   alert("Recovery proposal (not executed):\\n"+proposal.recovery_steps.join("\\n"));
+   const decision=prompt("Review proposal: type approve to approve replanning only, or reject to reject. Leave blank to keep it pending.","");
+   if(decision==="approve"||decision==="reject"){
+    await run("/api/agentic/tasks/"+taskId+"/recovery-proposals/"+encodeURIComponent(proposal.id)+"/review",{decision,reviewer:"operator",note:"Reviewed in Self-X task lifecycle UI"});
+   }
   }else return;
   await loadTaskLifecycle();await loadAgenticConsole();
  }catch(err){$("task-lifecycle-error").textContent=err.message;}
