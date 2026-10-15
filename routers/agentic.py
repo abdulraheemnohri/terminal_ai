@@ -179,7 +179,12 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             raise HTTPException(status_code=400, detail="Invalid task status.")
         items = task_lifecycle.list(limit, status)
         for item in items:
-            item["recovery_proposals"] = recovery_store.list_for_task(item["id"])
+            proposals = recovery_store.list_for_task(item["id"])
+            for proposal in proposals:
+                operation_id = proposal.get("new_operation_id")
+                operation = control.get_operation(operation_id) if operation_id else None
+                proposal["new_operation_status"] = operation.get("status") if operation else None
+            item["recovery_proposals"] = proposals
         return {"tasks": items, "count": len(items), "execution_started": False}
 
     @get("/tasks/{task_id:str}")
@@ -194,7 +199,12 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
                     task = task_lifecycle.sync_operation(task_id, operation)
                 except ValueError:
                     pass
-        task["recovery_proposals"] = recovery_store.list_for_task(task_id)
+        proposals = recovery_store.list_for_task(task_id)
+        for proposal in proposals:
+            operation_id = proposal.get("new_operation_id")
+            operation = control.get_operation(operation_id) if operation_id else None
+            proposal["new_operation_status"] = operation.get("status") if operation else None
+        task["recovery_proposals"] = proposals
         return {"task": task, "execution_started": False}
 
     @post("/tasks/{task_id:str}/operation")
