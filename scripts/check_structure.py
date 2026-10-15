@@ -12,6 +12,7 @@ REQUIRED_FILES = (
     "command_control.py",
     "api_schemas.py",
     "application/task_intelligence.py",
+    "application/learning.py",
     "web/index.html",
     "web/app.js",
     "web/app.css",
