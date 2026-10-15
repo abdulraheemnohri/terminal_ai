@@ -2655,7 +2655,7 @@ class Agent:
         if self.autonomy >= 1:
             schema = [item for item in TOOL_SCHEMA
                       if self.allowed_tool_names is None or item.get("name") in self.allowed_tool_names]
-            lines = ["You may call tools by emitting <tool_call>{\\"name\\":\\"...\\",\\"args\\":{...}}</tool_call> on its own line.",
+            lines = ['You may call tools by emitting <tool_call>{"name":"...","args":{...}}</tool_call> on its own line.',
                      "Available tools:"]
             for item in schema:
                 args = ", ".join(f"{key}: {value}" for key, value in item.get("args", {}).items())
