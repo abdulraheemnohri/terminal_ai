@@ -274,7 +274,7 @@ Back up the state directory before upgrades or checkpoint restores. Store backup
 
 ## Bounded failure recovery
 
-Tracked tasks can collect up to three recovery proposals after a linked Command Control operation is recorded as failed or expired. Recovery guidance uses explicit categories and distinguishes transient failures, failures requiring a change, and unsafe/unknown cases. A human can review a proposal, but approval authorizes replanning only—not execution. Any retry or changed arguments require a new Command Control operation and fresh human approval. Do not include secrets in failure summaries. See [Agentic API](docs/AGENTIC_API.md) for endpoints and policy details.
+Tracked tasks can collect up to three recovery proposals after a linked Command Control operation is recorded as failed or expired. Recovery guidance uses explicit categories and distinguishes transient failures, failures requiring a change, and unsafe/unknown cases. A human can review a proposal, then queue one new Command Control operation with exact arguments. The new operation remains pending and requires separate human approval; approval of the recovery proposal itself never executes anything. Do not include secrets in failure summaries. See [Agentic API](docs/AGENTIC_API.md) for endpoints and policy details.
 
 ## Security model
 
