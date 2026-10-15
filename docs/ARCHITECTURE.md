@@ -109,7 +109,8 @@ This section documents the remaining refactor work accurately; the large legacy 
 ## Human-reviewed skill evolution
 
 - \`application/skill_evolution.py\` stores bounded plain-text skill proposals in \`skill_proposals.sqlite3\`; it stores no task prompts or credentials by design.
-- The UI in **Self-improvement → Skill evolution review queue** supports proposal submission, static validation, explicit approval, rejection, and promotion to a reviewed-catalog state.
+- The UI in **Self-improvement → Skill evolution review queue** supports manual proposal submission, draft generation from aggregate reviewed outcomes, static validation, explicit approval, rejection, and promotion to a reviewed-catalog state.
+- The reviewed-learning generator requires at least three outcomes per strategy group. It can draft a repeatable checklist from strong positive results or a recovery checklist from recurring low-success/low-rating results; recurring failures are prioritized for review. It stores only aggregate counts/scores in the generated proposal, not raw task prompts or credentials.
 - The lifecycle is \`proposed → validated → approved → promoted\`; rejection is available before promotion. Invalid state transitions are rejected. Static checks validate structure and reject a small set of executable-code patterns, but are not a security sandbox and do not prove a procedure is safe.
 - Promotion only changes proposal state; it does not install tools, change permissions, execute a skill, or rewrite source code. Skills remain non-executable procedure text.
 - The proposal store is capped at 1,000 records; each proposal has bounded fields and at most 20 steps.
