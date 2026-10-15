@@ -1114,7 +1114,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
         "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
-        "self_max_goals_per_cycle",
+        "self_max_goals_per_cycle", "long_term_memory_enabled", "conversation_archive_enabled",
+        "workspace_tools_enabled", "scheduled_tasks_enabled",
     }
     current = _read_settings()
     prompt = (
@@ -1154,7 +1155,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
                     "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled"):
+                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled",
+                    "long_term_memory_enabled", "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
         # Validate AI output as untrusted input; bool is a subclass of int in Python.
