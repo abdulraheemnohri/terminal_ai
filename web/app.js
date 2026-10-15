@@ -526,7 +526,7 @@ async function loadControlAudit(){
 function connectControlEvents(){
  if(controlSocket||!$("control-live-status"))return;
  const scheme=location.protocol==="https:"?"wss:":"ws:";
- try{controlSocket=new WebSocket(scheme+"//"+location.host+"/ws/events");}catch(e){$("control-live-status").textContent="Unavailable";return;}
+ try{controlSocket=new WebSocket(scheme+"//"+location.host+"/api/control/events");}catch(e){$("control-live-status").textContent="Unavailable";return;}
  controlSocket.onopen=()=>{$("control-live-status").textContent="Live";};
  controlSocket.onmessage=event=>{
   try{
