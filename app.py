@@ -1815,11 +1815,13 @@ async def _stop_update_checker() -> None:
 @get("/api/knowledge")
 async def list_knowledge(q: str = "", limit: int = 100) -> dict[str, Any]:
     """List/search durable local knowledge; does not call a remote provider."""
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
     items = _LONG_MEMORY.search(q, limit) if q.strip() else _LONG_MEMORY.list(limit)
     return {"items": items, "count": len(items), "storage": "sqlite", "offline": True}
 
 @post("/api/knowledge")
 async def add_knowledge(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
     try:
         item = _LONG_MEMORY.add(str(data.get("title", "")), str(data.get("content", "")),
             kind=str(data.get("kind", "note"))[:40], tags=data.get("tags") if isinstance(data.get("tags"), list) else [],
@@ -1830,6 +1832,7 @@ async def add_knowledge(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/knowledge/search")
 async def search_knowledge(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
     query = str(data.get("query", "")).strip()
     if len(query) > 1000: raise HTTPException(status_code=400, detail="Query is too long.")
     return {"knowledge": _LONG_MEMORY.search(query, int(data.get("limit", 10))),
@@ -1837,21 +1840,25 @@ async def search_knowledge(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/knowledge/{item_id:str}/delete")
 async def delete_knowledge(item_id: str) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
     if not _LONG_MEMORY.delete(item_id): raise HTTPException(status_code=404, detail="Knowledge item not found.")
     return {"status": "deleted", "id": item_id}
 
 @get("/api/workspace")
 async def workspace_list(path: str = ".") -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     try: return {"workspace": str(_WORKSPACE_TOOLS.workspace), "path": path, "items": _WORKSPACE_TOOLS.list_files(path)}
     except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @post("/api/workspace/read")
 async def workspace_read(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     try: return {"path": data.get("path", ""), "content": _WORKSPACE_TOOLS.read_file(str(data.get("path", "")))}
     except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @post("/api/workspace/write")
 async def workspace_write(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     # Approval is intentionally an explicit API field; the UI must display the exact path and content first.
     if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
     try: return {"status": "written", **_WORKSPACE_TOOLS.write_file(str(data.get("path", "")), str(data.get("content", "")), approved=True)}
@@ -1859,6 +1866,7 @@ async def workspace_write(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/workspace/execute")
 async def workspace_execute(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
     try: return _WORKSPACE_TOOLS.run_command(data.get("argv"), approved=True, timeout=int(data.get("timeout", 30)))
     except subprocess.TimeoutExpired as exc: raise HTTPException(status_code=408, detail="Command timed out.") from exc
@@ -1870,6 +1878,7 @@ async def list_scheduled_tasks() -> dict[str, Any]:
 
 @post("/api/scheduled-tasks")
 async def create_scheduled_task(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("scheduled_tasks_enabled", True): raise HTTPException(status_code=403, detail="Scheduled tasks are disabled in Settings.")
     try: return {"status": "created", "task": _TASK_SCHEDULER.create(str(data.get("name", "")), str(data.get("kind", "")), data.get("interval_minutes"), data.get("payload") if isinstance(data.get("payload"), dict) else {})}
     except (ValueError, TypeError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
 
