@@ -31,13 +31,15 @@ class RecoveryProposalStore:
                 failure_category TEXT NOT NULL, error_summary TEXT NOT NULL,
                 recovery_json TEXT NOT NULL, retry_policy TEXT NOT NULL,
                 status TEXT NOT NULL, reviewer TEXT, review_note TEXT,
-                new_operation_id TEXT, verification_json TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
+                new_operation_id TEXT, verification_json TEXT, outcome_review_json TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
             )""")
             columns = {row[1] for row in db.execute("PRAGMA table_info(recovery_proposals)").fetchall()}
             if "new_operation_id" not in columns:
                 db.execute("ALTER TABLE recovery_proposals ADD COLUMN new_operation_id TEXT")
             if "verification_json" not in columns:
                 db.execute("ALTER TABLE recovery_proposals ADD COLUMN verification_json TEXT")
+            if "outcome_review_json" not in columns:
+                db.execute("ALTER TABLE recovery_proposals ADD COLUMN outcome_review_json TEXT")
             db.execute("CREATE INDEX IF NOT EXISTS idx_recovery_task_created ON recovery_proposals(task_id, created_at DESC)")
             db.commit()
 
@@ -52,6 +54,7 @@ class RecoveryProposalStore:
         result = dict(row)
         result["recovery_steps"] = json.loads(result.pop("recovery_json"))
         result["verification"] = json.loads(result.pop("verification_json")) if result.get("verification_json") else None
+        result["outcome_review"] = json.loads(result.pop("outcome_review_json")) if result.get("outcome_review_json") else None
         result["may_retry_after_review"] = result["retry_policy"] == "retryable_after_human_review"
         result["execution_started"] = False
         return result
@@ -187,6 +190,54 @@ class RecoveryProposalStore:
             db.execute("UPDATE recovery_proposals SET status=?, verification_json=?, updated_at=? WHERE id=?",
                        ("verified" if passed else "verification_failed",
                         json.dumps(verification), now, proposal_id))
+            db.commit()
+            updated = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
+        assert updated is not None
+        return self._decode(updated)
+
+    def review_verified_outcome(self, *, task_id: str, proposal_id: str, outcome: str,
+                                rating: int, reviewer: str, note: str,
+                                learning_record_id: int) -> dict[str, Any]:
+        """Persist one human review only after a passing recovery verification."""
+        if not isinstance(outcome, str) or outcome not in {"success", "partial", "failure"}:
+            raise ValueError("outcome must be success, partial, or failure")
+        if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
+            raise ValueError("rating must be an integer from 1 to 5")
+        if not isinstance(reviewer, str) or not reviewer.strip() or len(reviewer) > 100:
+            raise ValueError("reviewer must be 1-100 characters")
+        if not isinstance(note, str) or len(note) > 500:
+            raise ValueError("review note must be at most 500 characters")
+        if isinstance(learning_record_id, bool) or not isinstance(learning_record_id, int) or learning_record_id < 1:
+            raise ValueError("learning_record_id is invalid")
+        now = time.time()
+        review = {"outcome": outcome, "rating": rating, "reviewer": reviewer.strip(),
+                  "note": note.strip(), "learning_record_id": learning_record_id,
+                  "reviewed_at": now}
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM recovery_proposals WHERE id=? AND task_id=?",
+                             (proposal_id, task_id)).fetchone()
+            if row is None:
+                db.rollback()
+                raise KeyError("recovery proposal not found")
+            if row["status"] == "reviewed" and row["outcome_review_json"]:
+                existing = json.loads(row["outcome_review_json"])
+                if (existing["outcome"], existing["rating"], existing["reviewer"], existing["learning_record_id"]) == (
+                    outcome, rating, reviewer.strip(), learning_record_id
+                ):
+                    db.commit()
+                    return self._decode(row)
+                db.rollback()
+                raise ValueError("recovery outcome has already been reviewed")
+            if row["status"] != "verified" or not row["verification_json"]:
+                db.rollback()
+                raise ValueError("only a passing verified recovery can be reviewed for learning")
+            verification = json.loads(row["verification_json"])
+            if verification.get("passed") is not True:
+                db.rollback()
+                raise ValueError("only a passing verified recovery can be reviewed for learning")
+            db.execute("UPDATE recovery_proposals SET status='reviewed', outcome_review_json=?, updated_at=? WHERE id=?",
+                       (json.dumps(review), now, proposal_id))
             db.commit()
             updated = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
         assert updated is not None
