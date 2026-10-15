@@ -31,8 +31,11 @@ class RecoveryProposalStore:
                 failure_category TEXT NOT NULL, error_summary TEXT NOT NULL,
                 recovery_json TEXT NOT NULL, retry_policy TEXT NOT NULL,
                 status TEXT NOT NULL, reviewer TEXT, review_note TEXT,
-                created_at REAL NOT NULL, updated_at REAL NOT NULL
+                new_operation_id TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
             )""")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(recovery_proposals)").fetchall()}
+            if "new_operation_id" not in columns:
+                db.execute("ALTER TABLE recovery_proposals ADD COLUMN new_operation_id TEXT")
             db.execute("CREATE INDEX IF NOT EXISTS idx_recovery_task_created ON recovery_proposals(task_id, created_at DESC)")
             db.commit()
 
@@ -112,6 +115,59 @@ class RecoveryProposalStore:
             row = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (ident,)).fetchone()
         assert row is not None
         return self._decode(row)
+
+    def prepare_operation_queue(self, *, task_id: str, proposal_id: str) -> dict[str, Any]:
+        """Atomically reserve one fresh operation queue attempt for an approved proposal."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM recovery_proposals WHERE id=? AND task_id=?",
+                             (proposal_id, task_id)).fetchone()
+            if row is None:
+                db.rollback()
+                raise KeyError("recovery proposal not found")
+            if row["status"] != "approved_for_replanning":
+                db.rollback()
+                raise ValueError("proposal must be approved for replanning before creating an operation")
+            updated = db.execute(
+                "UPDATE recovery_proposals SET status='queueing', updated_at=? WHERE id=? AND status='approved_for_replanning'",
+                (time.time(), proposal_id),
+            )
+            if updated.rowcount != 1:
+                db.rollback()
+                raise ValueError("operation queue is already being created for this proposal")
+            db.commit()
+            row = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
+        assert row is not None
+        return self._decode(row)
+
+    def attach_new_operation(self, *, task_id: str, proposal_id: str, operation_id: str) -> dict[str, Any]:
+        if not isinstance(operation_id, str) or not operation_id or len(operation_id) > 100:
+            raise ValueError("operation_id is invalid")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM recovery_proposals WHERE id=? AND task_id=?",
+                             (proposal_id, task_id)).fetchone()
+            if row is None:
+                db.rollback()
+                raise KeyError("recovery proposal not found")
+            if row["status"] != "queueing" or row["new_operation_id"]:
+                db.rollback()
+                raise ValueError("proposal is not awaiting a new operation link")
+            db.execute("UPDATE recovery_proposals SET status='operation_queued', new_operation_id=?, updated_at=? WHERE id=?",
+                       (operation_id, time.time(), proposal_id))
+            db.commit()
+            updated = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
+        assert updated is not None
+        return self._decode(updated)
+
+    def release_operation_queue(self, *, task_id: str, proposal_id: str) -> None:
+        """Allow a safe retry of queue creation only when queueing itself failed."""
+        with self._connect() as db:
+            db.execute(
+                "UPDATE recovery_proposals SET status='approved_for_replanning', updated_at=? WHERE id=? AND task_id=? AND status='queueing' AND new_operation_id IS NULL",
+                (time.time(), proposal_id, task_id),
+            )
+            db.commit()
 
     def review(self, *, task_id: str, proposal_id: str, decision: str,
                reviewer: str, note: str = "") -> dict[str, Any]:
