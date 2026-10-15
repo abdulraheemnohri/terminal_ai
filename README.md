@@ -392,3 +392,20 @@ These integrations run the web server as the current user and bind to loopback b
 ### Update the project
 
 Run `sh update.sh` on Linux/macOS/WSL or `./update.ps1` on Windows. Opt-in weekly project updates are available through the platform-specific `install-auto-update*` scripts. They update Terminal AI source and Python dependencies, not operating-system packages. Review the Git remote and maintain backups before enabling unattended code updates. The updater requires a clean worktree and validates dependencies/source/tests before restarting a configured service.
+
+
+## Adaptive agent runtime and world model
+
+The new framework-neutral runtime module provides reusable foundations for dynamic planning, evidence-based world-state tracking, approval gating, declarative skills, action event fan-out, SQLite WAL initialization, and a hash-chained audit ledger.
+
+- [Runtime module](terminal_ai_runtime.py)
+- [Agentic architecture and Command Control Center integration guide](docs/AGENTIC_ARCHITECTURE.md)
+- [Runtime tests](tests/test_terminal_ai_runtime.py)
+- [Boot startup and update guide](docs/AUTOSTART.md)
+- [systemd service template](systemd/terminal-ai.service)
+
+The planner chooses a bounded strategy based on complexity, risk, and external side effects. The world model stores explicit observations with source, confidence and expiry; this is operational state tracking, not sentience or human-like consciousness. Skills are declarative JSON/YAML procedures, not executable code, and imported skills remain untrusted until reviewed. High-risk operations always require explicit approval. The module is an integration foundation; it is not yet a claim that all these primitives are wired into every existing route or React page.
+
+### Boot startup (opt-in)
+
+Linux systems using systemd can review the unit and installer in systemd/ and scripts/. Windows users can register per-user sign-in startup with scripts/install_autostart_windows.ps1 after installing the project. These options start the web server as an unprivileged user and bind to loopback by default. See [docs/AUTOSTART.md](docs/AUTOSTART.md). Automatic application updates remain separate from startup and are not silently enabled.
