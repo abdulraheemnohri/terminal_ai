@@ -162,3 +162,18 @@ def test_manual_maintenance_is_exposed_in_settings_ui():
         js = client.get("/static/app.js")
     assert 'id="run-maintenance-now"' in html.text
     assert "/api/selfx/maintenance/run" in js.text
+
+
+def test_settings_loader_recovers_from_malformed_persisted_values(monkeypatch, tmp_path):
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(
+        '{"self_autonomous_enabled":"false","self_checkpoint_interval_hours":9999,'
+        '"self_autonomy_profile":"unrestricted","tool_approval_required":null}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", settings_path)
+    settings = web_app._read_settings()
+    assert settings["self_autonomous_enabled"] is False
+    assert settings["self_checkpoint_interval_hours"] == 168
+    assert settings["self_autonomy_profile"] == "maintain"
+    assert settings["tool_approval_required"] is True
