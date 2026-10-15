@@ -102,6 +102,7 @@ def _read_settings() -> dict[str, Any]:
         "active_provider": "gemini",
         "provider_model": "",
         "custom_base_url": "",
+        "browser_allowed_domains": [],
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
         "self_reflection_enabled": True,
@@ -1256,12 +1257,30 @@ async def get_settings() -> dict[str, Any]:
     }
 
 
+@get("/api/browser/status")
+async def browser_status() -> dict[str, Any]:
+    """Expose browser configuration only; this endpoint never launches a browser."""
+    domains = _read_settings().get("browser_allowed_domains", [])
+    try:
+        from importlib.util import find_spec
+        playwright_installed = find_spec("playwright") is not None
+    except (ImportError, ValueError):
+        playwright_installed = False
+    return {
+        "enabled": bool(domains),
+        "allowed_domain_count": len(domains),
+        "playwright_installed": playwright_installed,
+        "execution_enabled": False,
+        "notice": "Status only. Browser actions are not exposed until authenticated dispatch is configured.",
+    }
+
+
 @patch("/api/settings")
 async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     allowed_settings = {
         "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
         "agentic_planning_enabled", "agentic_recovery_enabled", "agentic_persona",
-        "provider_model", "custom_base_url", "self_identity", "self_mission",
+        "provider_model", "custom_base_url", "browser_allowed_domains", "self_identity", "self_mission",
         "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
@@ -1308,6 +1327,20 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data["provider_model"], str):
             raise HTTPException(status_code=400, detail="provider_model must be text.")
         current["provider_model"] = data["provider_model"].strip()[:200]
+    if "browser_allowed_domains" in data:
+        values = data["browser_allowed_domains"]
+        if not isinstance(values, list) or len(values) > 50:
+            raise HTTPException(status_code=400, detail="browser_allowed_domains must be a list of at most 50 DNS names.")
+        from agent.playwright_browser import BrowserPolicyError, _normalize_domain
+        normalized = []
+        try:
+            for value in values:
+                domain = _normalize_domain(value)
+                if domain not in normalized:
+                    normalized.append(domain)
+        except BrowserPolicyError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid browser domain allowlist: {exc}") from exc
+        current["browser_allowed_domains"] = normalized
     if "custom_base_url" in data:
         if not isinstance(data["custom_base_url"], str):
             raise HTTPException(status_code=400, detail="custom_base_url must be text.")
