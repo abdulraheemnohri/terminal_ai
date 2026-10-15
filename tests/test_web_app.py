@@ -16,6 +16,9 @@ def test_dashboard_returns_html():
     assert "Skill evolution review queue" in response.text
     assert "Draft from reviewed learning" in response.text
     assert "LOCAL-FIRST AGENT CONTROL CENTER" in response.text
+    assert 'id="command-palette"' in response.text
+    assert 'id="overview-browser-badge"' in response.text
+    assert "Jump to…" in response.text
 
 
 def test_status_endpoint_is_available_without_model():
@@ -363,3 +366,16 @@ def test_browser_domain_settings_reject_malformed_entries():
             client.patch("/api/settings", json={"browser_allowed_domains": previous})
 
 
+
+
+def test_command_palette_and_browser_overview_assets_are_served():
+    with TestClient(app=app) as client:
+        response = client.get("/static/app.js")
+        css = client.get("/static/app.css")
+    assert response.status_code == 200
+    assert "openCommandPalette" in response.text
+    assert "loadBrowserOverview" in response.text
+    assert 'e.key==="ArrowDown"' in response.text
+    assert css.status_code == 200
+    assert ".command-backdrop.open" in css.text
+    assert ".browser-security-card" in css.text
