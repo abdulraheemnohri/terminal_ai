@@ -169,3 +169,6 @@ Approved recovery continuation is a one-shot state transition: `approved_for_rep
 
 
 After the fresh operation is separately approved and executed through the existing dispatch workflow, the recovery verification route accepts one bounded operator attestation and only when Command Control reports `executed`. The proposal records `verified` or `verification_failed`; verification never dispatches tools and never automatically retries a failed recovery.
+
+
+After a passing recovery verification, `POST .../review-outcome` requires a separate human outcome review before adding the result to the learning ledger. Learning records use a stable source reference for idempotency, preventing duplicate samples if a client retries after a lost response. Only the explicitly reviewed result is learned; a verified state alone does not automatically change recommendations.
