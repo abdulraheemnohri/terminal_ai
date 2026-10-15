@@ -477,7 +477,7 @@ async def create_session(data: dict[str, Any]) -> dict[str, Any]:
 async def select_session(data: dict[str, Any]) -> dict[str, Any]:
     global _ACTIVE_SESSION
     name = str(data.get("name", "")).strip()
-    if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", "\\\\")):
+    if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Invalid session name.")
     manager = core.SessionManager()
     if name not in manager.list_sessions():
@@ -972,15 +972,29 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                     "self_autonomous_enabled", "self_auto_checkpoint"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
-        if "max_ctx_chars" in changes and not isinstance(changes["max_ctx_chars"], int):
-            changes.pop("max_ctx_chars")
-        if "self_checkpoint_retention" in changes and not isinstance(changes["self_checkpoint_retention"], int):
-            changes.pop("self_checkpoint_retention")
-        if "self_evaluation_interval_hours" in changes and not isinstance(changes["self_evaluation_interval_hours"], int):
-            changes.pop("self_evaluation_interval_hours")
-        for key in ("provider_model",):
-            if key in changes and not isinstance(changes[key], str):
-                changes.pop(key)
+        # Validate AI output as untrusted input; bool is a subclass of int in Python.
+        if "max_ctx_chars" in changes:
+            value = changes["max_ctx_chars"]
+            if isinstance(value, bool) or not isinstance(value, int):
+                changes.pop("max_ctx_chars")
+            else:
+                changes["max_ctx_chars"] = max(2000, min(50000, value))
+        for key, minimum, maximum in (
+            ("self_checkpoint_retention", 1, 30),
+            ("self_evaluation_interval_hours", 1, 168),
+        ):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, int):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, value))
+        if "provider_model" in changes:
+            value = changes["provider_model"]
+            if not isinstance(value, str):
+                changes.pop("provider_model")
+            else:
+                changes["provider_model"] = value.strip()[:200]
         return {"changes": changes, "explanation": str(parsed.get("explanation", "Review this proposal before applying."))[:1000],
                 "applied": False, "notice": "AI suggestions are untrusted proposals. Review the diff and explicitly apply them; credentials and risky tool permissions are excluded."}
     except Exception as exc:
@@ -1392,21 +1406,54 @@ _SELFX_TASK: asyncio.Task | None = None
 
 
 async def _automatic_selfx_maintenance() -> None:
-    """Run safe local checks only when the user explicitly enables Self-X autonomy."""
+    """Run bounded, local-only maintenance; never execute tools or mutate source code."""
     engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
     while True:
         try:
             settings = _read_settings()
             if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
-                interval = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24)))) * 3600
+                interval_hours = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24))))
+                interval = interval_hours * 3600
                 state = engine.status()
                 latest_eval = state.get("latest_evaluation") or {}
-                due = not latest_eval or time.time() - float(latest_eval.get("created_at", 0)) >= interval
-                if due:
+                latest_checkpoint = (state.get("checkpoints") or [{}])[0]
+                now = time.time()
+                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval
+                checkpoint_due = (
+                    settings.get("self_recovery_enabled", True)
+                    and settings.get("self_auto_checkpoint", True)
+                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= interval
+                )
+                if eval_due:
                     if settings.get("self_evaluation_enabled", True):
                         await asyncio.to_thread(engine.evaluate)
                     elif settings.get("self_diagnostics_enabled", True):
                         await asyncio.to_thread(engine.diagnose)
+                if checkpoint_due:
+                    manifest = await asyncio.to_thread(engine.create_checkpoint)
+                    retention = max(1, min(30, int(settings.get("self_checkpoint_retention", 10))))
+                    checkpoint_root = core.STATE_DIR / "backups" / "selfx"
+                    checkpoints = sorted(
+                        (p for p in checkpoint_root.iterdir() if p.is_dir()),
+                        key=lambda p: p.name, reverse=True,
+                    ) if checkpoint_root.exists() else []
+                    for old in checkpoints[retention:]:
+                        shutil.rmtree(old, ignore_errors=True)
+                    engine.record_event("autonomous-checkpoint", f"Scheduled checkpoint created: {manifest['id']}")
+
+                # Turn recurring diagnostic failures into deduplicated, measurable goals.
+                if settings.get("self_goals_enabled", True) and settings.get("self_diagnostics_enabled", True):
+                    latest = engine.status().get("latest_diagnostic") or {}
+                    planner = core.GoalPlanner.load()
+                    active_goals = planner.active()
+                    active_texts = [str(getattr(g, "text", "")).casefold() for g in active_goals]
+                    for check in latest.get("checks", []):
+                        if check.get("ok") is False:
+                            goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
+                            if goal_text.casefold() not in active_texts:
+                                planner.add(goal_text)
+                                active_texts.append(goal_text.casefold())
+                                engine.record_event("autonomous-goal", goal_text)
         except asyncio.CancelledError:
             raise
         except Exception:
