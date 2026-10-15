@@ -44,5 +44,8 @@ jobs:
         run: |
           sh -n install.sh scripts/install-service.sh scripts/update.sh scripts/termux-boot-start.sh
 
+      - name: Validate dashboard JavaScript syntax
+        run: node --check web/app.js
+
       - name: Run test suite
         run: python -m pytest tests/ -v --color=yes
