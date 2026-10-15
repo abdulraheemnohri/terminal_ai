@@ -1,7 +1,11 @@
 # Terminal AI architecture and capability map
 
 ## Runtime
-- app.py: Litestar HTTP routes, web UI, provider orchestration, session management, settings validation, Self-X jobs, chat execution traces, memory/workspace/scheduler APIs.
+- app.py: Litestar app lifecycle, provider orchestration, sessions, settings, and still-unextracted chat/Self-X/scheduler routes.
+- routers/control.py: Command Control Center, audit, skill exchange, and WebSocket event summaries.
+- routers/knowledge.py and routers/workspace.py: modular local-knowledge and workspace APIs with typed Pydantic request contracts.
+- agent/planning.py and agent/tools.py: task planning, persona/recovery guidance, structured tool-call validation, and strict JSON parsing.
+- agent/memory.py: typed SQLite knowledge and conversation storage; memory_store.py remains a compatibility import shim.
 - terminal_ai.py: core agent, backend abstractions, conversation/session management, skill library, tools, memory and provider integration.
 - litert_api_backend.py: local LiteRT-LM Python API adapter. Local inference does not require Gemini or network access when a local model is selected and available.
 - selfx_engine.py: local diagnostics, evaluation, research notes, recovery checkpoints and bounded maintenance.
@@ -37,7 +41,7 @@
 - Workspace commands run as the same OS user as the app. Approval prompts are not equivalent to OS-level isolation. Bind to localhost and do not expose the dashboard to untrusted networks without authentication and additional security controls.
 
 ## Verification checklist
-1. Install dependencies and run python -m compileall -q app.py terminal_ai.py selfx_engine.py memory_store.py workspace_tools.py task_scheduler.py.
+1. Install dependencies and run python -m compileall -q app.py terminal_ai.py agent agentic_features.py api_schemas.py routers selfx_engine.py memory_store.py workspace_tools.py task_scheduler.py.
 2. Run pytest -q.
 3. Verify GET /api/knowledge works without provider credentials.
 4. Save and search a knowledge item, then restart the app and verify persistence.
