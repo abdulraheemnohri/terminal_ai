@@ -15,6 +15,7 @@ from application.task_intelligence import analyze_task
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
 from application.task_lifecycle import TaskLifecycleStore
+from application.recovery_proposals import RecoveryProposalStore
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
@@ -78,6 +79,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
     learning_store = learning or LearningStore(Path(state_dir) / "learning.sqlite3")
     skill_evolution = SkillEvolutionStore(Path(state_dir) / "skill_proposals.sqlite3")
     task_lifecycle = TaskLifecycleStore(Path(state_dir) / "task_lifecycle.sqlite3")
+    recovery_store = RecoveryProposalStore(Path(state_dir) / "recovery_proposals.sqlite3")
 
     @get("/status")
     async def agentic_status() -> dict[str, Any]:
@@ -272,6 +274,62 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         })
         return {"task": task, "learning_record": record,
                 "permissions_changed": False, "execution_started": False}
+
+    @get("/tasks/{task_id:str}/recovery-proposals")
+    async def list_recovery_proposals(task_id: str) -> dict[str, Any]:
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        return {"proposals": recovery_store.list_for_task(task_id), "execution_started": False}
+
+    @post("/tasks/{task_id:str}/recovery-proposals")
+    async def create_recovery_proposal(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        if task.get("operation_id"):
+            operation = control.get_operation(task["operation_id"])
+            if operation is not None:
+                try:
+                    task = task_lifecycle.sync_operation(task_id, operation)
+                except ValueError:
+                    pass
+        if not task.get("operation_id") or task.get("execution_status") not in {"failed", "expired"}:
+            raise HTTPException(status_code=409, detail="Recovery proposals require a linked operation whose recorded execution status is failed or expired.")
+        category = data.get("failure_category")
+        summary = data.get("error_summary")
+        try:
+            proposal = recovery_store.propose(task_id=task_id, failure_category=category, error_summary=summary)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        control.audit("agentic", "task.recovery_proposed", task_id, {
+            "proposal_id": proposal["id"], "attempt": proposal["attempt"],
+            "failure_category": proposal["failure_category"], "retry_policy": proposal["retry_policy"],
+        })
+        return {"proposal": proposal, "execution_started": False,
+                "notice": "Proposal only. Approval does not execute or dispatch a retry; any revised operation requires fresh Command Control approval."}
+
+    @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/review")
+    async def review_recovery_proposal(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        if task_lifecycle.get(task_id) is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        decision = data.get("decision")
+        reviewer = data.get("reviewer", "operator")
+        note = data.get("note", "")
+        try:
+            proposal = recovery_store.review(task_id=task_id, proposal_id=proposal_id,
+                                             decision=decision, reviewer=reviewer, note=note)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Recovery proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.recovery_reviewed", task_id, {
+            "proposal_id": proposal_id, "decision": decision, "status": proposal["status"],
+            "retry_policy": proposal["retry_policy"],
+        })
+        return {"proposal": proposal, "execution_started": False,
+                "permissions_changed": False,
+                "notice": "Approval authorizes replanning only. Create a new Command Control operation and obtain fresh approval before executing any changed arguments."}
 
     @get("/learning/summary")
     async def learning_summary() -> dict[str, Any]:
