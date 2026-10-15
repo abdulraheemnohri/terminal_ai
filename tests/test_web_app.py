@@ -414,3 +414,22 @@ def test_dashboard_theme_and_toast_assets_are_accessible():
     assert css.status_code == 200
     assert ":root.theme-light" in css.text
     assert ".toast-region" in css.text
+
+
+
+def test_health_timeline_and_collection_search_are_served():
+    with TestClient(app=app) as client:
+        page = client.get("/")
+        js = client.get("/static/app.js")
+        css = client.get("/static/app.css")
+    assert page.status_code == 200
+    assert 'id="health-timeline-svg"' in page.text
+    assert 'id="health-timeline-summary"' in page.text
+    assert js.status_code == 200
+    assert "function recordHealthSnapshot" in js.text
+    assert "function renderHealthTimeline" in js.text
+    assert "function setupCollectionSearch" in js.text
+    assert "control-audit-list" in js.text
+    assert css.status_code == 200
+    assert ".health-timeline-chart" in css.text
+    assert ".collection-search" in css.text
