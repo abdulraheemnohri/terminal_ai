@@ -33,6 +33,9 @@ jobs:
       - name: Check dependency consistency
         run: python -m pip check
 
+      - name: Validate project structure
+        run: python scripts/check_structure.py
+
       - name: Compile application modules
         run: |
           python -m compileall -q app.py terminal_ai.py litert_api_backend.py api_provider_backend.py agent routers api_schemas.py command_control.py selfx_engine.py workspace_tools.py task_scheduler.py
