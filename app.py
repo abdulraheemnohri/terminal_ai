@@ -27,6 +27,9 @@ from litestar.static_files import create_static_files_router
 
 import terminal_ai as core
 from selfx_engine import SelfXEngine
+from memory_store import MemoryStore
+from workspace_tools import WorkspaceTools
+from task_scheduler import TaskScheduler
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -44,6 +47,10 @@ _DOWNLOAD_LOCK = threading.Lock()
 # Bounded in-memory execution traces for debugging chat reliability. No prompt text or secrets are stored here.
 CHAT_RUNS: list[dict[str, Any]] = []
 _CHAT_RUNS_LOCK = threading.Lock()
+_LONG_MEMORY = MemoryStore(core.STATE_DIR / "long_term_memory.sqlite3")
+_WORKSPACE_TOOLS = WorkspaceTools(ROOT)
+_TASK_SCHEDULER = TaskScheduler(core.STATE_DIR / "scheduled_tasks.sqlite3")
+_SCHEDULER_TASK: asyncio.Task | None = None
 
 
 def _load_env() -> None:
@@ -66,6 +73,10 @@ def _read_settings() -> dict[str, Any]:
         "self_critique": False,
         "proactive": False,
         "max_ctx_chars": 12000,
+        "long_term_memory_enabled": True,
+        "conversation_archive_enabled": True,
+        "workspace_tools_enabled": True,
+        "scheduled_tasks_enabled": True,
         "active_provider": "gemini",
         "provider_model": "",
         "custom_base_url": "",
@@ -424,7 +435,7 @@ async def status() -> dict[str, Any]:
     }
 
 
-@post("/api/chat")
+@post("/api/chat", status_code=200)
 async def chat(data: dict[str, Any]) -> dict[str, Any]:
     """Run one serialized chat turn and return an inspectable execution trace."""
     message = str(data.get("message", "")).strip()
@@ -465,6 +476,18 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                 stage("inference", "failed", inference_started, type(exc).__name__)
                 raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
             stage("inference", "completed", inference_started, "Model turn returned.")
+
+            archive_started = time.monotonic()
+            try:
+                if _read_settings().get("conversation_archive_enabled", True):
+                    _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "user", message, {"request_id": request_id, "backend": backend_label})
+                    _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "assistant", str(answer or ""), {"request_id": request_id, "backend": backend_label})
+                    stage("long_term_archive", "completed", archive_started, "Stored this turn in the local searchable conversation archive.")
+                else:
+                    stage("long_term_archive", "skipped", archive_started, "Conversation archiving is disabled in Settings.")
+            except Exception as exc:
+                logger.warning("Conversation archive write failed: %s", type(exc).__name__)
+                stage("long_term_archive", "warning", archive_started, "Turn succeeded but archive storage failed.")
 
             persist_started = time.monotonic()
             persisted = False
@@ -1091,7 +1114,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
         "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
-        "self_max_goals_per_cycle",
+        "self_max_goals_per_cycle", "long_term_memory_enabled", "conversation_archive_enabled",
+        "workspace_tools_enabled", "scheduled_tasks_enabled",
     }
     current = _read_settings()
     prompt = (
@@ -1131,7 +1155,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
                     "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled"):
+                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled",
+                    "long_term_memory_enabled", "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
         # Validate AI output as untrusted input; bool is a subclass of int in Python.
@@ -1201,7 +1226,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_goal_generation_enabled", "self_checkpoint_retention",
         "self_evaluation_interval_hours", "self_checkpoint_interval_hours",
         "self_max_goals_per_cycle", "self_autonomy_profile", "updates_enabled",
-        "update_channel", "update_check_interval_hours", "hf_token", "api_key",
+        "update_channel", "update_check_interval_hours", "long_term_memory_enabled",
+        "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled", "hf_token", "api_key",
     }
     unknown = sorted(set(data) - allowed_settings)
     if unknown:
@@ -1256,6 +1282,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
         "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
         "self_goal_generation_enabled", "self_reflection_enabled", "updates_enabled",
+        "long_term_memory_enabled", "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled",
     ):
         if setting_key in data:
             if not isinstance(data[setting_key], bool):
@@ -1786,16 +1813,142 @@ async def _stop_update_checker() -> None:
             pass
         _UPDATE_TASK = None
 
+
+@get("/api/knowledge")
+async def list_knowledge(q: str = "", limit: int = 100) -> dict[str, Any]:
+    """List/search durable local knowledge; does not call a remote provider."""
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
+    items = _LONG_MEMORY.search(q, limit) if q.strip() else _LONG_MEMORY.list(limit)
+    return {"items": items, "count": len(items), "storage": "sqlite", "offline": True}
+
+@post("/api/knowledge")
+async def add_knowledge(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
+    try:
+        item = _LONG_MEMORY.add(str(data.get("title", "")), str(data.get("content", "")),
+            kind=str(data.get("kind", "note"))[:40], tags=data.get("tags") if isinstance(data.get("tags"), list) else [],
+            source="web-ui", pinned=bool(data.get("pinned", False)))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": "saved", "item": item}
+
+@post("/api/knowledge/search")
+async def search_knowledge(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
+    query = str(data.get("query", "")).strip()
+    if len(query) > 1000: raise HTTPException(status_code=400, detail="Query is too long.")
+    return {"knowledge": _LONG_MEMORY.search(query, int(data.get("limit", 10))),
+            "conversations": _LONG_MEMORY.archive_search(query, int(data.get("limit", 10))), "offline": True}
+
+@post("/api/knowledge/{item_id:str}/delete")
+async def delete_knowledge(item_id: str) -> dict[str, Any]:
+    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
+    if not _LONG_MEMORY.delete(item_id): raise HTTPException(status_code=404, detail="Knowledge item not found.")
+    return {"status": "deleted", "id": item_id}
+
+@get("/api/workspace")
+async def workspace_list(path: str = ".") -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
+    try: return {"workspace": str(_WORKSPACE_TOOLS.workspace), "path": path, "items": _WORKSPACE_TOOLS.list_files(path)}
+    except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@post("/api/workspace/read")
+async def workspace_read(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
+    try: return {"path": data.get("path", ""), "content": _WORKSPACE_TOOLS.read_file(str(data.get("path", "")))}
+    except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@post("/api/workspace/write")
+async def workspace_write(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
+    # Approval is intentionally an explicit API field; the UI must display the exact path and content first.
+    if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
+    try: return {"status": "written", **_WORKSPACE_TOOLS.write_file(str(data.get("path", "")), str(data.get("content", "")), approved=True)}
+    except (ValueError, PermissionError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@post("/api/workspace/execute")
+async def workspace_execute(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
+    if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
+    try: return _WORKSPACE_TOOLS.run_command(data.get("argv"), approved=True, timeout=int(data.get("timeout", 30)))
+    except subprocess.TimeoutExpired as exc: raise HTTPException(status_code=408, detail="Command timed out.") from exc
+    except (ValueError, PermissionError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@get("/api/scheduled-tasks")
+async def list_scheduled_tasks() -> dict[str, Any]:
+    return {"tasks": _TASK_SCHEDULER.list(), "allowed_types": ["diagnostics", "backup_memory", "cleanup_temp"]}
+
+@post("/api/scheduled-tasks")
+async def create_scheduled_task(data: dict[str, Any]) -> dict[str, Any]:
+    if not _read_settings().get("scheduled_tasks_enabled", True): raise HTTPException(status_code=403, detail="Scheduled tasks are disabled in Settings.")
+    try: return {"status": "created", "task": _TASK_SCHEDULER.create(str(data.get("name", "")), str(data.get("kind", "")), data.get("interval_minutes"), data.get("payload") if isinstance(data.get("payload"), dict) else {})}
+    except (ValueError, TypeError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@patch("/api/scheduled-tasks/{task_id:str}")
+async def update_scheduled_task(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    if "enabled" not in data or not isinstance(data["enabled"], bool): raise HTTPException(status_code=400, detail="Provide enabled as a boolean.")
+    if not _TASK_SCHEDULER.toggle(task_id, data["enabled"]): raise HTTPException(status_code=404, detail="Scheduled task not found.")
+    return {"status": "updated", "tasks": _TASK_SCHEDULER.list()}
+
+@post("/api/scheduled-tasks/{task_id:str}/delete")
+async def delete_scheduled_task(task_id: str) -> dict[str, Any]:
+    if not _TASK_SCHEDULER.delete(task_id): raise HTTPException(status_code=404, detail="Scheduled task not found.")
+    return {"status": "deleted", "id": task_id}
+
+async def _run_scheduled_task(task: dict[str, Any]) -> str:
+    kind = task["kind"]
+    if kind == "diagnostics":
+        result = _get_agent().diagnostics() if hasattr(_get_agent(), "diagnostics") else {"status": "diagnostics requested"}
+        return "Diagnostics completed: " + str(result)[:400]
+    if kind == "backup_memory":
+        import sqlite3
+        target = core.STATE_DIR / "backups"
+        target.mkdir(parents=True, exist_ok=True)
+        dest = target / ("memory-" + time.strftime("%Y%m%d-%H%M%S") + ".sqlite3")
+        srcdb = sqlite3.connect(str(_LONG_MEMORY.path)); dstdb = sqlite3.connect(str(dest))
+        try: srcdb.backup(dstdb)
+        finally: dstdb.close(); srcdb.close()
+        return "Memory backup created: " + dest.name
+    if kind == "cleanup_temp":
+        removed = 0
+        for p in ROOT.rglob("*.terminal-ai.tmp"):
+            if p.is_file() and ROOT in p.resolve().parents:
+                p.unlink(missing_ok=True); removed += 1
+        return f"Removed {removed} temporary file(s)."
+    return "Skipped unknown task type."
+
+async def _scheduler_worker() -> None:
+    while True:
+        for task in (_TASK_SCHEDULER.due() if _read_settings().get("scheduled_tasks_enabled", True) else []):
+            try: _TASK_SCHEDULER.mark(task["id"], await _run_scheduled_task(task))
+            except asyncio.CancelledError: raise
+            except Exception as exc: _TASK_SCHEDULER.mark(task["id"], "Failed: " + type(exc).__name__)
+        await asyncio.sleep(15)
+
+async def _start_scheduler() -> None:
+    global _SCHEDULER_TASK
+    if _SCHEDULER_TASK is None or _SCHEDULER_TASK.done(): _SCHEDULER_TASK = asyncio.create_task(_scheduler_worker())
+
+async def _stop_scheduler() -> None:
+    global _SCHEDULER_TASK
+    if _SCHEDULER_TASK is not None:
+        _SCHEDULER_TASK.cancel()
+        try: await _SCHEDULER_TASK
+        except asyncio.CancelledError: pass
+        _SCHEDULER_TASK = None
+
 app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
+        list_knowledge, add_knowledge, search_knowledge, delete_knowledge, workspace_list, workspace_read, workspace_write, workspace_execute,
+        list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
-    on_startup=[_start_update_checker, _start_selfx_maintenance],
-    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance],
+    on_startup=[_start_update_checker, _start_selfx_maintenance, _start_scheduler],
+    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance, _stop_scheduler],
 )

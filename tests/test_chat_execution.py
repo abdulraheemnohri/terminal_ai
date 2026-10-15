@@ -38,6 +38,7 @@ def test_chat_response_includes_execution_trace_and_request_metadata(monkeypatch
         "request_serialized",
         "backend_resolved",
         "inference",
+        "long_term_archive",
         "history_persistence",
         "response_ready",
     ]

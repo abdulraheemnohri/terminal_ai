@@ -1,9 +1,9 @@
 const $=id=>document.getElementById(id);
 let statusData=null;
-const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings"};
+const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -128,6 +128,10 @@ async function loadSettings(){
   $("setting-goal-generation").checked=data.self_goal_generation_enabled!==false;
   $("setting-max-goals").value=data.self_max_goals_per_cycle||3;
   $("setting-tool-approval").checked=data.tool_approval_required!==false;
+  $("setting-long-memory").checked=data.long_term_memory_enabled!==false;
+  $("setting-conversation-archive").checked=data.conversation_archive_enabled!==false;
+  $("setting-workspace-tools").checked=data.workspace_tools_enabled!==false;
+  $("setting-scheduler").checked=data.scheduled_tasks_enabled!==false;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
   $("update-interval").value=data.update_check_interval_hours||24;
@@ -231,7 +235,11 @@ $("settings-form").addEventListener("submit",async e=>{
    self_checkpoint_interval_hours:Number($("setting-checkpoint-interval").value),
    self_goal_generation_enabled:$("setting-goal-generation").checked,
    self_max_goals_per_cycle:Number($("setting-max-goals").value),
-   tool_approval_required:$("setting-tool-approval").checked
+   tool_approval_required:$("setting-tool-approval").checked,
+   long_term_memory_enabled:$("setting-long-memory").checked,
+   conversation_archive_enabled:$("setting-conversation-archive").checked,
+   workspace_tools_enabled:$("setting-workspace-tools").checked,
+   scheduled_tasks_enabled:$("setting-scheduler").checked
   })});
   $("setting-hf-token").value="";
   $("settings-saved").textContent="Saved";$("setting-api-key").value="";
@@ -414,6 +422,53 @@ $("ai-settings-apply").addEventListener("click",async()=>{
  try{await api("/api/settings",{method:"PATCH",body:JSON.stringify(changes)});$("ai-settings-preview").textContent="Settings applied. Review the current values below.";window.__aiSettingsProposal=null;await loadSettings();await loadStatus();}
  catch(err){$("ai-settings-error").textContent=err.message;$("ai-settings-apply").disabled=false;}
 });
-const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
+
+async function loadKnowledge(query=""){
+ const list=$("knowledge-results"); if(!list)return; list.innerHTML='<div class="empty">Loading local knowledge…</div>';
+ try{const data=await api("/api/knowledge"+(query?"?q="+encodeURIComponent(query):""));const items=data.items||[];
+ list.innerHTML=items.length?items.map(i=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(i.title)+'</b><button class="btn" data-knowledge-delete="'+escapeHtml(i.id)+'">Delete</button></div><p>'+escapeHtml(i.content)+'</p><p class="muted">'+escapeHtml((i.tags||[]).join(", "))+' · '+escapeHtml(i.kind)+' · '+new Date(i.updated_at*1000).toLocaleString()+'</p></div>').join(''):'<div class="empty">No matching knowledge yet. Add a project note or tested procedure.</div>';
+ }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
+}
+$("knowledge-refresh")?.addEventListener("click",()=>loadKnowledge());
+$("knowledge-form")?.addEventListener("submit",async e=>{e.preventDefault();$("knowledge-error").textContent="";
+ try{await api("/api/knowledge",{method:"POST",body:JSON.stringify({title:$("knowledge-title").value,content:$("knowledge-content").value,tags:$("knowledge-tags").value.split(",").map(s=>s.trim()).filter(Boolean)})});$("knowledge-form").reset();await loadKnowledge();}
+ catch(err){$("knowledge-error").textContent=err.message;}});
+$("knowledge-search-form")?.addEventListener("submit",e=>{e.preventDefault();loadKnowledge($("knowledge-query").value.trim());});
+$("knowledge-clear-search")?.addEventListener("click",()=>{$("knowledge-query").value="";loadKnowledge();});
+$("knowledge-results")?.addEventListener("click",async e=>{const b=e.target.closest("[data-knowledge-delete]");if(!b)return;if(!confirm("Delete this saved knowledge item?"))return;
+ try{await api("/api/knowledge/"+encodeURIComponent(b.dataset.knowledgeDelete)+"/delete",{method:"POST",body:"{}"});await loadKnowledge($("knowledge-query").value.trim());}catch(err){alert(err.message);}});
+async function loadWorkspace(){
+ try{const data=await api("/api/workspace");$("workspace-output").textContent="Workspace: "+data.workspace+"\n"+JSON.stringify(data.items,null,2);}
+ catch(e){$("workspace-output").textContent=e.message;}
+}
+$("workspace-refresh")?.addEventListener("click",loadWorkspace);
+$("workspace-list")?.addEventListener("click",async()=>{try{const p=$("workspace-path").value||".";const d=await api("/api/workspace?path="+encodeURIComponent(p));$("workspace-output").textContent=JSON.stringify(d,null,2);}catch(e){$("workspace-output").textContent=e.message;}});
+$("workspace-read")?.addEventListener("click",async()=>{try{const d=await api("/api/workspace/read",{method:"POST",body:JSON.stringify({path:$("workspace-path").value})});$("workspace-output").textContent=d.content;}catch(e){$("workspace-output").textContent=e.message;}});
+$("workspace-write")?.addEventListener("click",async()=>{const path=$("workspace-write-path").value,content=$("workspace-write-content").value;
+ if(!$("workspace-write-approved").checked){$("workspace-error").textContent="Check the explicit approval box first.";return;}
+ if(!confirm("Write "+path+" with the exact content shown?"))return;
+ try{const d=await api("/api/workspace/write",{method:"POST",body:JSON.stringify({path,content,approved:true})});$("workspace-error").textContent="Saved "+d.path+" ("+d.bytes+" bytes).";$("workspace-write-approved").checked=false;await loadWorkspace();}
+ catch(e){$("workspace-error").textContent=e.message;}});
+$("workspace-execute")?.addEventListener("click",async()=>{if(!$("workspace-command-approved").checked){$("workspace-error").textContent="Approve the exact command first.";return;}
+ const argv=$("workspace-command").value.split("\n").map(s=>s.trim()).filter(Boolean);
+ if(!argv.length){$("workspace-error").textContent="Enter command arguments, one per line.";return;}
+ if(!confirm("Execute this exact argument list in the project workspace?\n"+JSON.stringify(argv)))return;
+ try{const d=await api("/api/workspace/execute",{method:"POST",body:JSON.stringify({argv,approved:true,timeout:30})});$("workspace-output").textContent=JSON.stringify(d,null,2);$("workspace-error").textContent="Command finished with exit code "+d.returncode;$("workspace-command-approved").checked=false;}
+ catch(e){$("workspace-error").textContent=e.message;}});
+async function loadScheduler(){
+ const list=$("scheduler-list");if(!list)return;list.innerHTML='<div class="empty">Loading scheduled jobs…</div>';
+ try{const data=await api("/api/scheduled-tasks");list.innerHTML=(data.tasks||[]).length?data.tasks.map(t=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(t.name)+'</b><span class="badge">'+(t.enabled?"Enabled":"Paused")+'</span></div><p>'+escapeHtml(t.kind)+' · every '+escapeHtml(t.interval_minutes)+' min</p><p class="muted">Next: '+new Date(t.next_run*1000).toLocaleString()+' · Last result: '+escapeHtml(t.last_status||"Not run yet")+'</p><div class="row"><button class="btn" data-task-toggle="'+escapeHtml(t.id)+'" data-enabled="'+(!t.enabled)+'">'+(t.enabled?"Pause":"Enable")+'</button><button class="btn" data-task-delete="'+escapeHtml(t.id)+'">Delete</button></div></div>').join(''):'<div class="empty">No scheduled jobs yet.</div>';}
+ catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
+}
+$("scheduler-refresh")?.addEventListener("click",loadScheduler);
+$("scheduler-form")?.addEventListener("submit",async e=>{e.preventDefault();$("scheduler-error").textContent="";
+ try{await api("/api/scheduled-tasks",{method:"POST",body:JSON.stringify({name:$("scheduler-name").value,kind:$("scheduler-kind").value,interval_minutes:Number($("scheduler-interval").value)})});$("scheduler-form").reset();await loadScheduler();}
+ catch(err){$("scheduler-error").textContent=err.message;}});
+$("scheduler-list")?.addEventListener("click",async e=>{const toggle=e.target.closest("[data-task-toggle]"),del=e.target.closest("[data-task-delete]");
+ try{if(toggle){await api("/api/scheduled-tasks/"+encodeURIComponent(toggle.dataset.taskToggle),{method:"PATCH",body:JSON.stringify({enabled:toggle.dataset.enabled==="true"})});await loadScheduler();}
+ else if(del&&confirm("Delete this scheduled task?")){await api("/api/scheduled-tasks/"+encodeURIComponent(del.dataset.taskDelete)+"/delete",{method:"POST",body:"{}"});await loadScheduler();}}
+ catch(err){$("scheduler-error").textContent=err.message;}});
+
+const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/knowledge":"knowledge","/workspace":"workspace","/scheduler":"scheduler","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
 const initialView=routeViews[location.pathname]||new URLSearchParams(location.search).get("view");
 if(titles[initialView])showView(initialView);

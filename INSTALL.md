@@ -120,3 +120,14 @@ To check the installed dependencies:
 - **Dashboard doesn't load:** check the terminal traceback and verify you started from the repository root with the virtual environment activated.
 - **Settings don't take effect:** restart the app after changing process-level environment variables.
 - **Keep it private:** default to localhost. Do not bind to `0.0.0.0` on an untrusted network without authentication and other protections.
+
+
+## 9. New memory, workspace, and scheduling features
+
+After updating to a release containing these features, open the dashboard and use **Knowledge Base**, **Workspace Tools**, and **Task Scheduler** in the sidebar.
+
+- **Knowledge Base:** local SQLite knowledge is stored under the application state directory in `long_term_memory.sqlite3`. It works without internet or an embedding model. Search is lexical, not semantic vector search.
+- **Conversation archive:** successful chat turns can be archived locally and searched from Knowledge Base. Turn archiving can be disabled in Settings. Existing records are not deleted when disabled.
+- **Workspace Tools:** browsing and reading are confined to the repository root. Writes and commands require a separate approval checkbox and confirmation. Commands run as the same OS user as the app; this is not a container-grade security sandbox. Do not expose this UI to untrusted networks.
+- **Task Scheduler:** tasks persist under the application state directory and run while the server is running. Available types are diagnostics, memory backup, and temporary-file cleanup. There is no arbitrary scheduled shell execution. Use Settings to pause background jobs.
+- **Data backup:** memory backups are stored in the state directory's `backups` folder. Include the state directory in your own backup plan if you want to preserve all settings, memory, sessions, and schedules.
