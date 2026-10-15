@@ -1,3 +1,10 @@
+## Unreleased — health timeline and collection search
+
+- Add a browser-local health timeline for API reachability and inference readiness, bounded to 48 recent samples and never uploaded to the server.
+- Add live search and matching counts to sessions, models, memories, skills, tools, scheduler jobs, diagnostics, task lifecycle, Command Control, and other dashboard collections.
+- Reapply collection filters as results refresh, and keep search controls keyboard accessible and responsive.
+- Add regression checks for the health chart and collection-search UI.
+
 ## Unreleased — dashboard themes and operations toolkit
 
 - Add browser-local light/dark theme switching with accessible labels and persisted preference.
