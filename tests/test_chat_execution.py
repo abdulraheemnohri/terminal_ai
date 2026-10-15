@@ -104,11 +104,15 @@ def test_agent_settings_validate_styles_and_boolean_types(monkeypatch, tmp_path)
             "agent_self_correction_enabled": False,
             "agent_tool_calling_enabled": True,
             "agent_response_style": "technical",
+            "agent_persona": "roleplay",
         })
         bad_style = client.patch("/api/settings", json={"agent_response_style": "mind-reader"})
         bad_type = client.patch("/api/settings", json={"agent_tool_calling_enabled": "yes"})
+        bad_persona = client.patch("/api/settings", json={"agent_persona": "impersonate-a-real-person"})
     assert good.status_code == 200
     assert good.json()["agent_response_style"] == "technical"
     assert good.json()["agent_tool_calling_enabled"] is True
+    assert good.json()["agent_persona"] == "roleplay"
     assert bad_style.status_code == 400
     assert bad_type.status_code == 400
+    assert bad_persona.status_code == 400
