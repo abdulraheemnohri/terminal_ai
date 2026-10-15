@@ -486,7 +486,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"proposal": item, "promoted_to_reviewed_catalog": True, "execution_started": False, "permissions_changed": False}
 
     return Router(path="/api/agentic", route_handlers=[
-        agentic_status, plan, create_task_run, list_task_runs, get_task_run, link_task_operation,\n        verify_task_run, review_task_run, learning_summary, record_learning_outcome,
+        agentic_status, plan, create_task_run, list_task_runs, get_task_run, link_task_operation,
+        verify_task_run, review_task_run, learning_summary, record_learning_outcome,
         list_world_facts, observe_world_fact, validate_skill,
         list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
         approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
