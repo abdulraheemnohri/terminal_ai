@@ -1249,8 +1249,70 @@ async def selfx_status() -> dict[str, Any]:
         "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
         "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+        "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
+        "self_max_goals_per_cycle",
     )}
     return data
+
+
+@post("/api/selfx/maintenance/run")
+async def selfx_run_maintenance() -> dict[str, Any]:
+    """Run one bounded local maintenance cycle on explicit user request."""
+    settings = _read_settings()
+    if not settings.get("self_maintenance_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-maintenance is disabled in Settings.")
+    if not settings.get("self_evaluation_enabled", True) and not settings.get("self_diagnostics_enabled", True):
+        raise HTTPException(status_code=400, detail="Enable diagnostics or evaluation before running maintenance.")
+    engine = _selfx_engine()
+    try:
+        if settings.get("self_evaluation_enabled", True):
+            evaluation = await asyncio.to_thread(engine.evaluate)
+            diagnostic = engine.status().get("latest_diagnostic")
+        else:
+            diagnostic = await asyncio.to_thread(engine.diagnose)
+            evaluation = None
+        checkpoint_id = None
+        profile = settings.get("self_autonomy_profile", "maintain")
+        if (
+            profile != "observe"
+            and settings.get("self_recovery_enabled", True)
+            and settings.get("self_auto_checkpoint", True)
+        ):
+            manifest = await asyncio.to_thread(engine.create_checkpoint)
+            checkpoint_id = manifest.get("id")
+            retention = max(1, min(30, int(settings.get("self_checkpoint_retention", 10))))
+            await asyncio.to_thread(engine.prune_checkpoints, retention)
+        created_goals = []
+        if (
+            profile == "goal-driven"
+            and settings.get("self_goal_generation_enabled", True)
+            and settings.get("self_goals_enabled", True)
+            and settings.get("self_diagnostics_enabled", True)
+        ):
+            planner = core.GoalPlanner.load()
+            active_texts = [str(getattr(goal, "text", "")).casefold() for goal in planner.active()]
+            limit = max(1, min(20, int(settings.get("self_max_goals_per_cycle", 3))))
+            for check in (diagnostic or {}).get("checks", []):
+                if len(created_goals) >= limit:
+                    break
+                if check.get("ok") is False:
+                    goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
+                    if goal_text.casefold() not in active_texts:
+                        planner.add(goal_text)
+                        active_texts.append(goal_text.casefold())
+                        created_goals.append(goal_text)
+        summary = f"Manual maintenance completed; profile={profile}; goals_created={len(created_goals)}"
+        engine.record_event("manual-maintenance", summary)
+        return {
+            "status": "completed", "profile": profile, "diagnostic": diagnostic,
+            "evaluation": evaluation, "checkpoint_id": checkpoint_id,
+            "created_goals": created_goals, "summary": summary,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Manual Self-X maintenance cycle failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="Maintenance cycle failed. Check the local server logs.") from exc
 
 
 @post("/api/selfx/diagnose")
@@ -1586,7 +1648,7 @@ app = Litestar(
         skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
+        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
