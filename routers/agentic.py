@@ -145,12 +145,16 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             raise HTTPException(status_code=400, detail="Invalid risk level.")
         if isinstance(complexity, bool) or not isinstance(complexity, int) or not 1 <= complexity <= 10:
             raise HTTPException(status_code=400, detail="complexity must be an integer from 1 to 10.")
+        side_effects = data.get("has_external_side_effects", False)
+        evidence_available = data.get("evidence_available", False)
+        if not isinstance(side_effects, bool) or not isinstance(evidence_available, bool):
+            raise HTTPException(status_code=400, detail="side-effects and evidence flags must be boolean.")
         try:
-            signals = analyze_task(goal, evidence_available=bool(data.get("evidence_available", False)))
+            signals = analyze_task(goal, evidence_available=evidence_available)
             decision = learning_store.recommend(str(signals["task_type"]), str(signals["algorithm"]))
             signals["algorithm"] = decision["algorithm"]
             plan_result = planner.plan(goal, complexity=complexity, risk=risk,
-                                       has_external_side_effects=bool(data.get("has_external_side_effects", False)))
+                                       has_external_side_effects=side_effects)
             task = task_lifecycle.create(goal=goal, task_type=str(signals["task_type"]),
                                          algorithm=str(signals["algorithm"]), risk=risk,
                                          steps=plan_result.steps)
@@ -171,8 +175,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             "verified", "reviewed", "failed", "rejected", "expired",
         }:
             raise HTTPException(status_code=400, detail="Invalid task status.")
-        return {"tasks": task_lifecycle.list(limit, status), "count": len(task_lifecycle.list(limit, status)),
-                "execution_started": False}
+        items = task_lifecycle.list(limit, status)
+        return {"tasks": items, "count": len(items), "execution_started": False}
 
     @get("/tasks/{task_id:str}")
     async def get_task_run(task_id: str) -> dict[str, Any]:
