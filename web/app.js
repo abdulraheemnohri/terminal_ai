@@ -80,6 +80,7 @@ async function loadStatus(){
   apiReachable=true;
   loadBrowserOverview();
   const ready=Boolean(statusData.ready);
+  recordHealthSnapshot(true,ready);
   $("status-label").textContent=ready?"System online":"Setup required";
   $("status-dot").style.background=ready?"var(--green)":"var(--red)";
   $("metric-ready").textContent=ready?"Ready":"Setup";
@@ -115,6 +116,7 @@ async function loadStatus(){
  }catch(e){
   if(apiReachable===true)showToast("Terminal AI API is unavailable.","error");
   apiReachable=false;
+  recordHealthSnapshot(false,false);
   $("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;
   if($("overview-health"))$("overview-health").innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';
  }
@@ -936,3 +938,37 @@ function showToast(message,kind="info"){
 // Poll the lightweight status endpoint while the dashboard is visible.
 setInterval(()=>{if(!document.hidden)loadStatus();},30000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadStatus();});
+
+
+const healthHistoryKey="terminal-ai-health-history-v1";
+function readHealthHistory(){
+ try{const v=JSON.parse(localStorage.getItem(healthHistoryKey)||"[]");return Array.isArray(v)?v.filter(x=>x&&Number.isFinite(x.t)&&typeof x.api==="boolean"&&typeof x.ready==="boolean").slice(-48):[];}catch(_){return [];}
+}
+function recordHealthSnapshot(api,ready){
+ const now=Date.now(),samples=readHealthHistory();
+ if(samples.length&&now-samples[samples.length-1].t<20000){renderHealthTimeline(samples);return;}
+ samples.push({t:now,api:!!api,ready:!!ready});
+ const bounded=samples.slice(-48);
+ try{localStorage.setItem(healthHistoryKey,JSON.stringify(bounded));}catch(_){}
+ renderHealthTimeline(bounded);
+}
+function renderHealthTimeline(samples=readHealthHistory()){
+ const svg=$("health-timeline-svg");if(!svg)return;
+ const ns="http://www.w3.org/2000/svg";
+ const add=(tag,attrs,text)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));if(text!==undefined)e.textContent=text;svg.appendChild(e);return e;};
+ while(svg.firstChild)svg.removeChild(svg.firstChild);
+ [22,52,82].forEach(y=>add("line",{x1:18,y1:y,x2:582,y2:y,class:"health-gridline"}));
+ if(!samples.length){add("text",{x:20,y:15,class:"health-axis-label"},"Waiting for status samples…");if($("health-timeline-count"))$("health-timeline-count").textContent="Collecting samples";if($("health-timeline-summary"))$("health-timeline-summary").textContent="Samples are collected while this page is open.";return;}
+ const width=560;
+ for(const spec of [{key:"api",up:22,down:42,cls:"health-api-line"},{key:"ready",up:62,down:82,cls:"health-ready-line"}]){
+  const points=samples.map((s,i)=>({x:samples.length===1?20:20+i*width/(samples.length-1),y:s[spec.key]?spec.up:spec.down}));
+  add("path",{d:points.map((p,i)=>(i?"L":"M")+p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" "),class:spec.cls,fill:"none","stroke-width":2.5,"stroke-linecap":"round","stroke-linejoin":"round"});
+  points.forEach((p,i)=>add("circle",{cx:p.x,cy:p.y,r:i===points.length-1?4:2.2,class:spec.cls+"-point"}));
+ }
+ add("text",{x:20,y:105,class:"health-axis-label"},new Date(samples[0].t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}));
+ add("text",{x:580,y:105,class:"health-axis-label","text-anchor":"end"},new Date(samples[samples.length-1].t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}));
+ const latest=samples[samples.length-1];
+ if($("health-timeline-count"))$("health-timeline-count").textContent=samples.length+" sample"+(samples.length===1?"":"s");
+ if($("health-timeline-summary"))$("health-timeline-summary").textContent=(latest.api?"API reachable":"API unavailable")+" · "+(latest.ready?"inference ready":"inference not ready")+" · latest sample "+new Date(latest.t).toLocaleTimeString();
+}
+renderHealthTimeline();
