@@ -1,3 +1,9 @@
+## Unreleased — dashboard interface personalization
+
+- Add browser-local interface preferences for compact layout, larger text, and reduced motion, with immediate application and reset controls.
+- Persist presentation preferences in local browser storage without sending them to the server or changing agent/security settings.
+- Add accessible toggle styling, responsive preference layout, and regression tests for the settings UI and served assets.
+
 ## Unreleased — dashboard navigation and browser visibility
 
 - Add a searchable command palette covering every dashboard page, opened with Ctrl/Cmd+K and navigable by keyboard.
