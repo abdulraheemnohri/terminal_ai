@@ -359,3 +359,27 @@ def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
                   "arguments": {"path": "README.md"}},
         )
         assert duplicate.status_code == 409
+
+        new_operation_id = body["operation"]["id"]
+        control.review(new_operation_id, True, reviewer="operator")
+        new_operation = control.get_operation(new_operation_id)
+        control.claim_approved(new_operation_id, "workspace", "workspace", new_operation["arguments"])
+        control.finish_operation(new_operation_id, success=True, note="simulated recovery success")
+        proposals = client.get(f"/api/agentic/tasks/{task_id}/recovery-proposals")
+        assert proposals.status_code == 200
+        current = next(p for p in proposals.json()["proposals"] if p["id"] == proposal_id)
+        assert current["new_operation_status"] == "executed"
+
+        verification = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify",
+            json={"passed": True, "evidence": "Independent service health check passed",
+                  "verifier": "operator"},
+        )
+        assert verification.status_code == 201
+        assert verification.json()["proposal"]["status"] == "verified"
+        assert verification.json()["proposal"]["verification"]["passed"] is True
+        duplicate_verification = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify",
+            json={"passed": True, "evidence": "Repeated verification", "verifier": "operator"},
+        )
+        assert duplicate_verification.status_code == 409
