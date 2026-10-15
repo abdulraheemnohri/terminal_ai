@@ -295,3 +295,43 @@ Run the focused tests with:
 ```bash
 pytest -q tests/test_command_control.py tests/test_control_center_api.py
 ```
+
+
+## Automatic server startup and updates
+
+The server can start automatically at user login without running with administrator/root privileges. Autostart is **opt-in** and binds to `127.0.0.1` by default so the dashboard is not exposed to your network.
+
+### Linux with systemd
+
+After running `sh install.sh`, run:
+
+```sh
+sh install-service.sh
+systemctl --user status terminal-ai.service
+```
+
+Stop/disable autostart with `sh uninstall-service.sh`. To start the service before logging in, optionally enable systemd lingering with `loginctl enable-linger "$USER"` (this changes your user service lifecycle).
+
+### Windows 10/11
+
+After running `install.ps1`, open PowerShell in the project directory and run:
+
+```powershell
+.\\install-startup.ps1
+```
+
+Remove autostart with `./uninstall-startup.ps1`. The task runs as the current user at logon.
+
+### Start manually
+
+- Linux/macOS/WSL: `sh start-server.sh`
+- Windows PowerShell: `./start-server.ps1`
+
+Open `http://127.0.0.1:8000`. The service restarts after a process failure. Android/Termux does not provide a universal boot-service mechanism; use a Termux-compatible startup workflow if supported by the device.
+
+### Update the project safely
+
+- Linux/macOS/WSL: `sh update.sh`
+- Windows PowerShell: `./update.ps1`
+
+The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default; no background updater silently changes code.
