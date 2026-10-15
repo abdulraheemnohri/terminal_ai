@@ -202,3 +202,53 @@ table{display:block;max-width:100%;overflow-x:auto}
 }
 @media(hover:none){.btn:hover,.nav button:hover{border-color:var(--line)}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Command palette and browser security overview */
+:where(button,a,input,textarea,select,[tabindex]):focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.topbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.command-open{display:flex;align-items:center;gap:9px;white-space:nowrap}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;padding:3px 6px;border:1px solid #3a4a65;border-radius:6px;background:#0b1322;color:#aab9d4;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:inset 0 -1px #ffffff0c}
+.command-backdrop{position:fixed;inset:0;z-index:1000;display:none;align-items:flex-start;justify-content:center;padding:12vh 18px 24px;background:#030712b8;backdrop-filter:blur(9px)}
+.command-backdrop.open{display:flex}
+.command-dialog{width:min(620px,100%);max-height:76vh;overflow:auto;border:1px solid #3a4b68;border-radius:20px;background:linear-gradient(145deg,#131f34,#0a1221);box-shadow:0 28px 90px #0009;padding:20px}
+.command-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+.command-heading h2{font-size:20px;margin:5px 0 0;letter-spacing:-.03em}
+.command-close{padding:7px 10px;font-size:11px}
+.command-search-label{display:block;margin-bottom:7px;color:var(--muted);font-size:12px}
+#command-search{width:100%;min-height:48px;border:1px solid #425572;border-radius:12px;background:#080f1d;color:var(--text);padding:12px 14px}
+.command-results{display:grid;gap:5px;margin-top:12px;max-height:43vh;overflow:auto}
+.command-result{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:9px 11px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);text-align:left}
+.command-result:hover,.command-result.active{background:#1b2b44;border-color:#385070}
+.command-result-icon{display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;border:1px solid #33445e;border-radius:8px;color:var(--cyan);background:#66e3ff0c}
+.command-result span:nth-child(2){flex:1}
+.command-result kbd{margin-left:auto}
+.command-empty{margin:0}
+.command-hint{display:flex;gap:14px;flex-wrap:wrap;margin-top:15px;padding-top:13px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
+.command-hint span{display:flex;align-items:center;gap:4px}
+body.command-open{overflow:hidden}
+.browser-security-card{display:flex;flex-direction:column;gap:12px}
+.browser-security-summary{display:flex;align-items:center;gap:13px;min-width:0}
+.browser-security-mark{display:grid;place-items:center;flex:0 0 42px;height:42px;border:1px solid #66e3ff38;border-radius:14px;background:#66e3ff0c;color:var(--cyan);font-size:20px}
+.browser-security-summary strong{font-size:14px}
+.browser-security-summary p{margin:5px 0 0;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.browser-security-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.browser-security-stats>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:11px;border:1px solid var(--line);border-radius:11px;background:#0a1322}
+.browser-security-stats span{color:var(--muted);font-size:10px;line-height:1.35}
+.browser-security-stats strong{font-size:13px;overflow-wrap:anywhere}
+.browser-security-card .row{margin-top:auto;flex-wrap:wrap}
+.browser-security-card .footer-note{margin-top:0}
+@media(max-width:700px){
+ .topbar-actions{width:100%;justify-content:space-between}
+ .command-open{padding:8px 10px}
+ .command-open kbd{display:none}
+ .command-backdrop{padding:8vh 10px 12px}
+ .command-dialog{padding:15px;border-radius:16px}
+ .command-hint{gap:8px}
+ .browser-security-stats{gap:6px}
+ .browser-security-stats>div{padding:9px}
+}
+@media(prefers-reduced-motion:no-preference){
+ .command-dialog{animation:command-in .16s ease-out}
+ @keyframes command-in{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+}
