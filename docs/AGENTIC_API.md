@@ -124,6 +124,7 @@ Allowed outcomes are `success`, `partial`, and `failure`; rating is an integer f
 - `GET /api/agentic/tasks/{task_id}/recovery-proposals` — list a task's bounded proposal history.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals` — draft guidance for a task whose linked operation is recorded as `failed` or `expired`.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review` — explicitly approve replanning or reject a proposal.
+- `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/operation` — create a fresh pending Command Control operation from an approved proposal.
 
 Create request:
 
@@ -142,3 +143,14 @@ Review request:
 ```
 
 Approval changes the proposal to `approved_for_replanning` only. It does not execute, enqueue, or authorize the previous operation again. A changed or repeated action must be represented by a new Command Control operation with exact arguments and fresh human approval. Non-idempotent side effects must be checked before considering a retry. Every proposal and review writes a metadata-only audit event; never put secrets in error summaries or notes.
+
+
+### Queue a fresh operation after review
+
+Only an `approved_for_replanning` proposal can create one new operation. The operation is queued in Command Control and must receive its own human review:
+
+```json
+{"tool":"workspace","operation":"workspace","arguments":{"path":"README.md"}}
+```
+
+The `tool` and `operation` names must match a dispatchable registered tool. The response includes the new pending operation ID and `approval_required: true`. Each proposal can create at most one new operation. Queueing is not execution; the original failed operation and its approval remain unchanged. Review and approve the new operation through `/api/control/pending/{operation_id}/review`; execute it only through the existing approved dispatcher in an authenticated, CSRF-protected workflow. The UI prompts for exact arguments and displays the new operation ID.
