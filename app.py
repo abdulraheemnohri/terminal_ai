@@ -461,16 +461,17 @@ async def create_session(data: dict[str, Any]) -> dict[str, Any]:
     name = str(data.get("name", "")).strip() or f"session-{time.strftime('%Y%m%d-%H%M%S')}"
     if len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Session name must be 1–80 characters without path separators.")
-    manager = core.SessionManager()
-    safe = manager._safe_name(name)
-    target = manager.dir / safe
-    if target.exists():
-        raise HTTPException(status_code=409, detail="A session with that name already exists.")
-    manager.save(name, [])
-    _ACTIVE_SESSION = Path(safe).stem
-    if _AGENT is not None:
-        _AGENT.history = []
-    return {"status": "created", "active_session": _ACTIVE_SESSION}
+    async with _LOCK:
+        manager = core.SessionManager()
+        safe = manager._safe_name(name)
+        target = manager.dir / safe
+        if target.exists():
+            raise HTTPException(status_code=409, detail="A session with that name already exists.")
+        manager.save(name, [])
+        _ACTIVE_SESSION = Path(safe).stem
+        if _AGENT is not None:
+            _AGENT.history = []
+        return {"status": "created", "active_session": _ACTIVE_SESSION}
 
 
 @post("/api/sessions/select")
@@ -479,33 +480,36 @@ async def select_session(data: dict[str, Any]) -> dict[str, Any]:
     name = str(data.get("name", "")).strip()
     if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Invalid session name.")
-    manager = core.SessionManager()
-    if name not in manager.list_sessions():
-        raise HTTPException(status_code=404, detail="Session not found.")
-    history = manager.load(name)
-    _ACTIVE_SESSION = name
-    if _AGENT is not None:
-        _AGENT.history = history
-    return {"status": "selected", "active_session": name, "history": [{"role": m.role, "text": m.text} for m in history]}
+    async with _LOCK:
+        manager = core.SessionManager()
+        if name not in manager.list_sessions():
+            raise HTTPException(status_code=404, detail="Session not found.")
+        history = manager.load(name)
+        _ACTIVE_SESSION = name
+        if _AGENT is not None:
+            _AGENT.history = history
+        return {"status": "selected", "active_session": name,
+                "history": [{"role": m.role, "text": m.text} for m in history]}
 
 
 @post("/api/sessions/delete")
 async def delete_session(data: dict[str, Any]) -> dict[str, Any]:
     global _ACTIVE_SESSION
     name = str(data.get("name", "")).strip()
-    manager = core.SessionManager()
-    if not name or name not in manager.list_sessions():
-        raise HTTPException(status_code=404, detail="Session not found.")
-    target = (manager.dir / manager._safe_name(name)).resolve()
-    if target.parent != manager.dir.resolve():
-        raise HTTPException(status_code=400, detail="Invalid session path.")
-    target.unlink()
-    if _ACTIVE_SESSION == name:
-        _ACTIVE_SESSION = "web-session"
-        manager.save(_ACTIVE_SESSION, [])
-        if _AGENT is not None:
-            _AGENT.history = []
-    return {"status": "deleted", "name": name, "active_session": _ACTIVE_SESSION}
+    async with _LOCK:
+        manager = core.SessionManager()
+        if not name or name not in manager.list_sessions():
+            raise HTTPException(status_code=404, detail="Session not found.")
+        target = (manager.dir / manager._safe_name(name)).resolve()
+        if target.parent != manager.dir.resolve():
+            raise HTTPException(status_code=400, detail="Invalid session path.")
+        target.unlink()
+        if _ACTIVE_SESSION == name:
+            _ACTIVE_SESSION = "web-session"
+            manager.save(_ACTIVE_SESSION, [])
+            if _AGENT is not None:
+                _AGENT.history = []
+        return {"status": "deleted", "name": name, "active_session": _ACTIVE_SESSION}
 
 
 @get("/api/skills")
@@ -962,9 +966,15 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(proposed, dict):
             raise ValueError("changes must be an object")
         changes = {key: value for key, value in proposed.items() if key in allowed}
-        if "mode" in changes and changes["mode"] not in {"auto", "cloud", "local", "hybrid"}:
+        if "mode" in changes and (
+            not isinstance(changes["mode"], str)
+            or changes["mode"] not in {"auto", "cloud", "local", "hybrid"}
+        ):
             changes.pop("mode")
-        if "active_provider" in changes and changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+        if "active_provider" in changes and (
+            not isinstance(changes["active_provider"], str)
+            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}
+        ):
             changes.pop("active_provider")
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
