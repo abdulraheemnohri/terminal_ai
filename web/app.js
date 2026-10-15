@@ -931,3 +931,8 @@ function showToast(message,kind="info"){
  window.setTimeout(()=>{const current=region.querySelectorAll(".toast");for(const item of current){if(item===toast)item.remove();}},5000);
  return sequence;
 }
+
+
+// Poll the lightweight status endpoint while the dashboard is visible.
+setInterval(()=>{if(!document.hidden)loadStatus();},30000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadStatus();});
