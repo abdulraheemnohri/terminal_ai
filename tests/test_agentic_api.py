@@ -241,3 +241,43 @@ def test_agentic_console_status_and_world_observation_api():
         pending = client.get("/api/control/pending?status=pending&limit=100")
         assert pending.status_code == 200
         assert isinstance(pending.json()["operations"], list)
+
+
+def test_task_lifecycle_api_links_existing_approval_without_execution():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        planned = client.post("/api/agentic/tasks", json={
+            "goal": "Inspect application health and verify it",
+            "risk": "read",
+            "complexity": 2,
+            "has_external_side_effects": False,
+            "evidence_available": False,
+        })
+        assert planned.status_code == 201
+        task = planned.json()["task"]
+        assert task["status"] == "planned"
+        assert planned.json()["execution_started"] is False
+
+        queued = client.post("/api/control/pending", json={
+            "tool": "workspace", "operation": "inspect", "arguments": {"path": "README.md"}
+        })
+        assert queued.status_code == 201
+        operation_id = queued.json()["operation"]["id"]
+
+        linked = client.post(f"/api/agentic/tasks/{task['id']}/operation", json={
+            "operation_id": operation_id
+        })
+        assert linked.status_code == 201
+        assert linked.json()["task"]["status"] == "awaiting_approval"
+        assert linked.json()["execution_started"] is False
+
+        blocked = client.post(f"/api/agentic/tasks/{task['id']}/verify", json={
+            "passed": True, "evidence": "A check was performed", "verifier": "operator"
+        })
+        assert blocked.status_code == 409
+
+        task_status = client.get(f"/api/agentic/tasks/{task['id']}")
+        assert task_status.status_code == 200
+        assert task_status.json()["task"]["operation_id"] == operation_id
