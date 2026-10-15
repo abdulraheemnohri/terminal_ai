@@ -1,3 +1,10 @@
+## Unreleased — dashboard navigation and browser visibility
+
+- Add a searchable command palette covering every dashboard page, opened with Ctrl/Cmd+K and navigable by keyboard.
+- Add dialog semantics, escape/outside-click closing, focus restoration, responsive layout, and visible keyboard focus styles.
+- Add a live Overview browser-security card showing allowlist count and Playwright availability while explicitly reporting remote actions as disabled.
+- Add a manual refresh action and regression tests for the new dashboard markup and served UI assets.
+
 ## Unreleased — local approved browser dispatch
 
 - Add a trusted local-only dispatch service and CLI for browser operations already approved in Command Control.
