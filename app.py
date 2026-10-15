@@ -202,6 +202,7 @@ def _read_settings() -> dict[str, Any]:
         "agentic_planning_enabled": True,
         "agent_self_correction_enabled": True,
         "agent_response_style": "balanced",
+        "agent_persona": "general",
         "agent_tool_calling_enabled": False,
     }
     base_defaults = dict(defaults)
@@ -251,6 +252,8 @@ def _read_settings() -> dict[str, Any]:
 
     if defaults.get("agent_response_style") not in AgenticRuntime.STYLES:
         defaults["agent_response_style"] = "balanced"
+    if defaults.get("agent_persona") not in AgenticRuntime.PERSONAS:
+        defaults["agent_persona"] = "general"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
@@ -579,6 +582,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             original_system = getattr(agent, "base_system", "")
             original_tools = getattr(agent, "tools", None)
             original_autonomy = getattr(agent, "autonomy", 0)
+            original_max_tool_rounds = getattr(agent, "max_tool_rounds", None)
             original_critique = getattr(agent, "self_critique", False)
             critic = getattr(agent, "critic", None)
             original_critic_enabled = getattr(critic, "enabled", False)
@@ -606,6 +610,8 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                     agent.base_system = original_system
                     agent.tools = original_tools
                     agent.autonomy = original_autonomy
+                    if original_max_tool_rounds is not None:
+                        agent.max_tool_rounds = original_max_tool_rounds
                     agent.self_critique = original_critique
                 if critic is not None:
                     critic.enabled = original_critic_enabled
@@ -650,6 +656,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                     "planning": bool(settings.get("agentic_planning_enabled", True)),
                     "complex_task_critique": bool(plan.complexity == "complex" and settings.get("agent_self_correction_enabled", True)),
                     "response_style": settings.get("agent_response_style", "balanced"),
+                    "persona": settings.get("agent_persona", "general"),
                     "structured_tool_calling": bool(settings.get("agent_tool_calling_enabled", False)),
                 },
             }
@@ -1370,7 +1377,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "update_channel", "update_check_interval_hours", "long_term_memory_enabled",
         "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled",
         "agentic_planning_enabled", "agent_self_correction_enabled", "agent_tool_calling_enabled",
-        "agent_response_style", "hf_token", "api_key",
+        "agent_response_style", "agent_persona", "hf_token", "api_key",
     }
     unknown = sorted(set(data) - allowed_settings)
     if unknown:
@@ -1394,6 +1401,11 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(style, str) or style not in AgenticRuntime.STYLES:
             raise HTTPException(status_code=400, detail="agent_response_style must be balanced, concise, detailed, friendly, or technical.")
         current["agent_response_style"] = style
+    if "agent_persona" in data:
+        persona = data["agent_persona"]
+        if not isinstance(persona, str) or persona not in AgenticRuntime.PERSONAS:
+            raise HTTPException(status_code=400, detail="Unknown agent persona.")
+        current["agent_persona"] = persona
     if "proactive" in data:
         current["proactive"] = bool(data["proactive"])
     if "max_ctx_chars" in data:
