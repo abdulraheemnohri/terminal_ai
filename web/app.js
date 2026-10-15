@@ -130,7 +130,8 @@ async function loadSettings(){
   $("setting-checkpoint-interval").value=data.self_checkpoint_interval_hours||24;
   $("setting-goal-generation").checked=data.self_goal_generation_enabled!==false;
   $("setting-max-goals").value=data.self_max_goals_per_cycle||3;
-  $("setting-tool-approval").checked=data.tool_approval_required!==false;
+  // This guard is intentionally hard-locked in both UI and API.
+  $("setting-tool-approval").checked=true;
   $("setting-long-memory").checked=data.long_term_memory_enabled!==false;
   $("setting-conversation-archive").checked=data.conversation_archive_enabled!==false;
   $("setting-workspace-tools").checked=data.workspace_tools_enabled!==false;
