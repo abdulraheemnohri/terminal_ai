@@ -209,48 +209,72 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         groups = learning_store.summary()["groups"]
         candidates = [
             item for item in groups
-            if item["samples"] >= 3
-            and item["success_score"] >= 0.67
-            and item["average_rating"] >= 3.5
+            if item["samples"] >= 3 and (
+                (item["success_score"] >= 0.67 and item["average_rating"] >= 3.5)
+                or item["success_score"] <= 0.33
+                or item["average_rating"] <= 2.5
+            )
         ]
         if not candidates:
             raise HTTPException(
                 status_code=409,
-                detail="No task family has enough strong reviewed outcomes yet (minimum 3 samples, score 0.67, rating 3.5/5).",
+                detail="No repeated pattern qualifies yet. Need at least 3 reviewed outcomes and either strong success (score >= 0.67, rating >= 3.5) or a recurring failure/low-rating signal (score <= 0.33 or rating <= 2.5).",
             )
         chosen = max(
             candidates,
-            key=lambda item: (item["success_score"], item["average_rating"], item["samples"], item["task_type"]),
+            key=lambda item: (
+                item["success_score"] <= 0.33 or item["average_rating"] <= 2.5,
+                item["samples"], -item["success_score"], item["task_type"],
+            ),
         )
         family = chosen["task_type"]
         algorithm = chosen["algorithm"]
-        item = skill_evolution.create(
-            name=("Reviewed " + family.replace("_", " ") + " workflow")[:80],
-            task_type=family,
-            rationale=(
-                "A candidate checklist derived from repeated, explicitly verified outcomes. "
+        failure_pattern = chosen["success_score"] <= 0.33 or chosen["average_rating"] <= 2.5
+        if failure_pattern:
+            name = ("Recovery workflow for " + family.replace("_", " "))[:80]
+            rationale = (
+                "A remediation checklist proposed because repeated reviewed outcomes show a low success or rating signal. "
+                "Inspect the cause before use; aggregate evidence alone does not establish a diagnosis."
+            )
+            steps = [
+                "Restate the intended result and capture the observed failure without secrets.",
+                "Gather independent evidence and distinguish symptoms from verified causes.",
+                "Reproduce the issue in a bounded, non-destructive setting where possible.",
+                "Choose a corrective strategy and document its assumptions.",
+                "Verify the correction with a focused check or regression test.",
+                "Summarize unresolved risks and request human review before side effects.",
+            ]
+        else:
+            name = ("Reviewed " + family.replace("_", " ") + " workflow")[:80]
+            rationale = (
+                "A candidate checklist derived from repeated, explicitly verified positive outcomes. "
                 "This aggregate signal is not proof that the workflow is universally safe or correct."
-            ),
-            steps=[
+            )
+            steps = [
                 "Define the objective and observable success criteria before acting.",
                 "Gather relevant evidence and record important uncertainty.",
                 "Apply the reviewed strategy: " + algorithm + ".",
                 "Verify the result against the stated success criteria.",
                 "Summarize the evidence and unresolved risks for human review.",
                 "Obtain separate human approval before any side-effectful operation.",
-            ],
+            ]
+        item = skill_evolution.create(
+            name=name, task_type=family, rationale=rationale, steps=steps,
             evidence_summary=(
                 f"{chosen['samples']} verified outcomes; success score {chosen['success_score']:.2f}; "
-                f"average reviewer rating {chosen['average_rating']:.1f}/5; strategy {algorithm}. "
+                f"average reviewer rating {chosen['average_rating']:.1f}/5; strategy {algorithm}; "
+                f"pattern {'recurring_failure' if failure_pattern else 'repeated_success'}. "
                 "Aggregate evidence only; no task prompts or credentials included."
             ),
         )
         control.audit("skills", "proposal.generated_from_learning", item["name"], {
             "proposal_id": item["id"], "task_type": family, "algorithm": algorithm,
             "samples": chosen["samples"], "success_score": chosen["success_score"],
+            "pattern": "recurring_failure" if failure_pattern else "repeated_success",
         })
         return {
             "proposal": item, "generated_from_reviewed_outcomes": True,
+            "pattern": "recurring_failure" if failure_pattern else "repeated_success",
             "execution_started": False, "permissions_changed": False,
             "notice": "Draft created in proposed state. Static validation and explicit human approval are still required.",
         }
