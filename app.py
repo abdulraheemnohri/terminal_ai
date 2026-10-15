@@ -1074,10 +1074,10 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     if "proactive" in data:
         current["proactive"] = bool(data["proactive"])
     if "max_ctx_chars" in data:
-        try:
-            current["max_ctx_chars"] = max(2000, min(50000, int(data["max_ctx_chars"])))
-        except (TypeError, ValueError):
+        value = data["max_ctx_chars"]
+        if isinstance(value, bool) or not isinstance(value, int):
             raise HTTPException(status_code=400, detail="max_ctx_chars must be an integer.")
+        current["max_ctx_chars"] = max(2000, min(50000, value))
     if "active_provider" in data:
         from api_provider_backend import PROVIDERS
         provider_id = str(data["active_provider"]).strip().lower()
@@ -1085,16 +1085,24 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="Unknown AI provider.")
         current["active_provider"] = provider_id
     if "provider_model" in data:
-        current["provider_model"] = str(data["provider_model"]).strip()[:200]
+        if not isinstance(data["provider_model"], str):
+            raise HTTPException(status_code=400, detail="provider_model must be text.")
+        current["provider_model"] = data["provider_model"].strip()[:200]
     if "custom_base_url" in data:
-        base_url = str(data["custom_base_url"]).strip()
+        if not isinstance(data["custom_base_url"], str):
+            raise HTTPException(status_code=400, detail="custom_base_url must be text.")
+        base_url = data["custom_base_url"].strip()
         if base_url and not base_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
             raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
         current["custom_base_url"] = base_url[:500]
     if "self_identity" in data:
-        current["self_identity"] = str(data["self_identity"]).strip()[:120] or "Terminal AI"
+        if not isinstance(data["self_identity"], str):
+            raise HTTPException(status_code=400, detail="self_identity must be text.")
+        current["self_identity"] = data["self_identity"].strip()[:120] or "Terminal AI"
     if "self_mission" in data:
-        current["self_mission"] = str(data["self_mission"]).strip()[:1000]
+        if not isinstance(data["self_mission"], str):
+            raise HTTPException(status_code=400, detail="self_mission must be text.")
+        current["self_mission"] = data["self_mission"].strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
     for setting_key in (
@@ -1133,6 +1141,10 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if channel != "main":
             raise HTTPException(status_code=400, detail="Only the main update channel is currently supported.")
         current["update_channel"] = channel
+    if "hf_token" in data and data["hf_token"] is not None and not isinstance(data["hf_token"], str):
+        raise HTTPException(status_code=400, detail="hf_token must be text.")
+    if "api_key" in data and data["api_key"] is not None and not isinstance(data["api_key"], str):
+        raise HTTPException(status_code=400, detail="api_key must be text.")
     if "hf_token" in data and str(data["hf_token"]).strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
