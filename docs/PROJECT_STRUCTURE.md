@@ -8,6 +8,7 @@ Terminal AI currently uses a **modular monolith**. This is intentional: one proc
 terminal_ai/
 ├── app.py                    # Litestar composition root; currently large and being decomposed
 ├── terminal_ai.py             # legacy-compatible core/runtime API
+├── application/              # runtime service container and dependency wiring
 ├── agent/                     # memory, planning, tools, browser and agent primitives
 ├── routers/                   # Litestar feature routers (chat, agentic, control, knowledge, workspace, health)
 ├── web/                       # static HTML, CSS and JavaScript dashboard
@@ -22,6 +23,8 @@ terminal_ai/
 ├── requirements.txt            # runtime/test dependencies
 └── pyproject.toml              # test and static-analysis configuration
 ```
+
+The first extraction is now implemented in `application/container.py`: `RuntimeServices` constructs the long-lived memory, workspace, scheduler, and command-control services from explicit filesystem roots. `app.py` keeps compatibility aliases while route modules are migrated incrementally.
 
 ## Runtime boundaries
 
