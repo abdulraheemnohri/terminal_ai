@@ -171,3 +171,29 @@ def test_recovery_operation_queue_reservation_can_be_released_on_queue_failure(t
     store.release_operation_queue(task_id="task-r", proposal_id=proposal["id"])
     retried = store.prepare_operation_queue(task_id="task-r", proposal_id=proposal["id"])
     assert retried["status"] == "queueing"
+
+
+
+def test_failed_recovery_verification_cannot_be_reviewed_for_learning(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    proposal = store.propose(task_id="task-failed-verify", failure_category="timeout",
+                             error_summary="Request timed out")
+    store.review(task_id="task-failed-verify", proposal_id=proposal["id"],
+                 decision="approve", reviewer="operator")
+    store.prepare_operation_queue(task_id="task-failed-verify", proposal_id=proposal["id"])
+    store.attach_new_operation(task_id="task-failed-verify", proposal_id=proposal["id"],
+                               operation_id="operation-new")
+    failed = store.record_verification(task_id="task-failed-verify", proposal_id=proposal["id"],
+                                       passed=False, evidence="Independent check failed",
+                                       verifier="operator")
+    assert failed["status"] == "verification_failed"
+    try:
+        store.review_verified_outcome(task_id="task-failed-verify", proposal_id=proposal["id"],
+                                      outcome="failure", rating=1, reviewer="operator",
+                                      note="Failed verification", learning_record_id=1)
+    except ValueError as exc:
+        assert "passing verified recovery" in str(exc)
+    else:
+        raise AssertionError("failed recovery verification must not enter learning")
