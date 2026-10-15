@@ -70,7 +70,7 @@ Error logs record exception categories rather than exception messages in retry i
 
 The Command Control Center stores policy, pending review decisions, skill packages, and an append-only hash chain in `command_control.sqlite3`. SQLite connections use WAL mode and bounded busy timeouts. A valid hash chain detects accidental or unauthorized edits but is not a cryptographic signature against an administrator who can rewrite the database and recompute every hash; back up/export audit records to trusted external storage for stronger assurance.
 
-The WebSocket at `/ws/events` polls durable audit entries and streams only action summaries. It does not reveal hidden chain-of-thought or copy chat prompts into the audit database. Human approval endpoints only update queue state and never execute an operation.
+The WebSocket at `/api/control/events` polls durable audit entries and streams only action summaries. It does not reveal hidden chain-of-thought or copy chat prompts into the audit database. Human approval endpoints only update queue state and never execute an operation.
 
 ARQ is optional. When `TERMINAL_AI_ARQ_ENABLED=1`, manual Self-X maintenance and checkpoint requests are submitted to Redis through ARQ. Run `arq maintenance_worker.WorkerSettings` separately. Without this flag, existing local processing remains available. The interval scheduler remains a lightweight poller in the application process, but dispatches diagnostics, memory backup, and temporary-file cleanup to ARQ when queue mode is enabled. Without ARQ, those bounded jobs run locally.
 
