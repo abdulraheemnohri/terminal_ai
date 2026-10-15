@@ -254,3 +254,28 @@ body.command-open{overflow:hidden}
 }
 
 .badge.success{border-color:#78e6ad55;background:#78e6ad12;color:var(--green)}
+
+/* Browser-local UI preferences */
+.ui-preferences-card>p{margin-top:0;line-height:1.6}
+.ui-preference-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.ui-preference-row>div{min-width:0}
+.ui-preference-row b{font-size:13px}
+.ui-preference-row p{margin:5px 0 0;font-size:11px;line-height:1.5}
+.switch-label{position:relative;display:inline-flex;align-items:center;flex:0 0 44px;min-height:28px;cursor:pointer}
+.switch-label input{position:absolute;opacity:0;width:1px;height:1px;min-width:1px}
+.switch-ui{width:42px;height:24px;border:1px solid #40516d;border-radius:99px;background:#0a1220;transition:background .16s,border-color .16s;position:relative}
+.switch-ui:after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#9aa9c1;transition:transform .16s,background .16s}
+.switch-label input:checked+.switch-ui{background:#16445a;border-color:var(--cyan)}
+.switch-label input:checked+.switch-ui:after{transform:translateX(18px);background:var(--cyan)}
+.switch-label input:focus-visible+.switch-ui{outline:2px solid var(--cyan);outline-offset:3px}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.ui-compact .card{padding:14px;border-radius:13px}
+.ui-compact .grid{gap:10px}
+.ui-compact .list-item{padding:9px}
+.ui-compact .nav button{padding-top:9px;padding-bottom:9px}
+.ui-compact .settings-section{padding:14px}
+.ui-large-text{font-size:17px}
+.ui-large-text .card p,.ui-large-text .field label,.ui-large-text .list-item p{font-size:calc(1em + 1px)}
+.ui-large-text .nav button{font-size:14px}
+.ui-reduced-motion *, .ui-reduced-motion *:before, .ui-reduced-motion *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+@media(max-width:700px){.ui-preference-row{align-items:flex-start}.ui-preference-row .switch-label{margin-top:2px;min-height:28px}}
