@@ -74,7 +74,11 @@ if($("overview-browser-refresh"))$("overview-browser-refresh").addEventListener(
 
 async function loadStatus(){
  try{
+  const previousReady=statusData?Boolean(statusData.ready):null;
   statusData=await api("/api/status");
+  if(previousReady!==null&&previousReady!==Boolean(statusData.ready)){
+   showToast(Boolean(statusData.ready)?"Terminal AI is back online.":"Terminal AI needs attention.","status");
+  }
   loadBrowserOverview();
   const ready=Boolean(statusData.ready);
   $("status-label").textContent=ready?"System online":"Setup required";
@@ -882,3 +886,47 @@ applyUiPreferences(readUiPreferences(),false);
  const input=$(id);if(input)input.addEventListener("change",()=>applyUiPreferences({compact:$("ui-pref-compact").checked,largeText:$("ui-pref-large-text").checked,reducedMotion:$("ui-pref-reduced-motion").checked}));
 });
 if($("ui-pref-reset"))$("ui-pref-reset").addEventListener("click",()=>applyUiPreferences(uiPreferenceDefaults));
+
+
+// Theme and transient status notifications are presentation-only browser features.
+const themeStorageKey="terminal-ai-theme";
+function readTheme(){
+ try{return localStorage.getItem(themeStorageKey)==="light"?"light":"dark";}catch(_){return "dark";}
+}
+function applyTheme(theme,save=true){
+ const light=theme==="light";
+ document.documentElement.classList.toggle("theme-light",light);
+ document.documentElement.style.colorScheme=light?"light":"dark";
+ const button=$("theme-toggle");
+ if(button){
+  button.setAttribute("aria-pressed",String(light));
+  button.setAttribute("aria-label",light?"Switch to dark theme":"Switch to light theme");
+  button.title=light?"Switch to dark theme":"Switch to light theme";
+ }
+ const icon=$("theme-toggle-icon");
+ if(icon)icon.textContent=light?"☾":"☼";
+ try{if(save)localStorage.setItem(themeStorageKey,light?"light":"dark");}catch(_){}
+}
+applyTheme(readTheme(),false);
+if($("theme-toggle"))$("theme-toggle").addEventListener("click",()=>{
+ const next=document.documentElement.classList.contains("theme-light")?"dark":"light";
+ applyTheme(next);
+});
+let toastSequence=0;
+function showToast(message,kind="info"){
+ const region=$("toast-region");
+ if(!region||!message)return;
+ const toast=document.createElement("div");
+ const sequence=++toastSequence;
+ toast.className="toast toast-"+(["success","status","error"].includes(kind)?kind:"info");
+ toast.setAttribute("role",kind==="error"?"alert":"status");
+ const text=document.createElement("span");
+ text.textContent=String(message).slice(0,240);
+ const close=document.createElement("button");
+ close.type="button";close.className="toast-close";close.setAttribute("aria-label","Dismiss notification");close.textContent="×";
+ close.addEventListener("click",()=>toast.remove());
+ toast.append(text,close);region.append(toast);
+ while(region.children.length>4)region.firstElementChild.remove();
+ window.setTimeout(()=>{const current=region.querySelectorAll(".toast");for(const item of current){if(item===toast)item.remove();}},5000);
+ return sequence;
+}
