@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — bounded failure recovery proposals
+
+- Add a bounded SQLite recovery proposal ledger with structured operator-supplied failure categories, a maximum of three proposals per task, and bounded global retention.
+- Add proposal/list/review API routes and Self-X UI controls; proposal approval authorizes replanning only and never dispatches or repeats an operation.
+- Block retry approval for permission, destructive-risk, and unknown failures; require corrections and fresh approval for dependency/validation failures.
+- Require a new Command Control operation and fresh human approval for any retry or changed arguments; add lifecycle and API regression tests and document the boundary.
+
+
 ## Unreleased — tracked task lifecycle and documentation refresh
 
 - Add a persistent, bounded task lifecycle ledger for plan, existing-operation link, execution-status sync, verification evidence, and reviewed outcome.
