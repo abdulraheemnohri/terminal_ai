@@ -473,6 +473,15 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                 raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
             stage("inference", "completed", inference_started, "Model turn returned.")
 
+            archive_started = time.monotonic()
+            try:
+                _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "user", message, {"request_id": request_id, "backend": backend_label})
+                _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "assistant", str(answer or ""), {"request_id": request_id, "backend": backend_label})
+                stage("long_term_archive", "completed", archive_started, "Stored this turn in the local searchable conversation archive.")
+            except Exception as exc:
+                logger.warning("Conversation archive write failed: %s", type(exc).__name__)
+                stage("long_term_archive", "warning", archive_started, "Turn succeeded but archive storage failed.")
+
             persist_started = time.monotonic()
             persisted = False
             if agent.session_mgr:
