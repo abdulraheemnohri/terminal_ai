@@ -860,3 +860,25 @@ if($("control-skills-import"))$("control-skills-import").addEventListener("click
   $("control-skills-result").textContent=JSON.stringify(result,null,2);await loadControlAudit();
  }catch(e){$("control-skills-error").textContent=e.message;}
 });
+
+// Browser-local presentation preferences; these never affect backend settings or permissions.
+const uiPreferenceDefaults={compact:false,largeText:false,reducedMotion:false};
+function readUiPreferences(){
+ try{return {...uiPreferenceDefaults,...JSON.parse(localStorage.getItem("terminal-ai-ui-preferences")||"{}")};}
+ catch(_){return {...uiPreferenceDefaults};}
+}
+function applyUiPreferences(preferences,save=true){
+ const value={...uiPreferenceDefaults,...preferences};
+ document.documentElement.classList.toggle("ui-compact",!!value.compact);
+ document.documentElement.classList.toggle("ui-large-text",!!value.largeText);
+ document.documentElement.classList.toggle("ui-reduced-motion",!!value.reducedMotion);
+ const mapping=[["ui-pref-compact","compact"],["ui-pref-large-text","largeText"],["ui-pref-reduced-motion","reducedMotion"]];
+ mapping.forEach(([id,key])=>{const input=$(id);if(input)input.checked=!!value[key];});
+ if(save){try{localStorage.setItem("terminal-ai-ui-preferences",JSON.stringify(value));}catch(_){}}
+ const status=$("ui-pref-status");if(status)status.textContent=save?"Preferences applied to this browser.":"Current browser preferences loaded."; 
+}
+applyUiPreferences(readUiPreferences(),false);
+["ui-pref-compact","ui-pref-large-text","ui-pref-reduced-motion"].forEach(id=>{
+ const input=$(id);if(input)input.addEventListener("change",()=>applyUiPreferences({compact:$("ui-pref-compact").checked,largeText:$("ui-pref-large-text").checked,reducedMotion:$("ui-pref-reduced-motion").checked}));
+});
+if($("ui-pref-reset"))$("ui-pref-reset").addEventListener("click",()=>applyUiPreferences(uiPreferenceDefaults));
