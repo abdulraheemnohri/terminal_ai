@@ -131,3 +131,40 @@ After updating to a release containing these features, open the dashboard and us
 - **Workspace Tools:** browsing and reading are confined to the repository root. Writes and commands require a separate approval checkbox and confirmation. Commands run as the same OS user as the app; this is not a container-grade security sandbox. Do not expose this UI to untrusted networks.
 - **Task Scheduler:** tasks persist under the application state directory and run while the server is running. Available types are diagnostics, memory backup, and temporary-file cleanup. There is no arbitrary scheduled shell execution. Use Settings to pause background jobs.
 - **Data backup:** memory backups are stored in the state directory's `backups` folder. Include the state directory in your own backup plan if you want to preserve all settings, memory, sessions, and schedules.
+
+
+## 6. Start automatically at user login
+
+Autostart is optional and deliberately uses the current user account, with the dashboard bound to localhost by default.
+
+### Linux with systemd
+
+After installation, run:
+
+```bash
+sh install-service.sh
+systemctl --user status terminal-ai.service
+```
+
+This creates a user service with automatic restart after a process failure. Disable/remove it with `sh uninstall-service.sh`. For startup before login, optionally enable lingering with `loginctl enable-linger "$USER"`.
+
+### Windows 10/11
+
+In PowerShell from the project directory, run:
+
+```powershell
+.\\install-startup.ps1
+```
+
+This registers a Scheduled Task for the current user's logon. Remove it with `./uninstall-startup.ps1`.
+
+### Manual start
+
+Use `sh start-server.sh` on Linux/macOS/WSL or `./start-server.ps1` in PowerShell. Open http://127.0.0.1:8000.
+
+## 7. Safely update Terminal AI
+
+- Linux/macOS/WSL: `sh update.sh`
+- Windows PowerShell: `./update.ps1`
+
+The helper stops if the Git working tree has local changes, uses fast-forward-only updates, installs the project's Python requirements, checks dependency consistency and Python syntax, runs tests, and restarts the configured service/task when detected. Review backups before updating. It updates the **project**, not the operating system; use the OS's normal trusted security-update mechanism for system packages. Automatic silent code updates are not enabled.
