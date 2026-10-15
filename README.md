@@ -265,3 +265,33 @@ pytest -q tests/test_agentic_runtime.py
 ### Roleplay and conversation personas
 
 Settings → Conversation style now includes **Roleplay**. It maintains fictional character and scene continuity while keeping fictional events distinct from real-world facts. It does not claim the assistant is a real person, and it does not change tool permissions.
+
+
+## Command Control Center, audit, and background queue
+
+Open **Command Control** in the web UI or visit `/command-control`.
+
+- Policy settings store executable-name allowlists, blocklists, and per-tool rule metadata. The web runtime keeps global auto-execution disabled; the UI cannot turn it on.
+- Pending operations support explicit approve/reject decisions. Approval is a recorded decision, not a command launcher; execution remains a separate, bounded operation.
+- The local `command_control.sqlite3` database uses SQLite WAL, a busy timeout, and a SHA-256 hash-chained append-only audit table. The UI verifies the chain and displays operational events.
+- `/ws/events` streams operational action summaries and chat-stage metadata. It deliberately excludes hidden chain-of-thought, prompt bodies, and model answers.
+- Skill packages use versioned JSON (`terminal-ai-skills`, schema version 1). Imported procedures are unverified text and are not executed automatically.
+
+### Optional ARQ worker for Self-X
+
+The default install remains local-first and does not require Redis. For installations that need Self-X maintenance/checkpoint work outside the web process:
+
+```bash
+pip install -r requirements-queue.txt
+export REDIS_URL=redis://127.0.0.1:6379/0
+export TERMINAL_AI_ARQ_ENABLED=1
+arq maintenance_worker.WorkerSettings
+```
+
+Start the web application with the same environment variables. The manual Self-X maintenance and checkpoint endpoints enqueue ARQ jobs when queue mode is enabled; otherwise they retain the local fallback. Keep Redis private and use authentication/TLS if it is hosted remotely. The existing interval scheduler remains a local fallback and only supports the three documented safe job types.
+
+Run the focused tests with:
+
+```bash
+pytest -q tests/test_command_control.py tests/test_control_center_api.py
+```
