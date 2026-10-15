@@ -44,3 +44,13 @@
 5. Confirm path traversal is rejected and writes/commands fail without explicit approval.
 6. Create a diagnostics job with a five-minute interval, pause it, then delete it.
 7. Disconnect the network and verify local knowledge operations still work. For offline chat, explicitly select a compatible local LiteRT-LM model before disconnecting.
+
+
+## Hermes-style agent execution layer
+
+- `agentic_runtime.py` implements deterministic task plans, response-style guidance, Hermes-style tool-call parsing, schema/type validation, approval checks for generic tools, and bounded retry helpers.
+- `app.py` adds the agent capability settings and passes task guidance into the existing agent turn. Complex requests can use the existing critic for a second pass.
+- Browser chat's optional `SafeWebToolRegistry` only exposes read-only local operations: runtime status, local knowledge and conversation-archive search, memory recall, and workspace-confined file list/read. Shell execution, writes, deletes, network access, and settings changes are not exposed through this registry.
+- Structured tool calling is disabled by default and can be enabled in Settings. It remains constrained to the read-only registry; the pre-existing general-purpose core tool registry is not exposed to browser chat.
+- Retry helpers do not automatically replay side effects: retry requires the caller to explicitly mark an operation idempotent. Planning output is guidance, not a claim that steps were executed.
+- Automated tests: `tests/test_agentic_runtime.py` and the chat/settings tests in `tests/test_chat_execution.py`.
