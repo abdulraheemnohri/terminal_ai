@@ -78,3 +78,25 @@ def test_plan_rejects_non_boolean_evidence_flag():
             "evidence_available": "yes",
         })
     assert response.status_code == 400
+
+
+
+def test_learning_api_requires_verified_outcome_and_returns_summary():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        rejected = client.post("/api/agentic/learning/outcome", json={
+            "task_type": "writing", "algorithm": "direct-verify",
+            "outcome": "success", "rating": 5, "verified": False,
+        })
+        assert rejected.status_code == 400
+        accepted = client.post("/api/agentic/learning/outcome", json={
+            "task_type": "writing", "algorithm": "direct-verify",
+            "outcome": "success", "rating": 5, "verified": True,
+        })
+        assert accepted.status_code == 201
+        assert accepted.json()["permissions_changed"] is False
+        summary = client.get("/api/agentic/learning/summary")
+    assert summary.status_code == 200
+    assert summary.json()["count"] >= 1
