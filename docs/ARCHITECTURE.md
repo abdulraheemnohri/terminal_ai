@@ -95,3 +95,11 @@ Some responsibilities are already separated into `routers/control.py`, `api_sche
 - Preserve compatibility with existing state files and API paths while moving one route family at a time; run the complete test suite after each extraction.
 
 This section documents the remaining refactor work accurately; the large legacy modules have not yet been fully decomposed.
+
+
+## Verified-outcome learning loop
+
+- `application/learning.py` stores only coarse task family, selected algorithm, outcome, 1–5 rating, explicit verification flag, and timestamp in `learning.sqlite3`; it does not store task prompts or credentials.
+- `GET /api/agentic/learning/summary` returns aggregated reviewed outcomes. `POST /api/agentic/learning/outcome` records a result only when `verified=true` and all fields match the supported enumerations.
+- The store retains at most 5,000 newest outcomes. Strategy adaptation requires at least three reviewed examples; a strategy with no baseline must have a high repeated outcome score before it can replace the default.
+- Learning changes recommendations only. It never grants tool permissions, skips user approval, executes a task, or modifies safety policy. Treat the verification flag as a review assertion from a trusted UI/operator; production deployments should authenticate and authorize these endpoints.
