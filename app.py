@@ -73,6 +73,10 @@ def _read_settings() -> dict[str, Any]:
         "self_critique": False,
         "proactive": False,
         "max_ctx_chars": 12000,
+        "long_term_memory_enabled": True,
+        "conversation_archive_enabled": True,
+        "workspace_tools_enabled": True,
+        "scheduled_tasks_enabled": True,
         "active_provider": "gemini",
         "provider_model": "",
         "custom_base_url": "",
@@ -475,9 +479,12 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
 
             archive_started = time.monotonic()
             try:
-                _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "user", message, {"request_id": request_id, "backend": backend_label})
-                _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "assistant", str(answer or ""), {"request_id": request_id, "backend": backend_label})
-                stage("long_term_archive", "completed", archive_started, "Stored this turn in the local searchable conversation archive.")
+                if _read_settings().get("conversation_archive_enabled", True):
+                    _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "user", message, {"request_id": request_id, "backend": backend_label})
+                    _LONG_MEMORY.archive_message(_ACTIVE_SESSION, "assistant", str(answer or ""), {"request_id": request_id, "backend": backend_label})
+                    stage("long_term_archive", "completed", archive_started, "Stored this turn in the local searchable conversation archive.")
+                else:
+                    stage("long_term_archive", "skipped", archive_started, "Conversation archiving is disabled in Settings.")
             except Exception as exc:
                 logger.warning("Conversation archive write failed: %s", type(exc).__name__)
                 stage("long_term_archive", "warning", archive_started, "Turn succeeded but archive storage failed.")
@@ -1217,7 +1224,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_goal_generation_enabled", "self_checkpoint_retention",
         "self_evaluation_interval_hours", "self_checkpoint_interval_hours",
         "self_max_goals_per_cycle", "self_autonomy_profile", "updates_enabled",
-        "update_channel", "update_check_interval_hours", "hf_token", "api_key",
+        "update_channel", "update_check_interval_hours", "long_term_memory_enabled",
+        "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled", "hf_token", "api_key",
     }
     unknown = sorted(set(data) - allowed_settings)
     if unknown:
@@ -1272,6 +1280,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
         "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
         "self_goal_generation_enabled", "self_reflection_enabled", "updates_enabled",
+        "long_term_memory_enabled", "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled",
     ):
         if setting_key in data:
             if not isinstance(data[setting_key], bool):
@@ -1899,7 +1908,7 @@ async def _run_scheduled_task(task: dict[str, Any]) -> str:
 
 async def _scheduler_worker() -> None:
     while True:
-        for task in _TASK_SCHEDULER.due():
+        for task in (_TASK_SCHEDULER.due() if _read_settings().get("scheduled_tasks_enabled", True) else []):
             try: _TASK_SCHEDULER.mark(task["id"], await _run_scheduled_task(task))
             except asyncio.CancelledError: raise
             except Exception as exc: _TASK_SCHEDULER.mark(task["id"], "Failed: " + type(exc).__name__)
