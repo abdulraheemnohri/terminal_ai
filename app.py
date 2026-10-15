@@ -154,6 +154,10 @@ def _read_settings() -> dict[str, Any]:
         if not isinstance(defaults.get(key), bool):
             defaults[key] = base_defaults[key]
 
+    # Human approval is a hard safety invariant, not a user-tunable preference.
+    # Repair legacy/manual state files that attempted to disable it.
+    defaults["tool_approval_required"] = True
+
     int_ranges = {
         "max_ctx_chars": (2000, 50000),
         "self_checkpoint_retention": (1, 30),
@@ -1272,7 +1276,13 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     unknown = sorted(set(data) - allowed_settings)
     if unknown:
         raise HTTPException(status_code=400, detail="Unknown setting(s): " + ", ".join(unknown[:10]))
+    if data.get("tool_approval_required") is False:
+        raise HTTPException(
+            status_code=400,
+            detail="Human approval is a mandatory safety invariant and cannot be disabled.",
+        )
     current = _read_settings()
+    current["tool_approval_required"] = True
     previous = dict(current)
     if "mode" in data:
         mode = str(data["mode"]).lower()
