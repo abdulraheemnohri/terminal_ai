@@ -30,6 +30,19 @@ The **Self-X** web dashboard adds operational self-identity/status, local diagno
 
 Self-X data is stored locally in the Terminal AI state directory. Keep the web UI on localhost unless authentication and network access controls are configured.
 
+## Hermes-style agentic capabilities
+
+Terminal AI includes a dependency-free agentic runtime inspired by common agent-framework patterns; it is not a claim of model equivalence to Hermes.
+
+- **Structured tool calls:** parses tagged JSON (including nested objects), validates tool names, argument objects and declared types, then dispatches only accepted calls.
+- **Browser tool allowlist:** the Web UI can use bounded, read-only helpers for current time, system information, local memory/knowledge lookup, goals, and journal context. Shell execution, filesystem path tools, network fetching, environment mutation, deletion, file writes, and tool forging are not exposed through browser tool calling.
+- **Private task planning:** complex requests get an internal planning instruction covering assumptions, dependencies, edge cases, and verification. Hidden chain-of-thought is not displayed or stored as a feature.
+- **Multi-turn continuity and personas:** recent session history and existing local memory are supplied as context; Settings supports helpful, technical, coach, concise, and creative response styles. Memory is not invented, and persona never grants permissions.
+- **Bounded error recovery:** model-stream failures can be retried up to two times with a sanitized error category. Tool calls are revalidated before dispatch; rejected calls are returned to the model for correction within the existing tool-round limit.
+- **Configurable controls:** Settings exposes planning/recovery toggles and conversation style. Defaults enable planning and recovery while keeping browser tool execution restricted to the safe allowlist.
+
+These features improve orchestration, not the underlying model weights. Actual reasoning quality and tool-call reliability still depend on the selected model/backend.
+
 ## What it includes
 
 - Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Goals, Self-awareness, and Settings.
