@@ -31,3 +31,19 @@ def test_world_model_recovers_from_invalid_json(tmp_path):
     path.write_text("{not-json", encoding="utf-8")
     model = PersistentWorldModel(path)
     assert model.model.query() == []
+
+
+def test_world_model_does_not_extend_expiry_after_restart(tmp_path):
+    import time
+    import json
+
+    path = tmp_path / "world_model.json"
+    first = PersistentWorldModel(path)
+    first.observe("cache", "freshness", "temporary", "test", 0.8, 1)
+    # Force the persisted absolute expiry into the past, as if the app was offline.
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload[0]["expires_at"] = time.time() - 10
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    second = PersistentWorldModel(path)
+    assert second.model.query("cache") == []
