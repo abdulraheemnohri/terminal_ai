@@ -1,3 +1,12 @@
+## Unreleased — dashboard themes and operations toolkit
+
+- Add browser-local light/dark theme switching with accessible labels and persisted preference.
+- Add a bounded, dismissible status-toast region and notify users when system readiness changes.
+- Add read-only installation doctor checks plus checksum-verified state backup and explicit-confirmation restore utilities.
+- Harden restore against path traversal, excessive archive sizes, and overwrite-by-default; skip symlinks during backup.
+- Add shell and PowerShell validation entrypoints, a scripts catalog with compatibility wrappers for legacy root scripts, and CI coverage for script syntax and dashboard assets.
+- Add regression tests for theme/notification UI and backup/restore safety.
+
 ## Unreleased — dashboard interface personalization
 
 - Add browser-local interface preferences for compact layout, larger text, and reduced motion, with immediate application and reset controls.
