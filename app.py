@@ -81,6 +81,10 @@ def _read_settings() -> dict[str, Any]:
         "self_auto_checkpoint": True,
         "self_checkpoint_retention": 10,
         "self_evaluation_interval_hours": 24,
+        "self_checkpoint_interval_hours": 24,
+        "self_autonomy_profile": "maintain",
+        "self_goal_generation_enabled": True,
+        "self_max_goals_per_cycle": 3,
         "learning_enabled": True,
         "self_improvement_enabled": True,
         "auto_extract_skills": False,
@@ -101,7 +105,9 @@ def _read_settings() -> dict[str, Any]:
     defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
-    defaults["autonomy"] = 0  # Web default stays tool-disabled until explicitly enabled in a future guarded UI.
+    defaults["autonomy"] = 0  # Arbitrary tool execution stays disabled in the web agent.
+    if defaults.get("self_autonomy_profile") not in {"observe", "maintain", "goal-driven"}:
+        defaults["self_autonomy_profile"] = "maintain"
     return defaults
 
 
@@ -1067,23 +1073,34 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
     for setting_key in (
-        "learning_enabled", "self_improvement_enabled", "auto_extract_skills",
-        "tool_approval_required", "self_diagnostics_enabled", "self_repair_enabled",
-        "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
-        "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-        "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_critique", "proactive", "learning_enabled", "self_improvement_enabled",
+        "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
+        "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
+        "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
+        "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_goal_generation_enabled", "updates_enabled",
     ):
         if setting_key in data:
-            current[setting_key] = bool(data[setting_key])
+            if not isinstance(data[setting_key], bool):
+                raise HTTPException(status_code=400, detail=f"{setting_key} must be a boolean.")
+            current[setting_key] = data[setting_key]
     for setting_key, minimum, maximum in (
         ("self_checkpoint_retention", 1, 30),
         ("self_evaluation_interval_hours", 1, 168),
+        ("self_checkpoint_interval_hours", 1, 168),
+        ("self_max_goals_per_cycle", 1, 20),
+        ("update_check_interval_hours", 6, 168),
     ):
         if setting_key in data:
-            try:
-                current[setting_key] = max(minimum, min(maximum, int(data[setting_key])))
-            except (TypeError, ValueError):
+            value = data[setting_key]
+            if isinstance(value, bool) or not isinstance(value, int):
                 raise HTTPException(status_code=400, detail=f"{setting_key} must be an integer from {minimum} to {maximum}.")
+            current[setting_key] = max(minimum, min(maximum, value))
+    if "self_autonomy_profile" in data:
+        profile = data["self_autonomy_profile"]
+        if not isinstance(profile, str) or profile not in {"observe", "maintain", "goal-driven"}:
+            raise HTTPException(status_code=400, detail="self_autonomy_profile must be observe, maintain, or goal-driven.")
+        current["self_autonomy_profile"] = profile
     if "updates_enabled" in data:
         current["updates_enabled"] = bool(data["updates_enabled"])
     if "update_channel" in data:
@@ -1091,11 +1108,6 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if channel != "main":
             raise HTTPException(status_code=400, detail="Only the main update channel is currently supported.")
         current["update_channel"] = channel
-    if "update_check_interval_hours" in data:
-        try:
-            current["update_check_interval_hours"] = max(6, min(168, int(data["update_check_interval_hours"])))
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="Update interval must be 6–168 hours.")
     if "hf_token" in data and str(data["hf_token"]).strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
@@ -1420,16 +1432,18 @@ async def _automatic_selfx_maintenance() -> None:
             settings = _read_settings()
             if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
                 interval_hours = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24))))
-                interval = interval_hours * 3600
+                checkpoint_interval_hours = max(1, min(168, int(settings.get("self_checkpoint_interval_hours", 24))))
+                profile = settings.get("self_autonomy_profile", "maintain")
                 state = engine.status()
                 latest_eval = state.get("latest_evaluation") or {}
                 latest_checkpoint = (state.get("checkpoints") or [{}])[0]
                 now = time.time()
-                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval
+                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval_hours * 3600
                 checkpoint_due = (
-                    settings.get("self_recovery_enabled", True)
+                    profile != "observe"
+                    and settings.get("self_recovery_enabled", True)
                     and settings.get("self_auto_checkpoint", True)
-                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= interval
+                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= checkpoint_interval_hours * 3600
                 )
                 if eval_due:
                     if settings.get("self_evaluation_enabled", True):
@@ -1443,18 +1457,28 @@ async def _automatic_selfx_maintenance() -> None:
                     engine.record_event("autonomous-checkpoint", f"Scheduled checkpoint created: {manifest['id']}")
 
                 # Turn failed local diagnostics into deduplicated, measurable goals.
-                if settings.get("self_goals_enabled", True) and settings.get("self_diagnostics_enabled", True):
+                if (
+                    profile == "goal-driven"
+                    and settings.get("self_goal_generation_enabled", True)
+                    and settings.get("self_goals_enabled", True)
+                    and settings.get("self_diagnostics_enabled", True)
+                ):
                     latest = engine.status().get("latest_diagnostic") or {}
                     planner = core.GoalPlanner.load()
                     active_goals = planner.active()
                     active_texts = [str(getattr(g, "text", "")).casefold() for g in active_goals]
+                    created = 0
+                    max_goals = max(1, min(20, int(settings.get("self_max_goals_per_cycle", 3))))
                     for check in latest.get("checks", []):
+                        if created >= max_goals:
+                            break
                         if check.get("ok") is False:
                             goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
                             if goal_text.casefold() not in active_texts:
                                 planner.add(goal_text)
                                 active_texts.append(goal_text.casefold())
                                 engine.record_event("autonomous-goal", goal_text)
+                                created += 1
         except asyncio.CancelledError:
             raise
         except Exception:
