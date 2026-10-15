@@ -197,3 +197,31 @@ On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`. Tests is
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 - Litestar docs: https://docs.litestar.dev/2/
 - LiteRT-LM upstream: https://github.com/google-ai-edge/LiteRT-LM
+
+
+## Persistent memory, workspace tools, and scheduling
+
+### Long-term memory and knowledge base
+- A local SQLite database at `~/.terminal_ai/long_term_memory.sqlite3` stores titled knowledge items, tags, and successful chat turns.
+- The Knowledge Base view supports create, list, lexical search, and delete. The API search also returns relevant archived turns.
+- Search is deterministic lexical ranking and works offline. No Chroma, FAISS, embeddings download, or external service is required. This release does not claim semantic vector search.
+- Use Settings to disable the knowledge store or conversation archiving. Disabling archiving prevents new chat turns from being recorded; it does not erase existing records.
+
+### Real workspace tools and safety boundaries
+- Workspace Tools is confined to the repository root and rejects absolute paths and path traversal.
+- File reads have a size limit. Writes use an atomic temporary-file replacement and require an explicit approval field plus UI confirmation.
+- Commands use argument arrays with `shell=False`, an allowlist, bounded arguments, and a 60-second maximum timeout. Shell operators and `-c` command strings are rejected.
+- This is a safety boundary, not a full OS/container sandbox. Keep the dashboard bound to localhost and do not expose it to untrusted users. Approved commands run with the same operating-system permissions as the Terminal AI process.
+
+### Background task scheduler
+- Tasks persist in `~/.terminal_ai/scheduled_tasks.sqlite3` and run while the web server is running.
+- Supported task types: `diagnostics`, `backup_memory`, and `cleanup_temp`. Arbitrary shell tasks are intentionally unsupported.
+- Minimum interval is five minutes. Jobs are checked every 15 seconds, and each result is recorded. The scheduler pauses when disabled in Settings and resumes when enabled.
+- Backups are written under the application state directory's `backups/` folder.
+
+### New API routes
+- `GET/POST /api/knowledge`, `POST /api/knowledge/search`, `POST /api/knowledge/{item_id}/delete`
+- `GET /api/workspace`, `POST /api/workspace/read`, `POST /api/workspace/write`, `POST /api/workspace/execute`
+- `GET/POST /api/scheduled-tasks`, `PATCH /api/scheduled-tasks/{task_id}`, `POST /api/scheduled-tasks/{task_id}/delete`
+
+The Knowledge Base, Workspace Tools, and Task Scheduler are available as separate UI pages. Review the exact command or file content before approving it.
