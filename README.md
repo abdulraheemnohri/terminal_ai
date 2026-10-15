@@ -334,8 +334,13 @@ Open `http://127.0.0.1:8000`. The service restarts after a process failure. Andr
 - Linux/macOS/WSL: `sh update.sh`
 - Windows PowerShell: `./update.ps1`
 
-The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default; no background updater silently changes code.
+The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default. On Linux with systemd, weekly project updates can be explicitly enabled with `sh install-auto-update.sh`; remove the timer with `sh uninstall-auto-update.sh`. This pulls code and dependencies from `origin/main`, so enable it only after reviewing the repository and your rollback policy.
 
 ### macOS
 
 After installation, run `sh install-launchagent.sh` to start the server at login and keep it running. Remove it with `sh uninstall-launchagent.sh`. Logs are written to `~/Library/Logs/terminal-ai.log` and `terminal-ai-error.log`.
+
+
+### Optional weekly automatic project updates (Linux/systemd)
+
+After reviewing the update policy, run `sh install-auto-update.sh`. The user timer runs the existing guarded `update.sh` every Sunday around 04:30 local system time; it refuses a dirty working tree and runs dependency, syntax, and test checks. Disable it with `sh uninstall-auto-update.sh`. This updates Terminal AI, **not Linux or other operating-system packages**. For the timer to run before login, systemd user lingering may be needed; use it only if you understand its lifecycle implications. Windows and macOS updates remain manual in this release.
