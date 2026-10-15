@@ -117,3 +117,28 @@ Allowed outcomes are `success`, `partial`, and `failure`; rating is an integer f
 - Task goals and evidence can contain user data; secure the state directory and backups accordingly.
 - Lifecycle routes do not run shell commands, browser actions, or planned steps.
 - Protect these APIs with authentication and authorization before exposing the application to an untrusted network. Loopback binding is the safe default.
+
+
+## Bounded failure recovery proposals
+
+- `GET /api/agentic/tasks/{task_id}/recovery-proposals` — list a task's bounded proposal history.
+- `POST /api/agentic/tasks/{task_id}/recovery-proposals` — draft guidance for a task whose linked operation is recorded as `failed` or `expired`.
+- `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review` — explicitly approve replanning or reject a proposal.
+
+Create request:
+
+```json
+{"failure_category":"timeout","error_summary":"Connection timed out"}
+```
+
+Allowed categories: `timeout`, `transient_network`, `rate_limit`, `missing_dependency`, `validation`, `permission`, `destructive`, and `unknown`. The error summary is limited to 500 characters; do not include credentials, tokens, or other secrets. There are at most three proposals per task and 5,000 retained proposals globally.
+
+Transient categories can be marked eligible for a retry only after human review; missing dependency and validation categories require a correction and fresh approval. Permission, destructive-risk, and unknown failures are marked no-retry and cannot be approved as retries. Categories are operator-supplied labels, not an automatic diagnosis or calibrated classifier.
+
+Review request:
+
+```json
+{"decision":"approve","reviewer":"operator","note":"Confirmed idempotency and checked side effects"}
+```
+
+Approval changes the proposal to `approved_for_replanning` only. It does not execute, enqueue, or authorize the previous operation again. A changed or repeated action must be represented by a new Command Control operation with exact arguments and fresh human approval. Non-idempotent side effects must be checked before considering a retry. Every proposal and review writes a metadata-only audit event; never put secrets in error summaries or notes.
