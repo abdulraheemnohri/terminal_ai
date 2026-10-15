@@ -11,6 +11,7 @@ from litestar import Router, get, post
 from litestar.exceptions import HTTPException
 
 from command_control import CommandControl
+from application.task_intelligence import analyze_task
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
@@ -97,16 +98,25 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path) -> Rou
         side_effects = data.get("has_external_side_effects", False)
         if not isinstance(side_effects, bool):
             raise HTTPException(status_code=400, detail="has_external_side_effects must be boolean.")
+        evidence_available = data.get("evidence_available", False)
+        if not isinstance(evidence_available, bool):
+            raise HTTPException(status_code=400, detail="evidence_available must be boolean.")
+        try:
+            signals = analyze_task(goal, evidence_available=evidence_available)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         result = planner.plan(goal, complexity=complexity, risk=risk,
                               has_external_side_effects=side_effects)
         control.audit("agentic", "plan.created", goal[:160], {
-            "strategy": result.strategy, "risk": result.risk,
+            "strategy": result.strategy, "algorithm": signals["algorithm"],
+            "task_type": signals["task_type"], "risk": result.risk,
             "needs_approval": result.needs_approval, "complexity": complexity,
         })
         return {"plan": {
             "goal": goal, "strategy": result.strategy, "steps": result.steps,
             "risk": result.risk, "needs_approval": result.needs_approval,
             "rationale": result.rationale, "created_at": time.time(),
+            "adaptive_signals": signals,
         }, "execution_started": False}
 
     @get("/world-model")
