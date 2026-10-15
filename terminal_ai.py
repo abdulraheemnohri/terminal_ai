@@ -2370,7 +2370,7 @@ class LiteRTBackend(Backend):
         return "".join(out)
 
     def _tool_block(self, tools: list[dict]) -> str:
-        lines = ["You may call tools by emitting <tool_call>{\"name\":\"...\",\"args\":{...}}</tool_call> on its own line.",
+        lines = ['You may call tools by emitting <tool_call>{"name":"...","args":{...}}</tool_call> on its own line.',
                  "Available tools:"]
         for t in tools:
             args = ", ".join(f"{k}: {v}" for k, v in t.get("args", {}).items())
@@ -2661,7 +2661,7 @@ class Agent:
                 args = ", ".join(f"{key}: {value}" for key, value in item.get("args", {}).items())
                 lines.append(f"  - {item['name']}({args}): {item.get('desc', '')}")
             lines.append("After each tool result, reconsider the task and either call another listed tool or call done.")
-            parts.append("\\n".join(lines))
+            parts.append("\n".join(lines))
         if self.autonomy >= 4:
             parts.append(
                 "SELF-EVOLUTION MODE: You have goals, journal, and skill extraction. "
@@ -2741,7 +2741,7 @@ class Agent:
                 if not self.agentic_recovery or recovery_attempts >= self.max_recovery_attempts:
                     raise
                 recovery_attempts += 1
-                system += "\\n\\n" + recovery_instruction(
+                system += "\n\n" + recovery_instruction(
                     exc, recovery_attempts, self.max_recovery_attempts
                 )
                 dbg("recovery", f"model attempt failed ({type(exc).__name__}); retry {recovery_attempts}/{self.max_recovery_attempts}")
