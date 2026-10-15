@@ -1,9 +1,9 @@
 const $=id=>document.getElementById(id);
 let statusData=null;
-const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler"};
+const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -478,3 +478,96 @@ $("scheduler-list")?.addEventListener("click",async e=>{const toggle=e.target.cl
 const routeViews={"/":"overview","/overview":"overview","/chat":"chat","/sessions":"sessions","/models":"models","/diagnostics":"diagnostics","/memory":"memory","/knowledge":"knowledge","/workspace":"workspace","/scheduler":"scheduler","/goals":"goals","/self":"self","/skills":"skills","/tools":"tools","/learning":"learning","/improvements":"improvements","/selfx":"selfx","/settings":"settings"};
 const initialView=routeViews[location.pathname]||new URLSearchParams(location.search).get("view");
 if(titles[initialView])showView(initialView);
+
+
+// Command Control Center: human review, policy controls, skill packages and live audit events.
+let controlSocket=null;
+let controlSocketRetry=null;
+function controlApi(path,options={}){return api(path,options);}
+function controlList(text){return [...new Set(String(text||"").split(",").map(x=>x.trim()).filter(Boolean))];}
+async function loadControlPolicy(){
+ const data=await controlApi("/api/control/policy");const p=data.policy||{};
+ $("control-global-auto").checked=false;
+ $("control-allowlist").value=(p.allowlist||[]).join(", ");
+ $("control-blocklist").value=(p.blocklist||[]).join(", ");
+ $("control-tool-rules").value=JSON.stringify(p.tool_auto_execute||{},null,2);
+}
+async function saveControlPolicy(){
+ $("control-policy-error").textContent="";
+ try{
+  let rules=JSON.parse($("control-tool-rules").value||"{}");
+  if(!rules||Array.isArray(rules)||typeof rules!=="object")throw new Error("Per-tool rules must be a JSON object.");
+  const data=await controlApi("/api/control/policy",{method:"PATCH",body:JSON.stringify({
+   auto_execute:false,allowlist:controlList($("control-allowlist").value),
+   blocklist:controlList($("control-blocklist").value),tool_auto_execute:rules
+  })});
+  await loadControlPolicy();$("control-policy-error").textContent=data.notice||"Policy saved; global auto-execution remains disabled.";
+  await loadControlAudit();
+ }catch(e){$("control-policy-error").textContent=e.message;}
+}
+async function loadControlPending(){
+ const list=$("control-pending-list");list.innerHTML='<div class="empty">Loading queue…</div>';
+ try{
+  const data=await controlApi("/api/control/pending?status=pending");
+  const ops=data.operations||[];
+  list.innerHTML=ops.length?ops.map(o=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(o.tool+'.'+o.operation)+'</b><span class="badge">Pending</span></div><p class="muted">ID: '+escapeHtml(o.id)+' · '+escapeHtml(new Date(o.created_at*1000).toLocaleString())+'</p><pre class="reflection" style="white-space:pre-wrap;max-height:140px;overflow:auto">'+escapeHtml(JSON.stringify(o.arguments,null,2))+'</pre><div class="row" style="gap:8px"><button class="btn primary" data-control-review="approve" data-id="'+escapeHtml(o.id)+'">Approve</button><button class="btn danger" data-control-review="reject" data-id="'+escapeHtml(o.id)+'">Reject</button></div></div>').join(""):'<div class="empty">No operations are waiting for review.</div>';
+  $("control-pending-error").textContent="";
+ }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
+}
+async function loadControlAudit(){
+ try{
+  const data=await controlApi("/api/control/audit?limit=100");const integrity=data.integrity||{};
+  $("control-audit-integrity").textContent=(integrity.valid?"Integrity verified":"INTEGRITY WARNING")+" · "+(integrity.checked||0)+" entries checked"+(integrity.reason?" · "+integrity.reason:"");
+  $("control-audit-list").innerHTML=(data.entries||[]).map(e=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(e.action)+'</b><span class="muted">'+escapeHtml(new Date(e.timestamp*1000).toLocaleString())+'</span></div><p>'+escapeHtml(e.actor)+' → '+escapeHtml(e.target)+'</p><p class="muted">'+escapeHtml(JSON.stringify(e.details||{}))+'</p><small class="muted">SHA-256: '+escapeHtml(e.entry_hash)+'</small></div>').join("")||'<div class="empty">No audit entries yet.</div>';
+ }catch(e){$("control-audit-integrity").textContent=e.message;}
+}
+function connectControlEvents(){
+ if(controlSocket||!$("control-live-status"))return;
+ const scheme=location.protocol==="https:"?"wss:":"ws:";
+ try{controlSocket=new WebSocket(scheme+"//"+location.host+"/ws/events");}catch(e){$("control-live-status").textContent="Unavailable";return;}
+ controlSocket.onopen=()=>{$("control-live-status").textContent="Live";};
+ controlSocket.onmessage=event=>{
+  try{
+   const item=JSON.parse(event.data);if(item.type!=="action_event")return;
+   const feed=$("control-live-feed");const row=document.createElement("div");row.className="list-item";
+   const head=document.createElement("b");head.textContent=item.action||"action";
+   const detail=document.createElement("p");detail.textContent=(item.actor||"system")+" · "+(item.target||"")+" · "+new Date(item.timestamp*1000).toLocaleTimeString();
+   const summary=document.createElement("p");summary.className="muted";summary.textContent=JSON.stringify(item.details||{});
+   row.append(head,detail,summary);feed.prepend(row);while(feed.children.length>40)feed.lastElementChild.remove();
+   loadControlAudit();
+  }catch(_){}
+ };
+ controlSocket.onclose=()=>{controlSocket=null;$("control-live-status").textContent="Reconnecting";if(!controlSocketRetry)controlSocketRetry=setTimeout(()=>{controlSocketRetry=null;connectControlEvents();},3000);};
+ controlSocket.onerror=()=>{$("control-live-status").textContent="Retrying";};
+}
+async function loadCommandControl(){
+ try{await Promise.all([loadControlPolicy(),loadControlPending(),loadControlAudit()]);connectControlEvents();}
+ catch(e){$("control-policy-error").textContent=e.message;}
+}
+if($("control-refresh"))$("control-refresh").addEventListener("click",loadCommandControl);
+if($("control-save-policy"))$("control-save-policy").addEventListener("click",saveControlPolicy);
+if($("control-refresh-pending"))$("control-refresh-pending").addEventListener("click",loadControlPending);
+if($("control-audit-refresh"))$("control-audit-refresh").addEventListener("click",loadControlAudit);
+if($("control-queue-form"))$("control-queue-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("control-queue-error").textContent="";
+ try{let args=JSON.parse($("control-arguments").value||"{}");if(!args||Array.isArray(args)||typeof args!=="object")throw new Error("Arguments must be a JSON object.");
+  await controlApi("/api/control/pending",{method:"POST",body:JSON.stringify({tool:$("control-tool").value,operation:$("control-operation").value,arguments:args})});
+  $("control-queue-error").textContent="Added to queue; no command was executed.";await loadControlPending();await loadControlAudit();
+ }catch(err){$("control-queue-error").textContent=err.message;}
+});
+if($("control-pending-list"))$("control-pending-list").addEventListener("click",async e=>{
+ const b=e.target.closest("[data-control-review]");if(!b)return;
+ const approve=b.dataset.controlReview==="approve";
+ if(!confirm((approve?"Approve":"Reject")+" this operation? This records a decision only and will not execute it."))return;
+ try{await controlApi("/api/control/pending/"+encodeURIComponent(b.dataset.id)+"/review",{method:"POST",body:JSON.stringify({approve})});await loadControlPending();await loadControlAudit();}
+ catch(err){$("control-pending-error").textContent=err.message;}
+});
+if($("control-skills-export"))$("control-skills-export").addEventListener("click",async()=>{
+ try{const data=await controlApi("/api/control/skills/export");$("control-skills-json").value=JSON.stringify(data,null,2);$("control-skills-result").textContent="Package exported into the editor. Copy/save it as a JSON file if needed.";}
+ catch(e){$("control-skills-error").textContent=e.message;}
+});
+if($("control-skills-import"))$("control-skills-import").addEventListener("click",async()=>{
+ $("control-skills-error").textContent="";
+ try{const payload=JSON.parse($("control-skills-json").value);const result=await controlApi("/api/control/skills/import",{method:"POST",body:JSON.stringify(payload)});$("control-skills-result").textContent=JSON.stringify(result,null,2);await loadControlAudit();}
+ catch(e){$("control-skills-error").textContent=e.message;}
+});
