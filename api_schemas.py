@@ -87,7 +87,12 @@ class KnowledgeSearchRequest(APIRequest):
 
 
 class WorkspaceReadRequest(APIRequest):
-    path: str = Field(min_length=1, max_length=1000)
+    path: str = Field(default=".", max_length=1000)
+
+    @field_validator("path")
+    @classmethod
+    def normalize_read_path(cls, path: str) -> str:
+        return path.strip() or "."
 
 
 class WorkspaceWriteRequest(APIRequest):
