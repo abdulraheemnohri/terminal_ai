@@ -18,6 +18,8 @@ def test_system_guidance_has_plan_and_does_not_request_hidden_reasoning():
     assert "Suggested checklist" in guidance
     assert "Do not reveal private hidden chain-of-thought" in guidance
     assert "technical detail" in guidance
+    roleplay = runtime.system_guidance(runtime.plan("Write a scene"), "friendly", "roleplay")
+    assert "fictional roleplay premise" in roleplay
 
 
 def test_parse_hermes_style_calls_without_execution():
