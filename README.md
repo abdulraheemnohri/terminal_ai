@@ -226,3 +226,18 @@ On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`. Tests is
 - `GET/POST /api/scheduled-tasks`, `PATCH /api/scheduled-tasks/{task_id}`, `POST /api/scheduled-tasks/{task_id}/delete`
 
 The Knowledge Base, Workspace Tools, and Task Scheduler are available as separate UI pages. Review the exact command or file content before approving it.
+
+
+## Hermes-style agent capabilities
+
+Terminal AI includes an opt-in agent execution layer with task-aware planning, configurable response style, complex-task self-critique, and bounded structured tool calling.
+
+- **Task planning:** creates a small task checklist for coding, research, planning, math, and conversation requests. The checklist is guidance, not evidence that actions ran.
+- **Structured tool calling:** optionally enables model-emitted `<tool_call>{"name":"...","args":{...}}</tool_call>` calls in browser chat. The Web UI uses a read-only allowlist: basic status, local knowledge search, archived conversation search, memory recall, and repository file listing/reading. Shell, file writes/deletes, network requests, settings changes, and permission changes are not available to chat tools.
+- **Self-correction:** when enabled, complex prompts receive a second-pass critique/refinement. This can add latency and model usage.
+- **Conversation behavior:** the existing saved sessions, context trimming, memory, and assistant mission remain in place; the response style can be Balanced, Concise, Detailed, Friendly, or Technical.
+- **Bounded recovery:** reusable runtime helpers classify transient errors and retry only operations explicitly marked idempotent. Tool calls are schema-checked and unknown tools/arguments are rejected.
+
+Settings are available in **Settings → Hermes-style agent capabilities**. Planning defaults to enabled; structured tool calling is opt-in and disabled by default. These features do not expose private chain-of-thought. The assistant should provide concise rationale, evidence, checks, and outcomes rather than hidden scratchpad text.
+
+The feature tests are in `tests/test_agentic_runtime.py`. Run the full suite with `.venv/bin/python -m pytest -q`.
