@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from litestar import Litestar, WebSocket, get, post, patch, websocket
+from litestar import Litestar, get, post, patch
 from litestar.exceptions import HTTPException
 from litestar.response import Response
 from litestar.static_files import create_static_files_router
