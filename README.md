@@ -177,7 +177,7 @@ The LiteRT-LM adapter uses the Python API, not a `litert-lm` shell command. It d
 Activate the virtual environment, then run:
 
 ```bash
-.venv/bin/python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py
+.venv/bin/python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py agentic_runtime.py
 .venv/bin/python -m pytest -q
 ```
 
