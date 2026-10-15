@@ -326,3 +326,61 @@ def test_browser_status_does_not_start_browser_or_enable_actions():
     payload = response.json()
     assert payload["execution_enabled"] is False
     assert "authenticated dispatch" in payload["notice"]
+
+
+
+def test_browser_status_never_enables_execution_or_launches_browser(monkeypatch):
+    import app as web_app
+
+    monkeypatch.setattr(web_app, "_read_settings", lambda: {
+        **web_app._read_settings(), "browser_allowed_domains": ["example.com"]
+    })
+    with TestClient(app=web_app.app) as client:
+        response = client.get("/api/browser/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["enabled"] is True
+    assert payload["allowed_domain_count"] == 1
+    assert payload["execution_enabled"] is False
+    assert "never launches a browser" in web_app.browser_status.__doc__
+
+
+def test_browser_domain_settings_normalize_and_deduplicate():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "browser_allowed_domains": [".EXAMPLE.COM.", "example.com", "docs.example.org"]
+        })
+        assert response.status_code == 200
+        assert response.json()["browser_allowed_domains"] == ["example.com", "docs.example.org"]
+        reset = client.patch("/api/settings", json={"browser_allowed_domains": []})
+    assert reset.status_code == 200
+    assert reset.json()["browser_allowed_domains"] == []
+
+
+def test_browser_domain_settings_reject_malformed_entries():
+    invalid_values = [
+        "example.com",
+        ["*.example.com"],
+        ["https://example.com"],
+        ["example.com:8443"],
+        ["127.0.0.1"],
+        ["bad domain.example"],
+        [None],
+        [f"sub{i}.example.com" for i in range(51)],
+    ]
+    with TestClient(app=app) as client:
+        for value in invalid_values:
+            response = client.patch("/api/settings", json={"browser_allowed_domains": value})
+            assert response.status_code == 400, value
+        client.patch("/api/settings", json={"browser_allowed_domains": []})
+
+
+def test_browser_status_reports_empty_allowlist_as_disabled():
+    with TestClient(app=app) as client:
+        reset = client.patch("/api/settings", json={"browser_allowed_domains": []})
+        response = client.get("/api/browser/status")
+    assert reset.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["enabled"] is False
+    assert response.json()["allowed_domain_count"] == 0
+    assert response.json()["execution_enabled"] is False
