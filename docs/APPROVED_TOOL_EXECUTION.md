@@ -20,3 +20,10 @@ Use `application/browser_runtime.py:create_browser_runtime()` with an explicit `
 Read-only page reading is registered without tool-level approval; clicks, screenshots, form fills and submissions require approval through `ToolRegistry`. Use the approval dispatcher for state-changing actions. The allowlist accepts DNS names only (including IDNs normalized to IDNA), not wildcards, URL-shaped entries, ports, or IP literals. Malformed URL authorities and ports are rejected before DNS resolution. Browser output is untrusted page content. Do not place passwords, session cookies, API keys or private tokens into browser pages or tool results.
 
 The browser adapter is optional and is not automatically launched by the web server. The application must configure its domain allowlist and wire the handler registry and approval UI deliberately. Domain allowlisting plus DNS checks is defense-in-depth, not a substitute for operating-system/network egress controls against DNS rebinding or compromised public hosts. Keep the service bound to localhost unless authentication, TLS, CSRF protection and network controls are enabled.
+
+
+## Browser domain settings
+
+Configure the optional allowlist in **Settings → Safety & change control**. Enter one DNS name per line (comma-separated entries are also accepted). Server-side validation normalizes case, trailing dots, and IDNs; wildcard entries, URLs, ports, malformed DNS names, and IP literals are rejected. An empty list disables browser access.
+
+`GET /api/browser/status` reports only whether domains are configured and whether the optional Playwright package is installed. It never launches Chromium and always reports `execution_enabled: false`. The Settings allowlist is configuration groundwork, not a remote-action endpoint: do not enable browser actions until an authenticated, CSRF-safe dispatch path and operator approval workflow are available.
