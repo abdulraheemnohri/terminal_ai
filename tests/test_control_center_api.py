@@ -56,3 +56,16 @@ def test_yaml_skill_export_is_available():
         response = client.get("/api/control/skills/export.yaml")
     assert response.status_code == 200
     assert "terminal-ai-skills" in response.text
+
+
+def test_command_control_status_filter_includes_execution_lifecycle_states():
+    with TestClient(app=app) as client:
+        for status in ("pending", "approved", "rejected", "executing", "executed", "failed", "expired"):
+            response = client.get(f"/api/control/pending?status={status}")
+            assert response.status_code == 200
+            assert response.json()["status"] == status
+            assert response.json()["allowed_statuses"] == [
+                "pending", "approved", "rejected", "executing", "executed", "failed", "expired"
+            ]
+        invalid = client.get("/api/control/pending?status=banana")
+    assert invalid.status_code == 400
