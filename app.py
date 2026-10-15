@@ -568,35 +568,40 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                 stage("task_planning", "skipped", time.monotonic(), "Agent planning is disabled in Settings.")
 
             inference_started = time.monotonic()
-            original_system = agent.base_system
-            original_tools = agent.tools
-            original_autonomy = agent.autonomy
-            original_critique = agent.self_critique
-            original_critic_enabled = agent.critic.enabled
+            has_agent_runtime = hasattr(agent, "base_system") and hasattr(agent, "tools")
+            original_system = getattr(agent, "base_system", "")
+            original_tools = getattr(agent, "tools", None)
+            original_autonomy = getattr(agent, "autonomy", 0)
+            original_critique = getattr(agent, "self_critique", False)
+            critic = getattr(agent, "critic", None)
+            original_critic_enabled = getattr(critic, "enabled", False)
             try:
-                if settings.get("agentic_planning_enabled", True):
+                if has_agent_runtime and settings.get("agentic_planning_enabled", True):
                     agent.base_system = original_system + "\n\n" + _AGENTIC_RUNTIME.system_guidance(
                         plan, settings.get("agent_response_style", "balanced"))
-                if settings.get("agent_tool_calling_enabled", False):
+                if has_agent_runtime and settings.get("agent_tool_calling_enabled", False):
                     agent.tools = SafeWebToolRegistry(agent)
                     agent.autonomy = 1
-                else:
+                elif has_agent_runtime:
                     agent.autonomy = 0
                 # Critique only complex tasks by default to avoid unnecessary latency.
-                if (plan.complexity == "complex"
+                if (has_agent_runtime and plan.complexity == "complex"
                         and settings.get("agent_self_correction_enabled", True)):
                     agent.self_critique = True
-                    agent.critic.enabled = True
+                    if critic is not None:
+                        critic.enabled = True
                 answer = await asyncio.to_thread(agent.turn, message)
             except Exception as exc:
                 stage("inference", "failed", inference_started, type(exc).__name__)
                 raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
             finally:
-                agent.base_system = original_system
-                agent.tools = original_tools
-                agent.autonomy = original_autonomy
-                agent.self_critique = original_critique
-                agent.critic.enabled = original_critic_enabled
+                if has_agent_runtime:
+                    agent.base_system = original_system
+                    agent.tools = original_tools
+                    agent.autonomy = original_autonomy
+                    agent.self_critique = original_critique
+                if critic is not None:
+                    critic.enabled = original_critic_enabled
             stage("inference", "completed", inference_started, "Model turn returned.")
 
             archive_started = time.monotonic()
