@@ -972,3 +972,37 @@ function renderHealthTimeline(samples=readHealthHistory()){
  if($("health-timeline-summary"))$("health-timeline-summary").textContent=(latest.api?"API reachable":"API unavailable")+" · "+(latest.ready?"inference ready":"inference not ready")+" · latest sample "+new Date(latest.t).toLocaleTimeString();
 }
 renderHealthTimeline();
+
+
+const collectionSearchTargets=[
+ ["memory-list","Search saved memories"],["workspace-list","Search workspace files"],["scheduler-list","Search scheduled jobs"],
+ ["goal-list","Search goals"],["session-list","Search sessions"],["model-list","Search models"],["provider-list","Search providers"],
+ ["download-list","Search downloads"],["diagnostic-list","Search diagnostics"],["skill-list","Search skills"],["tool-list","Search tools"],
+ ["skill-evolution-list","Search skill proposals"],["improvement-list","Search improvements"],["selfx-diagnostic-list","Search diagnostics"],
+ ["selfx-evaluation-list","Search evaluations"],["selfx-research-list","Search research"],["selfx-checkpoint-list","Search checkpoints"],
+ ["agentic-world-list","Search world model"],["task-lifecycle-list","Search tasks"],["control-pending-list","Search operations"],["control-audit-list","Search audit events"]
+];
+function setupCollectionSearch(){
+ for(const [id,placeholder] of collectionSearchTargets){
+  const container=$(id);if(!container||container.dataset.searchReady==="true")continue;
+  container.dataset.searchReady="true";
+  const bar=document.createElement("div");bar.className="collection-search";
+  const label=document.createElement("label");label.className="sr-only";label.htmlFor=id+"-search";label.textContent=placeholder;
+  const input=document.createElement("input");input.type="search";input.id=id+"-search";input.maxLength=120;input.placeholder=placeholder+"…";input.autocomplete="off";
+  const count=document.createElement("span");count.className="collection-search-count";count.setAttribute("aria-live","polite");
+  bar.append(label,input,count);container.parentNode.insertBefore(bar,container);
+  const apply=()=>{
+   const query=input.value.trim().toLocaleLowerCase();
+   const items=Array.from(container.children).filter(el=>!el.classList.contains("empty")&&!el.classList.contains("error"));
+   let shown=0;
+   for(const item of items){const match=!query||item.textContent.toLocaleLowerCase().includes(query);item.hidden=!match;if(match)shown++;}
+   const empty=Array.from(container.children).find(el=>el.classList.contains("empty"));
+   if(empty)empty.hidden=Boolean(query);
+   count.textContent=query?(shown?shown+" matching":"No matching items"):items.length+" item"+(items.length===1?"":"s");
+  };
+  input.addEventListener("input",apply);
+  new MutationObserver(apply).observe(container,{childList:true});
+  apply();
+ }
+}
+setupCollectionSearch();
