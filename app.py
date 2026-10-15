@@ -1235,11 +1235,8 @@ async def selfx_checkpoint() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Self-recovery is disabled in Settings.")
     try:
         manifest = await asyncio.to_thread(_selfx_engine().create_checkpoint)
-        retention = int(_read_settings().get("self_checkpoint_retention", 10))
-        backup_dir = core.STATE_DIR / "backups" / "selfx"
-        checkpoints = sorted((p for p in backup_dir.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
-        for old in checkpoints[retention:]:
-            shutil.rmtree(old, ignore_errors=True)
+        retention = max(1, min(30, int(_read_settings().get("self_checkpoint_retention", 10))))
+        await asyncio.to_thread(_selfx_engine().prune_checkpoints, retention)
         return {"checkpoint": manifest}
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Checkpoint failed: {exc}") from exc
@@ -1442,13 +1439,7 @@ async def _automatic_selfx_maintenance() -> None:
                 if checkpoint_due:
                     manifest = await asyncio.to_thread(engine.create_checkpoint)
                     retention = max(1, min(30, int(settings.get("self_checkpoint_retention", 10))))
-                    checkpoint_root = core.STATE_DIR / "backups" / "selfx"
-                    checkpoints = sorted(
-                        (p for p in checkpoint_root.iterdir() if p.is_dir()),
-                        key=lambda p: p.name, reverse=True,
-                    ) if checkpoint_root.exists() else []
-                    for old in checkpoints[retention:]:
-                        shutil.rmtree(old, ignore_errors=True)
+                    await asyncio.to_thread(engine.prune_checkpoints, retention)
                     engine.record_event("autonomous-checkpoint", f"Scheduled checkpoint created: {manifest['id']}")
 
                 # Turn failed local diagnostics into deduplicated, measurable goals.
