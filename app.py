@@ -33,6 +33,7 @@ from task_scheduler import TaskScheduler
 from command_control import CommandControl
 from routers.control import create_control_router
 from routers.health import create_health_router
+from routers.chat import create_chat_router
 from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
@@ -579,9 +580,8 @@ def _remember_chat_run(run: dict[str, Any]) -> None:
         del CHAT_RUNS[:-50]
 
 
-@get("/api/chat/runs")
-async def chat_runs() -> dict[str, Any]:
-    """Return recent chat execution metadata without conversation contents."""
+def _chat_runs_snapshot() -> dict[str, Any]:
+    """Return metadata-only chat traces without prompt or answer content."""
     with _CHAT_RUNS_LOCK:
         runs = [dict(item) for item in CHAT_RUNS]
     return {"runs": list(reversed(runs)), "count": len(runs), "retention_limit": 50}
@@ -1971,10 +1971,11 @@ app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
-        status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
+        status, chat, clear_chat, memory, remember, forget_memory,
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_control_router(_COMMAND_CONTROL),
         create_health_router(ROOT, core.STATE_DIR),
+        create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
