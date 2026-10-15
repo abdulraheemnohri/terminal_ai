@@ -183,3 +183,29 @@ def test_reviewed_learning_generates_only_an_unapproved_skill_draft():
     assert proposal["executable"] is False
     assert any("human approval" in step.lower() for step in proposal["steps"])
 
+def test_recurring_reviewed_failures_generate_recovery_draft_not_execution():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        for _ in range(3):
+            outcome = client.post("/api/agentic/learning/outcome", json={
+                "task_type": "software_change",
+                "algorithm": "test-driven-loop",
+                "outcome": "failure",
+                "rating": 1,
+                "verified": True,
+            })
+            assert outcome.status_code == 201
+
+        response = client.post("/api/agentic/skills/proposals/from-learning", json={})
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["pattern"] == "recurring_failure"
+    assert payload["proposal"]["name"].startswith("Recovery workflow for ")
+    assert payload["proposal"]["status"] == "proposed"
+    assert payload["proposal"]["executable"] is False
+    assert payload["execution_started"] is False
+    assert payload["permissions_changed"] is False
+
