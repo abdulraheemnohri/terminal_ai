@@ -147,3 +147,18 @@ def test_settings_ui_has_autonomy_profiles_and_safe_reset():
     assert 'id="reset-autonomy-settings"' in html.text
     assert "settings-section" in css.text
     assert "Reset autonomy to safe defaults" in js.text
+
+
+def test_manual_maintenance_respects_disabled_maintenance(monkeypatch):
+    monkeypatch.setattr(web_app, "_read_settings", lambda: {"self_maintenance_enabled": False})
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/selfx/maintenance/run")
+    assert response.status_code == 400
+
+
+def test_manual_maintenance_is_exposed_in_settings_ui():
+    with TestClient(app=web_app.app) as client:
+        html = client.get("/")
+        js = client.get("/static/app.js")
+    assert 'id="run-maintenance-now"' in html.text
+    assert "/api/selfx/maintenance/run" in js.text
