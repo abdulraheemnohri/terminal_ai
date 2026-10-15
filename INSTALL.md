@@ -168,3 +168,7 @@ Use `sh start-server.sh` on Linux/macOS/WSL or `./start-server.ps1` in PowerShel
 - Windows PowerShell: `./update.ps1`
 
 The helper stops if the Git working tree has local changes, uses fast-forward-only updates, installs the project's Python requirements, checks dependency consistency and Python syntax, runs tests, and restarts the configured service/task when detected. Review backups before updating. It updates the **project**, not the operating system; use the OS's normal trusted security-update mechanism for system packages. Automatic silent code updates are not enabled.
+
+### macOS
+
+Run `sh install-launchagent.sh` to register a per-user LaunchAgent that starts at login and restarts the server if it exits. Remove it with `sh uninstall-launchagent.sh`. Logs are stored under `~/Library/Logs/`.
