@@ -14,6 +14,7 @@ from command_control import CommandControl
 from application.task_intelligence import analyze_task
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
+from application.task_lifecycle import TaskLifecycleStore
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
@@ -76,6 +77,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
     world = PersistentWorldModel(Path(state_dir) / "world_model.json")
     learning_store = learning or LearningStore(Path(state_dir) / "learning.sqlite3")
     skill_evolution = SkillEvolutionStore(Path(state_dir) / "skill_proposals.sqlite3")
+    task_lifecycle = TaskLifecycleStore(Path(state_dir) / "task_lifecycle.sqlite3")
 
     @get("/status")
     async def agentic_status() -> dict[str, Any]:
@@ -130,6 +132,140 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             "rationale": result.rationale, "created_at": time.time(),
             "adaptive_signals": signals,
         }, "execution_started": False}
+
+    @post("/tasks")
+    async def create_task_run(data: dict[str, Any]) -> dict[str, Any]:
+        """Persist a bounded plan for tracking; this route never executes its steps."""
+        goal = data.get("goal")
+        risk = data.get("risk", "read")
+        complexity = data.get("complexity", 1)
+        if not isinstance(goal, str) or not goal.strip() or len(goal) > 4000:
+            raise HTTPException(status_code=400, detail="goal must be a non-empty string of at most 4000 characters.")
+        if risk not in {"read", "low", "medium", "high", "critical"}:
+            raise HTTPException(status_code=400, detail="Invalid risk level.")
+        if isinstance(complexity, bool) or not isinstance(complexity, int) or not 1 <= complexity <= 10:
+            raise HTTPException(status_code=400, detail="complexity must be an integer from 1 to 10.")
+        try:
+            signals = analyze_task(goal, evidence_available=bool(data.get("evidence_available", False)))
+            decision = learning_store.recommend(str(signals["task_type"]), str(signals["algorithm"]))
+            signals["algorithm"] = decision["algorithm"]
+            plan_result = planner.plan(goal, complexity=complexity, risk=risk,
+                                       has_external_side_effects=bool(data.get("has_external_side_effects", False)))
+            task = task_lifecycle.create(goal=goal, task_type=str(signals["task_type"]),
+                                         algorithm=str(signals["algorithm"]), risk=risk,
+                                         steps=plan_result.steps)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        control.audit("agentic", "task.created", task["id"], {
+            "task_type": task["task_type"], "algorithm": task["algorithm"],
+            "risk": risk, "step_count": len(task["steps"]), "execution_started": False,
+        })
+        return {"task": task, "plan": {"strategy": plan_result.strategy,
+                "rationale": plan_result.rationale, "needs_approval": plan_result.needs_approval,
+                "adaptive_signals": signals}, "execution_started": False}
+
+    @get("/tasks")
+    async def list_task_runs(status: str | None = None, limit: int = 50) -> dict[str, Any]:
+        if status is not None and status not in {
+            "planned", "awaiting_approval", "approved", "executing", "executed",
+            "verified", "reviewed", "failed", "rejected", "expired",
+        }:
+            raise HTTPException(status_code=400, detail="Invalid task status.")
+        return {"tasks": task_lifecycle.list(limit, status), "count": len(task_lifecycle.list(limit, status)),
+                "execution_started": False}
+
+    @get("/tasks/{task_id:str}")
+    async def get_task_run(task_id: str) -> dict[str, Any]:
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        if task.get("operation_id"):
+            operation = control.get_operation(task["operation_id"])
+            if operation is not None:
+                try:
+                    task = task_lifecycle.sync_operation(task_id, operation)
+                except ValueError:
+                    pass
+        return {"task": task, "execution_started": False}
+
+    @post("/tasks/{task_id:str}/operation")
+    async def link_task_operation(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        operation_id = data.get("operation_id")
+        if not isinstance(operation_id, str) or not operation_id.strip() or len(operation_id) > 80:
+            raise HTTPException(status_code=400, detail="operation_id is required.")
+        operation = control.get_operation(operation_id)
+        if operation is None:
+            raise HTTPException(status_code=404, detail="Command Control operation not found.")
+        if operation["status"] not in {"pending", "approved", "executing", "executed", "failed"}:
+            raise HTTPException(status_code=409, detail="Only active or completed operations can be linked.")
+        try:
+            task = task_lifecycle.link_operation(task_id, operation)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Task run not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.operation_linked", task_id, {
+            "operation_id": operation_id, "operation_status": operation["status"],
+            "tool": operation["tool"], "operation": operation["operation"],
+        })
+        return {"task": task, "execution_started": False,
+                "notice": "Linking records the operation association; it does not approve or execute it."}
+
+    @post("/tasks/{task_id:str}/verify")
+    async def verify_task_run(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        if task.get("operation_id"):
+            operation = control.get_operation(task["operation_id"])
+            if operation is not None:
+                try:
+                    task = task_lifecycle.sync_operation(task_id, operation)
+                except ValueError:
+                    pass
+        try:
+            task = task_lifecycle.verify(task_id, passed=data.get("passed"),
+                                         evidence=data.get("evidence"), verifier=data.get("verifier", "operator"))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Task run not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.verified" if task["status"] == "verified" else "task.verification_failed",
+                      task_id, {"passed": task["verification"]["passed"],
+                                "verifier": task["verification"]["verifier"]})
+        return {"task": task, "learning_recorded": False}
+
+    @post("/tasks/{task_id:str}/review")
+    async def review_task_run(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        if task.get("operation_id"):
+            operation = control.get_operation(task["operation_id"])
+            if operation is not None:
+                try:
+                    task = task_lifecycle.sync_operation(task_id, operation)
+                except ValueError:
+                    pass
+        outcome, rating, reviewer = data.get("outcome"), data.get("rating"), data.get("reviewer", "operator")
+        if outcome not in {"success", "partial", "failure"}:
+            raise HTTPException(status_code=400, detail="outcome must be success, partial, or failure.")
+        if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
+            raise HTTPException(status_code=400, detail="rating must be an integer from 1 to 5.")
+        try:
+            task = task_lifecycle.review(task_id, outcome=outcome, rating=rating, reviewer=reviewer)
+            record = learning_store.record(task_type=task["task_type"], algorithm=task["algorithm"],
+                                           outcome=outcome, rating=rating, verified=True)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Task run not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.reviewed", task_id, {
+            "outcome": outcome, "rating": rating, "learning_record_id": record["id"],
+            "verified": True, "reviewer": reviewer[:100] if isinstance(reviewer, str) else "operator",
+        })
+        return {"task": task, "learning_record": record,
+                "permissions_changed": False, "execution_started": False}
 
     @get("/learning/summary")
     async def learning_summary() -> dict[str, Any]:
@@ -344,7 +480,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"proposal": item, "promoted_to_reviewed_catalog": True, "execution_started": False, "permissions_changed": False}
 
     return Router(path="/api/agentic", route_handlers=[
-        agentic_status, plan, learning_summary, record_learning_outcome,
+        agentic_status, plan, create_task_run, list_task_runs, get_task_run, link_task_operation,\n        verify_task_run, review_task_run, learning_summary, record_learning_outcome,
         list_world_facts, observe_world_fact, validate_skill,
         list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
         approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
