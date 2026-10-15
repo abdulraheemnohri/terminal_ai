@@ -26,7 +26,11 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP="$HOME/.terminal_ai/update-backups/$STAMP"
 mkdir -p "$BACKUP"
 git bundle create "$BACKUP/source.bundle" --all
+PREVIOUS=$(git rev-parse HEAD)
+UPDATED=0
+trap 'status=$?; if [ "$status" -ne 0 ] && [ "$UPDATED" = "1" ]; then echo "Update failed; restoring source revision $PREVIOUS." >&2; git reset --hard "$PREVIOUS" || true; fi' EXIT
 git merge --ff-only "origin/$BRANCH"
+UPDATED=1
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m compileall -q app.py terminal_ai.py agent routers
 .venv/bin/python -m pytest -q
@@ -37,4 +41,5 @@ elif command -v launchctl >/dev/null 2>&1 && [ -f "$HOME/Library/LaunchAgents/co
 else
   echo "Tests passed. No managed service found; restart the server manually."
 fi
+UPDATED=0
 echo "Update complete. Source backup: $BACKUP/source.bundle"
