@@ -48,6 +48,16 @@
       <article class="card metric-card"><div class="metric-top"><span class="muted">Persistent memories</span><span class="metric-icon">◉</span></div><div class="metric" id="metric-memory">0</div><div class="metric-sub">Saved facts in local memory</div></article>
       <article class="card metric-card"><div class="metric-top"><span class="muted">Active goals</span><span class="metric-icon">◎</span></div><div class="metric" id="metric-goals">0</div><div class="metric-sub">Tracked objectives</div></article>
     </div>
+    <article class="card span-12 health-timeline-card">
+      <div class="card-head"><div><h2>Health timeline</h2><p class="muted">Recent API reachability and inference readiness · stored only in this browser</p></div><span class="badge" id="health-timeline-count">Collecting samples</span></div>
+      <div class="health-timeline-chart">
+        <svg id="health-timeline-svg" viewBox="0 0 600 112" role="img" aria-label="Recent local API and inference readiness history">
+          <line x1="18" y1="22" x2="582" y2="22" class="health-gridline"/><line x1="18" y1="52" x2="582" y2="52" class="health-gridline"/><line x1="18" y1="82" x2="582" y2="82" class="health-gridline"/>
+          <text x="20" y="14" class="health-axis-label">Waiting for status samples…</text>
+        </svg>
+      </div>
+      <div class="health-timeline-legend"><span><i class="legend-dot api-legend"></i> API reachable</span><span><i class="legend-dot backend-legend"></i> Inference ready</span><span class="muted" id="health-timeline-summary">Samples are collected while this page is open.</span></div>
+    </article>
     <div class="grid overview-grid">
       <article class="card span-8"><div class="card-head"><h2>Runtime health</h2><span class="badge" id="overview-health-badge">Checking</span></div><div class="health-grid" id="overview-health"><div class="empty">Collecting runtime details…</div></div><div id="system-error" class="error"></div></article>
       <article class="card span-4"><div class="card-head"><h2>Quick launch</h2><span class="muted">Shortcuts</span></div><div class="quick-grid"><button class="quick-action" data-go="chat"><span>✧</span><b>AI Chat</b><small>Ask, draft, troubleshoot</small></button><button class="quick-action" data-go="models"><span>▦</span><b>Models</b><small>Inspect local model files</small></button><button class="quick-action" data-go="sessions"><span>◷</span><b>Sessions</b><small>Resume saved chats</small></button><button class="quick-action" data-go="selfx"><span>⟳</span><b>Self-X</b><small>Review self-maintenance</small></button><button class="quick-action" data-go="skills"><span>✦</span><b>Skills</b><small>Reusable procedures</small></button><button class="quick-action" data-go="settings"><span>⚙</span><b>Settings</b><small>Provider and autonomy</small></button></div></article>
