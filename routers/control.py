@@ -25,9 +25,9 @@ def create_control_router(control: CommandControl) -> Router:
 
     @get("/pending")
     async def pending(status: str = "pending", limit: int = 100) -> dict[str, Any]:
-        if status not in {"pending", "approved", "rejected"}:
+        if status not in {"pending", "approved", "rejected", "executing", "executed", "failed", "expired"}:
             raise HTTPException(status_code=400, detail="Invalid operation status.")
-        return {"operations": control.list_pending(status, limit)}
+        return {"operations": control.list_pending(status, limit), "status": status, "allowed_statuses": ["pending", "approved", "rejected", "executing", "executed", "failed", "expired"]}
 
     @post("/pending")
     async def queue_operation(data: QueueOperationRequest) -> dict[str, Any]:
