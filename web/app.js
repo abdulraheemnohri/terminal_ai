@@ -104,6 +104,8 @@ async function loadSettings(){
   $("setting-provider").value=data.active_provider||"gemini";
   $("setting-model").value=data.provider_model||"";
   $("setting-endpoint").value=data.custom_base_url||"";
+  $("setting-browser-domains").value=(data.browser_allowed_domains||[]).join("\n");
+  try{const browser=await api("/api/browser/status");$("browser-config-status").textContent=browser.enabled?("Allowlist configured: "+browser.allowed_domain_count+" domain(s) · Playwright "+(browser.playwright_installed?"installed":"not installed")+" · actions disabled pending secure dispatch"):"Browser disabled · no domains configured";}catch(e){$("browser-config-status").textContent="Browser status unavailable: "+e.message;}
   $("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";
   $("setting-critique").checked=!!data.self_critique;
   $("setting-agentic-persona").value=data.agentic_persona||"helpful";
@@ -215,6 +217,7 @@ $("settings-form").addEventListener("submit",async e=>{
   await api("/api/settings",{method:"PATCH",body:JSON.stringify({
    mode:$("setting-mode").value,active_provider:$("setting-provider").value,
    provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
+   browser_allowed_domains:$("setting-browser-domains").value.split(/[\\n,]+/).map(x=>x.trim()).filter(Boolean),
    api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
    self_critique:$("setting-critique").checked,
    agentic_persona:$("setting-agentic-persona").value,
