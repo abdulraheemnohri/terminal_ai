@@ -109,6 +109,12 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             signals = analyze_task(goal, evidence_available=evidence_available)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        learning_decision = learning_store.recommend(str(signals["task_type"]), str(signals["algorithm"]))
+        signals["default_algorithm"] = signals["algorithm"]
+        signals["algorithm"] = learning_decision["algorithm"]
+        signals["learning"] = learning_decision
+        if learning_decision["adapted"]:
+            signals["reasons"] = list(signals["reasons"]) + ["selected:reviewed-outcome-learning"]
         result = planner.plan(goal, complexity=complexity, risk=risk,
                               has_external_side_effects=side_effects)
         control.audit("agentic", "plan.created", goal[:160], {
