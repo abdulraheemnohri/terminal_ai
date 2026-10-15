@@ -11,6 +11,8 @@ def test_dashboard_returns_html():
     assert "AI Chat" in response.text
     assert "overview-health" in response.text
     assert "overview-checklist" in response.text
+    assert "Human approval gate" in response.text
+    assert "Reviewer note (optional, saved to audit history)" in response.text
     assert "LOCAL-FIRST AGENT CONTROL CENTER" in response.text
 
 
