@@ -2609,7 +2609,7 @@ class Agent:
         self.allowed_tool_names = set(allowed_tool_names) if allowed_tool_names is not None else None
         self.agentic_planning = bool(agentic_planning)
         self.agentic_recovery = bool(agentic_recovery)
-        self.persona = persona if persona in {"helpful", "technical", "coach", "concise", "creative"} else "helpful"
+        self.persona = persona if persona in {"helpful", "technical", "coach", "concise", "creative", "roleplay"} else "helpful"
         self.max_recovery_attempts = 2
         self._turn_count = 0
         self.critic = Critic(backend, enabled=self_critique)
