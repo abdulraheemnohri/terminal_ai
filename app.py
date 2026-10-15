@@ -47,6 +47,12 @@ _DOWNLOAD_LOCK = threading.Lock()
 # Bounded in-memory execution traces for debugging chat reliability. No prompt text or secrets are stored here.
 CHAT_RUNS: list[dict[str, Any]] = []
 _CHAT_RUNS_LOCK = threading.Lock()
+# Browser agent tools are intentionally read-only. Writes, deletes, shell,
+# environment mutation, tool forging and network fetches remain unavailable here.
+AGENTIC_SAFE_TOOLS = {
+    "now", "sys_info", "find_files", "read_lines", "list_dir", "read_file",
+    "grep_files", "search_memory", "query_graph", "list_goals", "read_journal", "done",
+}
 _LONG_MEMORY = MemoryStore(core.STATE_DIR / "long_term_memory.sqlite3")
 _WORKSPACE_TOOLS = WorkspaceTools(ROOT)
 _TASK_SCHEDULER = TaskScheduler(core.STATE_DIR / "scheduled_tasks.sqlite3")
@@ -73,6 +79,9 @@ def _read_settings() -> dict[str, Any]:
         "self_critique": False,
         "proactive": False,
         "max_ctx_chars": 12000,
+        "agentic_planning_enabled": True,
+        "agentic_recovery_enabled": True,
+        "agentic_persona": "helpful",
         "long_term_memory_enabled": True,
         "conversation_archive_enabled": True,
         "workspace_tools_enabled": True,
@@ -121,7 +130,7 @@ def _read_settings() -> dict[str, Any]:
     # Treat the on-disk file as untrusted input too: recover safely from manual edits
     # or interrupted writes rather than allowing malformed values to break workers.
     bool_keys = (
-        "self_critique", "proactive", "self_reflection_enabled", "learning_enabled",
+        "self_critique", "proactive", "agentic_planning_enabled", "agentic_recovery_enabled", "self_reflection_enabled", "learning_enabled",
         "self_improvement_enabled", "auto_extract_skills", "tool_approval_required",
         "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled",
         "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
@@ -154,6 +163,8 @@ def _read_settings() -> dict[str, Any]:
         value = defaults.get(key)
         defaults[key] = value.strip()[:limit] if isinstance(value, str) else base_defaults.get(key, fallback)
 
+    if defaults.get("agentic_persona") not in {"helpful", "technical", "coach", "concise", "creative"}:
+        defaults["agentic_persona"] = "helpful"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
@@ -283,7 +294,11 @@ def _build_agent() -> core.Agent:
             "Be accurate, concise, and transparent about uncertainty. Describe self-awareness only as operational state and reflection; "
             "do not claim sentience or subjective experience. Never grant yourself new permissions."
         ),
-        autonomy=0,  # tools are disabled by default in the browser interface
+        autonomy=2,  # bounded multi-turn calls, restricted to read-only tools below
+        allowed_tool_names=AGENTIC_SAFE_TOOLS,
+        agentic_planning=bool(settings_data.get("agentic_planning_enabled", True)),
+        agentic_recovery=bool(settings_data.get("agentic_recovery_enabled", True)),
+        persona=str(settings_data.get("agentic_persona", "helpful")),
         self_critique=bool(settings_data.get("self_critique", False)),
         proactive=bool(settings_data.get("proactive", False)),
         max_ctx_chars=int(settings_data.get("max_ctx_chars", 12000)),
@@ -1217,6 +1232,7 @@ async def get_settings() -> dict[str, Any]:
 async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     allowed_settings = {
         "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
+        "agentic_planning_enabled", "agentic_recovery_enabled", "agentic_persona",
         "provider_model", "custom_base_url", "self_identity", "self_mission",
         "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
@@ -1265,6 +1281,11 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if base_url and not base_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
             raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
         current["custom_base_url"] = base_url[:500]
+    if "agentic_persona" in data:
+        persona = data["agentic_persona"]
+        if not isinstance(persona, str) or persona not in {"helpful", "technical", "coach", "concise", "creative"}:
+            raise HTTPException(status_code=400, detail="agentic_persona must be helpful, technical, coach, concise, or creative.")
+        current["agentic_persona"] = persona
     if "self_identity" in data:
         if not isinstance(data["self_identity"], str):
             raise HTTPException(status_code=400, detail="self_identity must be text.")
@@ -1276,7 +1297,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
     for setting_key in (
-        "self_critique", "proactive", "learning_enabled", "self_improvement_enabled",
+        "self_critique", "proactive", "agentic_planning_enabled", "agentic_recovery_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
         "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
@@ -1364,6 +1385,9 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         _AGENT.critic.enabled = _AGENT.self_critique
         _AGENT.proactive = bool(current.get("proactive", False))
         _AGENT.max_ctx_chars = int(current.get("max_ctx_chars", 12000))
+        _AGENT.agentic_planning = bool(current.get("agentic_planning_enabled", True))
+        _AGENT.agentic_recovery = bool(current.get("agentic_recovery_enabled", True))
+        _AGENT.persona = str(current.get("agentic_persona", "helpful"))
     from api_provider_backend import PROVIDERS
     provider_status = {pid: bool(os.environ.get(info["env"])) for pid, info in PROVIDERS.items()}
     provider_status["gemini"] = _gemini_key() is not None
