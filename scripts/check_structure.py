@@ -37,12 +37,23 @@ def main() -> int:
         *(f"file: {name}" for name in REQUIRED_FILES if not (ROOT / name).is_file()),
         *(f"directory: {name}" for name in REQUIRED_DIRS if not (ROOT / name).is_dir()),
     ]
+    # Keep a forwarding entrypoint in scripts/ for every legacy root-level shell
+    # or PowerShell script, while preserving the original commands for compatibility.
+    legacy_scripts = [
+        path.name for path in ROOT.iterdir()
+        if path.is_file() and path.suffix.lower() in {".sh", ".ps1"}
+    ]
+    missing.extend(
+        f"scripts catalog entrypoint: scripts/{name}"
+        for name in legacy_scripts
+        if not (ROOT / "scripts" / name).is_file()
+    )
     if missing:
         print("Project structure check failed:")
         for item in missing:
             print(f"  - missing {item}")
         return 1
-    print(f"Project structure OK: {len(REQUIRED_FILES)} required files and {len(REQUIRED_DIRS)} required directories present.")
+    print(f"Project structure OK: {len(REQUIRED_FILES)} required files, {len(REQUIRED_DIRS)} required directories, and {len(legacy_scripts)} legacy script entrypoints indexed.")
     return 0
 
 
