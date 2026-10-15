@@ -356,3 +356,21 @@ On Windows, the equivalent opt-in weekly task is installed from PowerShell with 
 ### Termux boot startup
 
 For Android/Termux, automatic start requires the separate Termux:Boot add-on. Open that add-on once, then run `mkdir -p ~/.termux/boot && cp termux-boot/com.terminal-ai.start.sh ~/.termux/boot/ && chmod 700 ~/.termux/boot/com.terminal-ai.start.sh`. Edit `PROJECT_DIR` in the copied script if your checkout is elsewhere. It starts the server on localhost and logs to `~/.terminal_ai/logs/termux-server.log`. It does not enable unattended project or OS updates.
+
+
+## Automatic startup and safe updates
+
+Install Terminal AI as a user service after running the normal installer:
+
+- **Linux (systemd):** `sh scripts/install-service.sh` — starts at user login and restarts on failure. For boot before login, use `TERMINAL_AI_ENABLE_LINGER=1 sh scripts/install-service.sh` only on a machine/account you administer; system policy may require approval.
+- **macOS (launchd):** `sh scripts/install-service.sh` — installs a LaunchAgent that starts at login and keeps the server alive.
+- **Windows (Task Scheduler):** run `.\\scripts\\install-service.ps1` from PowerShell after installation; it starts at logon and retries failures.
+- **Termux:** install Termux:Boot and follow [the deployment guide](docs/DEPLOYMENT.md).
+
+The service defaults to `127.0.0.1:8000`. Keep it local unless you add authentication, TLS, and network access controls. Startup installation is explicit; the package installer does not silently register a persistent background service.
+
+Update checking is advisory. Review changes before applying them. On Linux/macOS, `sh scripts/update.sh` makes a source bundle backup, refuses a dirty/non-fast-forward checkout, updates dependencies, compiles the code, runs tests, and restarts a managed service if found. It is not scheduled to apply unattended updates. See [Production deployment](docs/DEPLOYMENT.md).
+
+## Production scope and compatibility
+
+Terminal AI implements selected ChatGPT-like UX patterns (multi-turn sessions, provider/model selection, memory, settings, tool-mediated workflows) and Hermes/OpenClaw-inspired agent patterns (structured tool calls, bounded planning/recovery, skills, scheduled work, workspace controls and event/audit visibility). It is **not** a feature-complete clone of ChatGPT, Hermes, or OpenClaw. Availability depends on the configured provider/model and platform. The local-first runtime intentionally avoids unrestricted autonomous shell execution and does not expose private chain-of-thought; the live feed reports operational plans/stages, tool activity, errors and outcomes. See [architecture](docs/ARCHITECTURE.md) and [refactor plan](docs/ARCHITECTURE_REFACTOR.md).
