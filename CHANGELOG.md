@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — tracked task lifecycle and documentation refresh
+
+- Add a persistent, bounded task lifecycle ledger for plan, existing-operation link, execution-status sync, verification evidence, and reviewed outcome.
+- Add agentic task API endpoints and Self-X UI controls; plan creation and operation linking do not dispatch tools or approve operations.
+- Require a linked operation to be recorded as executed before verification, and a passing verification before learning review.
+- Add regression tests for lifecycle transitions, blocked premature verification, failed verification handling, and one-time operation linking.
+- Replace the duplicated README with a modern guide covering features, architecture, cross-platform setup, provider configuration, local inference, task lifecycle, API, security, and deployment.
+- Expand the agentic API guide and architecture map with lifecycle routes, request examples, state boundaries, and operational caveats.
+
 ## Unreleased — deployment and operational readiness
 
 - Add explicit Linux systemd/macOS launchd startup installation, Windows Task Scheduler startup, and optional Termux:Boot entry point.
