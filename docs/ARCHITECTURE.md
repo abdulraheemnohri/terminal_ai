@@ -31,6 +31,7 @@
 | Scheduler | GET/POST /api/scheduled-tasks, PATCH /api/scheduled-tasks/{id} | Create, pause, resume and delete built-in maintenance tasks |
 | Self-X | GET /api/selfx/status, POST /api/selfx/maintenance/run | Diagnostics, evaluation, checkpointing and guarded maintenance |
 | Settings | GET/PATCH /api/settings, POST /api/ai/settings/propose | Validated settings, reviewed AI proposals, explicit application |
+| Health | GET /healthz, GET /readyz | Liveness and readiness checks for process supervisors |
 
 ## Offline guarantees and boundaries
 - SQLite knowledge and lexical search are local and do not call a model or web service.
