@@ -1,3 +1,10 @@
+## Unreleased — local approved browser dispatch
+
+- Add a trusted local-only dispatch service and CLI for browser operations already approved in Command Control.
+- Require an explicit `--confirm`, configured domain allowlist, an unused human approval, and an allowlisted `browser.*` tool name.
+- Consume approvals once, record execution outcomes, close browser resources, and keep browser execution unavailable through the web API.
+- Add tests for missing confirmation, missing allowlist, unapproved and non-browser operations, successful one-shot dispatch, and replay prevention.
+
 ## Unreleased — browser settings regression coverage
 
 - Extend web-app tests for configured browser status, normalized/deduplicated domain settings, malformed entry types, and the 50-domain cap.
