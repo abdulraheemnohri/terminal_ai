@@ -55,3 +55,10 @@ def test_recovery_prompt_does_not_echo_exception_message():
     assert "RuntimeError" in value
     assert "do-not-leak" not in value
     assert "verified" in value
+
+def test_parse_tool_calls_supports_nested_json():
+    from terminal_ai import parse_tool_calls
+
+    text = '<tool_call>{"name":"remember","args":{"key":"profile","value":{"nested":[1,2]}}}</tool_call>'
+    calls = parse_tool_calls(text)
+    assert calls == [{"name": "remember", "args": {"key": "profile", "value": {"nested": [1, 2]}}}]
