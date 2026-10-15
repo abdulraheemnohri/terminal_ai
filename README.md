@@ -335,3 +335,7 @@ Open `http://127.0.0.1:8000`. The service restarts after a process failure. Andr
 - Windows PowerShell: `./update.ps1`
 
 The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default; no background updater silently changes code.
+
+### macOS
+
+After installation, run `sh install-launchagent.sh` to start the server at login and keep it running. Remove it with `sh uninstall-launchagent.sh`. Logs are written to `~/Library/Logs/terminal-ai.log` and `terminal-ai-error.log`.
