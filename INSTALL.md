@@ -167,8 +167,19 @@ Use `sh start-server.sh` on Linux/macOS/WSL or `./start-server.ps1` in PowerShel
 - Linux/macOS/WSL: `sh update.sh`
 - Windows PowerShell: `./update.ps1`
 
-The helper stops if the Git working tree has local changes, uses fast-forward-only updates, installs the project's Python requirements, checks dependency consistency and Python syntax, runs tests, and restarts the configured service/task when detected. Review backups before updating. It updates the **project**, not the operating system; use the OS's normal trusted security-update mechanism for system packages. Automatic silent code updates are not enabled.
+The helper stops if the Git working tree has local changes, uses fast-forward-only updates, installs the project's Python requirements, checks dependency consistency and Python syntax, runs tests, and restarts the configured service/task when detected. Review backups before updating. It updates the **project**, not the operating system; use the OS's normal trusted security-update mechanism for system packages. Automatic project updates are off by default. On Linux/systemd, opt in with `sh install-auto-update.sh`; disable with `sh uninstall-auto-update.sh`. The weekly timer runs the guarded updater, which fast-forwards `origin/main`, installs dependencies, runs checks/tests and restarts the user service if configured. This updates Terminal AI only, not operating-system packages. Windows and macOS updates are manual. Review the Git remote and rollback policy before enabling unattended source updates.
 
 ### macOS
 
 Run `sh install-launchagent.sh` to register a per-user LaunchAgent that starts at login and restarts the server if it exits. Remove it with `sh uninstall-launchagent.sh`. Logs are stored under `~/Library/Logs/`.
+
+
+### Optional weekly automatic project updates (Linux/systemd only)
+
+1. Review the source repository and make sure the working tree is clean.
+2. Run `sh install-auto-update.sh` from the repository root.
+3. Check the timer with `systemctl --user list-timers terminal-ai-update.timer`.
+4. Inspect logs with `journalctl --user -u terminal-ai-update.service`.
+5. Disable with `sh uninstall-auto-update.sh`.
+
+The timer runs weekly on Sunday at approximately 04:30 local system time. A user timer normally runs while the user manager is active; running before login may require enabling systemd lingering. Automatic source/dependency updates can break an installation, so keep backups and do not enable them on sensitive systems without a recovery plan. OS security updates must be configured separately using the operating system's trusted update mechanism.
