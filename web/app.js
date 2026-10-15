@@ -129,6 +129,19 @@ $("apply-update").addEventListener("click",async()=>{
  finally{b.disabled=true;b.textContent="Apply available update";}
 });
 
+$("run-maintenance-now").addEventListener("click",async()=>{
+ const button=$("run-maintenance-now"),result=$("maintenance-run-result");
+ if(!confirm("Run one local Self-X maintenance cycle now? It may create a checkpoint and diagnostic goals according to your current profile."))return;
+ button.disabled=true;button.textContent="Running local checks…";result.textContent="Working…";$("settings-error").textContent="";
+ try{
+  const data=await api("/api/selfx/maintenance/run",{method:"POST"});
+  result.textContent=data.summary+(data.checkpoint_id?" · checkpoint "+data.checkpoint_id:"")+
+   ((data.created_goals||[]).length?" · goals: "+data.created_goals.join(", "):"");
+  await loadSelfX();await loadStatus();await loadSettings();
+ }catch(err){result.textContent="Maintenance failed."; $("settings-error").textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Run safe maintenance cycle now";}
+});
+
 $("reset-autonomy-settings").addEventListener("click",async()=>{
  if(!confirm("Reset autonomy to safe defaults? This disables autonomous maintenance and goal generation. Other model and provider settings will remain unchanged."))return;
  const button=$("reset-autonomy-settings");button.disabled=true;$("settings-error").textContent="";
