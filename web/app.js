@@ -3,7 +3,7 @@ let statusData=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -271,6 +271,52 @@ async function loadSelfX(){
   $("selfx-recovery-error").textContent="";
  }catch(e){$("selfx-recovery-error").textContent=e.message;}
 }
+async function loadAgenticConsole(){
+ const showError=(id,error)=>{const node=$(id);if(node)node.textContent=error?error.message:"";};
+ showError("agentic-console-error",null);
+ const results=await Promise.allSettled([
+  api("/api/agentic/status"),
+  api("/api/agentic/learning/summary"),
+  api("/api/agentic/world-model"),
+  api("/api/control/pending?status=pending&limit=100")
+ ]);
+ const [status,learning,world,pending]=results;
+ if(status.status==="fulfilled"){
+  $("agentic-world-count").textContent=String(status.value.world_facts??(world.status==="fulfilled"?world.value.count:"—"));
+  $("agentic-learning-count").textContent=String(status.value.learning_records??(learning.status==="fulfilled"?learning.value.count:"—"));
+ }else showError("agentic-console-error",status.reason);
+ if(pending.status==="fulfilled")$("agentic-pending-count").textContent=String((pending.value.operations||[]).length);
+ else $("agentic-pending-count").textContent="Unavailable";
+ if(learning.status==="fulfilled"){
+  const groups=learning.value.groups||[];
+  $("agentic-learning-summary").innerHTML='<div class="list-item"><b>Verified outcomes: '+escapeHtml(learning.value.count??0)+'</b><p>Retained records: '+escapeHtml(learning.value.retained??learning.value.count??0)+'. Learning changes recommendations only; it cannot grant permissions.</p></div>'+
+   (groups.length?groups.slice(0,8).map(g=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(g.task_type)+' · '+escapeHtml(g.algorithm)+'</b><span class="badge">'+escapeHtml(g.samples)+' reviewed</span></div><p>Success score: '+escapeHtml(Number(g.success_score||0).toFixed(2))+' · Average rating: '+escapeHtml(Number(g.average_rating||0).toFixed(1))+'/5</p></div>').join(""):'<div class="empty">No reviewed outcome groups yet. Only explicitly verified outcomes are eligible for learning.</div>');
+ }else $("agentic-learning-summary").innerHTML='<div class="error">'+escapeHtml(learning.reason.message)+'</div>';
+ if(world.status==="fulfilled"){
+  const facts=world.value.facts||[];$("agentic-world-count").textContent=String(world.value.count??facts.length);
+  $("agentic-world-list").innerHTML=facts.length?facts.slice(0,100).map(f=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(f.subject)+' · '+escapeHtml(f.predicate)+'</b><span class="badge">'+escapeHtml(Number(f.confidence||0).toFixed(2))+' confidence</span></div><p>'+escapeHtml(JSON.stringify(f.value))+'</p><p class="muted">Source: '+escapeHtml(f.source||"unknown")+' · Observed: '+escapeHtml(new Date(f.observed_at*1000).toLocaleString())+(f.expires_at?' · Expires: '+escapeHtml(new Date(f.expires_at*1000).toLocaleString()):' · No expiry')+'</p></div>').join(""):'<div class="empty">No observations recorded. Add evidence with the form above.</div>';
+ }else $("agentic-world-list").innerHTML='<div class="error">'+escapeHtml(world.reason.message)+'</div>';
+}
+$("agentic-console-refresh").addEventListener("click",loadAgenticConsole);
+$("agentic-world-refresh").addEventListener("click",loadAgenticConsole);
+$("agentic-plan-form").addEventListener("submit",async e=>{
+ e.preventDefault();const b=$("agentic-plan-submit");b.disabled=true;b.textContent="Planning…";$("agentic-plan-error").textContent="";
+ try{
+  const result=await api("/api/agentic/plan",{method:"POST",body:JSON.stringify({goal:$("agentic-plan-goal").value,risk:$("agentic-plan-risk").value,complexity:Number($("agentic-plan-complexity").value),has_external_side_effects:false,evidence_available:false})});
+  const p=result.plan,signals=p.adaptive_signals||{};
+  $("agentic-plan-result").innerHTML='<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(p.strategy)+' · '+escapeHtml(p.risk)+' risk</b><span class="badge">'+(p.needs_approval?"Approval required":"Review before action")+'</span></div><p>'+escapeHtml(p.rationale)+'</p><p class="muted">Task family: '+escapeHtml(signals.task_type||"unknown")+' · Algorithm: '+escapeHtml(signals.algorithm||"default")+' · Execution started: No</p><ol>'+(p.steps||[]).map(step=>'<li>'+escapeHtml(step)+'</li>').join("")+'</ol></div>';
+ }catch(err){$("agentic-plan-error").textContent=err.message;}
+ finally{b.disabled=false;b.textContent="Preview adaptive plan";}
+});
+$("agentic-world-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("agentic-world-error").textContent="";
+ let value;try{value=JSON.parse($("agentic-world-value").value);}catch(_){$("agentic-world-error").textContent="Observation value must be valid JSON.";return;}
+ const ttlText=$("agentic-world-ttl").value;
+ const payload={subject:$("agentic-world-subject").value,predicate:$("agentic-world-predicate").value,value,source:$("agentic-world-source").value,confidence:Number($("agentic-world-confidence").value)};
+ if(ttlText!=="")payload.ttl_seconds=Number(ttlText);
+ try{await api("/api/agentic/world-model/observe",{method:"POST",body:JSON.stringify(payload)});$("agentic-world-value").value="";await loadAgenticConsole();}
+ catch(err){$("agentic-world-error").textContent=err.message;}
+});
 $("selfx-refresh").addEventListener("click",loadSelfX);
 $("selfx-diagnose").addEventListener("click",async()=>{
  const b=$("selfx-diagnose");b.disabled=true;b.textContent="Checking…";
