@@ -338,7 +338,7 @@ Open `http://127.0.0.1:8000`. The service restarts after a process failure. Andr
 - Linux/macOS/WSL: `sh update.sh`
 - Windows PowerShell: `./update.ps1`
 
-The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default. On Linux with systemd, weekly project updates can be explicitly enabled with `sh install-auto-update.sh`; remove the timer with `sh uninstall-auto-update.sh`. This pulls code and dependencies from `origin/main`, so enable it only after reviewing the repository and your rollback policy.
+The update helper refuses to run with uncommitted changes, performs a fast-forward-only Git update, refreshes Python dependencies, checks dependencies and syntax, and runs tests before restarting a configured service. Review and back up local state before updating. These scripts update **Terminal AI only**, not the host operating system. OS security updates should be managed through the operating system's own trusted update mechanism. Updates are manual by default. On Linux with systemd, weekly project updates can be explicitly enabled with `sh install-auto-update.sh`; remove the timer with `sh uninstall-auto-update.sh`. This pulls code and dependencies from `origin/main`, so enable it only after reviewing the repository and your rollback policy. macOS can opt in with `sh install-auto-update-macos.sh` and disable with `sh uninstall-auto-update-macos.sh`; its LaunchAgent runs Sundays at 04:30 while the user is logged in. Windows can opt in with `./install-auto-update.ps1` and disable with `./uninstall-auto-update.ps1`. These helpers update Terminal AI only, not OS packages.
 
 ### macOS
 
@@ -347,7 +347,12 @@ After installation, run `sh install-launchagent.sh` to start the server at login
 
 ### Optional weekly automatic project updates (Linux/systemd)
 
-After reviewing the update policy, run `sh install-auto-update.sh`. The user timer runs the existing guarded `update.sh` every Sunday around 04:30 local system time; it refuses a dirty working tree and runs dependency, syntax, and test checks. Disable it with `sh uninstall-auto-update.sh`. This updates Terminal AI, **not Linux or other operating-system packages**. For the timer to run before login, systemd user lingering may be needed; use it only if you understand its lifecycle implications. On Windows, opt in with `./install-auto-update.ps1` and remove the task with `./uninstall-auto-update.ps1`; the current user must be signed in for the scheduled task to run. macOS updates remain manual in this release.
+After reviewing the update policy, run `sh install-auto-update.sh`. The user timer runs the existing guarded `update.sh` every Sunday around 04:30 local system time; it refuses a dirty working tree and runs dependency, syntax, and test checks. Disable it with `sh uninstall-auto-update.sh`. This updates Terminal AI, **not Linux or other operating-system packages**. For the timer to run before login, systemd user lingering may be needed; use it only if you understand its lifecycle implications. On Windows, opt in with `./install-auto-update.ps1` and remove the task with `./uninstall-auto-update.ps1`; the current user must be signed in for the scheduled task to run. macOS updates can be enabled with `sh install-auto-update-macos.sh` and disabled with `sh uninstall-auto-update-macos.sh`. The macOS updater restarts the configured Terminal AI LaunchAgent after successful checks.
 
 
 On Windows, the equivalent opt-in weekly task is installed from PowerShell with `./install-auto-update.ps1` and removed with `./uninstall-auto-update.ps1`. It runs only while the current user is signed in. macOS automatic project updates are not configured by these scripts.
+
+
+### Termux boot startup
+
+For Android/Termux, automatic start requires the separate Termux:Boot add-on. Open that add-on once, then run `mkdir -p ~/.termux/boot && cp termux-boot/com.terminal-ai.start.sh ~/.termux/boot/ && chmod 700 ~/.termux/boot/com.terminal-ai.start.sh`. Edit `PROJECT_DIR` in the copied script if your checkout is elsewhere. It starts the server on localhost and logs to `~/.terminal_ai/logs/termux-server.log`. It does not enable unattended project or OS updates.
