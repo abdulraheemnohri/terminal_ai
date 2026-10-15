@@ -178,6 +178,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         }:
             raise HTTPException(status_code=400, detail="Invalid task status.")
         items = task_lifecycle.list(limit, status)
+        for item in items:
+            item["recovery_proposals"] = recovery_store.list_for_task(item["id"])
         return {"tasks": items, "count": len(items), "execution_started": False}
 
     @get("/tasks/{task_id:str}")
@@ -192,6 +194,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
                     task = task_lifecycle.sync_operation(task_id, operation)
                 except ValueError:
                     pass
+        task["recovery_proposals"] = recovery_store.list_for_task(task_id)
         return {"task": task, "execution_started": False}
 
     @post("/tasks/{task_id:str}/operation")
