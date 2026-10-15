@@ -217,7 +217,7 @@ $("settings-form").addEventListener("submit",async e=>{
   await api("/api/settings",{method:"PATCH",body:JSON.stringify({
    mode:$("setting-mode").value,active_provider:$("setting-provider").value,
    provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
-   browser_allowed_domains:$("setting-browser-domains").value.split(/[\\n,]+/).map(x=>x.trim()).filter(Boolean),
+   browser_allowed_domains:$("setting-browser-domains").value.split(String.fromCharCode(10)).flatMap(x=>x.split(",")).map(x=>x.trim()).filter(Boolean),
    api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
    self_critique:$("setting-critique").checked,
    agentic_persona:$("setting-agentic-persona").value,
