@@ -3,7 +3,8 @@
 - Normalize internationalized DNS names and reject wildcard, URL-shaped, IP-literal, and malformed allowlist entries.
 - Convert malformed URL authorities and ports into explicit policy rejections before DNS resolution.
 - Add regression tests for malformed URLs, allowlist edge cases, and DNS responses resolving to private addresses.
-- Document that DNS validation is defense-in-depth and network egress controls are still required against DNS rebinding.
+- Add `application/browser_runtime.py` to wire the optional Playwright adapter into `ToolRegistry`, exposing only implemented handlers and preserving approval requirements for state-changing browser tools.
+- Add registry-wiring tests and document that DNS validation is defense-in-depth; network egress controls are still required against DNS rebinding.
 
 ## Unreleased — reviewed recovery learning
 
