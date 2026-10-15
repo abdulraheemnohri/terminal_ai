@@ -1,5 +1,6 @@
 const $=id=>document.getElementById(id);
 let statusData=null;
+let apiReachable=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
@@ -74,11 +75,9 @@ if($("overview-browser-refresh"))$("overview-browser-refresh").addEventListener(
 
 async function loadStatus(){
  try{
-  const previousReady=statusData?Boolean(statusData.ready):null;
   statusData=await api("/api/status");
-  if(previousReady!==null&&previousReady!==Boolean(statusData.ready)){
-   showToast(Boolean(statusData.ready)?"Terminal AI is back online.":"Terminal AI needs attention.","status");
-  }
+  if(apiReachable===false)showToast("Terminal AI API is back online.","status");
+  apiReachable=true;
   loadBrowserOverview();
   const ready=Boolean(statusData.ready);
   $("status-label").textContent=ready?"System online":"Setup required";
@@ -114,6 +113,8 @@ async function loadStatus(){
   $("system-error").textContent=statusData.error||"";
   $("storage-list").innerHTML=[["State",statusData.state_dir],["Models",localModels.length+" found"],["Interface","Litestar + HTML/CSS/JS"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
  }catch(e){
+  if(apiReachable===true)showToast("Terminal AI API is unavailable.","error");
+  apiReachable=false;
   $("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;
   if($("overview-health"))$("overview-health").innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';
  }
