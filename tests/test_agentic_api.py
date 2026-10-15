@@ -369,6 +369,11 @@ def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
         assert proposals.status_code == 200
         current = next(p for p in proposals.json()["proposals"] if p["id"] == proposal_id)
         assert current["new_operation_status"] == "executed"
+        task_list = client.get("/api/agentic/tasks?limit=50")
+        assert task_list.status_code == 200
+        listed_task = next(t for t in task_list.json()["tasks"] if t["id"] == task_id)
+        listed_proposal = next(p for p in listed_task["recovery_proposals"] if p["id"] == proposal_id)
+        assert listed_proposal["new_operation_status"] == "executed"
 
         premature = client.post(
             f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
