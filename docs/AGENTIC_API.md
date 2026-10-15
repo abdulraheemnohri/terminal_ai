@@ -126,6 +126,7 @@ Allowed outcomes are `success`, `partial`, and `failure`; rating is an integer f
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review` — explicitly approve replanning or reject a proposal.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/operation` — create a fresh pending Command Control operation from an approved proposal.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify` — record verification after the new operation is recorded as executed.
+- `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome` — explicitly review a passing verified recovery and write an idempotent learning record.
 
 Create request:
 
@@ -166,3 +167,14 @@ The `tool` and `operation` names must match a dispatchable registered tool. The 
 ```
 
 Evidence must be non-empty and at most 4,000 characters. Verification can be recorded once and is stored on the recovery proposal as `verified` or `verification_failed`. The operator-supplied evidence is an attestation, not cryptographic proof. A failed verification does not trigger another retry; create and review a separate recovery proposal within the existing attempt limit.
+
+
+### Review a verified recovery outcome for learning
+
+`POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome`
+
+```json
+{"outcome":"success","rating":4,"reviewer":"operator","note":"Recovery health check passed"}
+```
+
+This endpoint requires a recorded passing recovery verification and a human-supplied outcome (`success`, `partial`, or `failure`) plus a rating from 1 to 5. The outcome is stored in the bounded learning ledger using a unique recovery reference, so repeating the same request does not create duplicate learning records. Reusing that reference with different outcome/rating values is rejected. A reviewed recovery is not re-reviewed; learning still affects recommendations only and never grants permissions. Verification evidence remains an operator attestation, not cryptographic proof.
