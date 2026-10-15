@@ -81,6 +81,10 @@ async function loadSettings(){
   $("setting-self-checkpoint").checked=data.self_auto_checkpoint!==false;
   $("setting-checkpoint-retention").value=data.self_checkpoint_retention||10;
   $("setting-evaluation-interval").value=data.self_evaluation_interval_hours||24;
+  $("setting-autonomy-profile").value=data.self_autonomy_profile||"maintain";
+  $("setting-checkpoint-interval").value=data.self_checkpoint_interval_hours||24;
+  $("setting-goal-generation").checked=data.self_goal_generation_enabled!==false;
+  $("setting-max-goals").value=data.self_max_goals_per_cycle||3;
   $("setting-tool-approval").checked=data.tool_approval_required!==false;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
@@ -151,6 +155,10 @@ $("settings-form").addEventListener("submit",async e=>{
    self_auto_checkpoint:$("setting-self-checkpoint").checked,
    self_checkpoint_retention:Number($("setting-checkpoint-retention").value),
    self_evaluation_interval_hours:Number($("setting-evaluation-interval").value),
+   self_autonomy_profile:$("setting-autonomy-profile").value,
+   self_checkpoint_interval_hours:Number($("setting-checkpoint-interval").value),
+   self_goal_generation_enabled:$("setting-goal-generation").checked,
+   self_max_goals_per_cycle:Number($("setting-max-goals").value),
    tool_approval_required:$("setting-tool-approval").checked
   })});
   $("setting-hf-token").value="";
