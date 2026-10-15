@@ -252,3 +252,5 @@ body.command-open{overflow:hidden}
  .command-dialog{animation:command-in .16s ease-out}
  @keyframes command-in{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
 }
+
+.badge.success{border-color:#78e6ad55;background:#78e6ad12;color:var(--green)}
