@@ -38,9 +38,14 @@ class LearningStore:
                     outcome TEXT NOT NULL,
                     rating INTEGER NOT NULL,
                     verified INTEGER NOT NULL CHECK (verified = 1),
-                    created_at REAL NOT NULL
+                    created_at REAL NOT NULL,
+                    source_ref TEXT
                 )
             """)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(task_outcomes)").fetchall()}
+            if "source_ref" not in columns:
+                conn.execute("ALTER TABLE task_outcomes ADD COLUMN source_ref TEXT")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_task_outcomes_source_ref ON task_outcomes(source_ref)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_task_outcomes_family_algorithm ON task_outcomes(task_type, algorithm)")
             conn.commit()
 
@@ -67,12 +72,12 @@ class LearningStore:
             if source_ref:
                 existing = conn.execute("SELECT * FROM task_outcomes WHERE source_ref=?", (source_ref,)).fetchone()
                 if existing is not None:
-                    if (existing["task_type"], existing["algorithm"], existing["outcome"], existing["rating"]) != (task_type, algorithm, outcome, rating):
+                    if (existing[1], existing[2], existing[3], existing[4]) != (task_type, algorithm, outcome, rating):
                         raise ValueError("source_ref was already used for a different reviewed outcome")
-                    return {"id": existing["id"], "task_type": existing["task_type"],
-                            "algorithm": existing["algorithm"], "outcome": existing["outcome"],
-                            "rating": existing["rating"], "verified": True,
-                            "created_at": existing["created_at"], "source_ref": source_ref,
+                    return {"id": existing[0], "task_type": existing[1],
+                            "algorithm": existing[2], "outcome": existing[3],
+                            "rating": existing[4], "verified": True,
+                            "created_at": existing[6], "source_ref": source_ref,
                             "idempotent_replay": True}
             conn.execute(
                 "INSERT INTO task_outcomes(task_type, algorithm, outcome, rating, verified, created_at, source_ref) VALUES(?,?,?,?,1,?,?)",
