@@ -2,6 +2,17 @@
 
 Terminal AI is a Python agent served through a Litestar web dashboard. The browser UI is the primary interface; `terminal_ai.py` is the internal agent engine imported by `app.py`.
 
+## Autonomy profiles and redesigned settings
+
+The Settings workspace groups runtime/model configuration, Self-X autonomy, and safety controls. The API validates types and ranges, rejects unknown keys, and keeps secret values out of settings responses. AI proposals can include only whitelisted settings and remain unapplied until the user reviews and confirms them.
+
+- **Observe:** local diagnostics and deterministic evaluation only; no scheduled checkpoint creation or automatic diagnostic-goal generation.
+- **Maintain:** diagnostics/evaluation plus scheduled local recovery checkpoints, subject to the checkpoint interval and retention settings.
+- **Goal-driven:** Maintain behavior plus deduplicated goals from failed local diagnostics, capped by the per-cycle goal limit.
+- **Safe reset:** disables autonomous maintenance, selects Observe, disables automatic goal generation, and keeps risky-tool approval enabled without changing provider/model settings.
+
+All profiles remain local and bounded. They do not enable arbitrary command execution, automatic source edits, permission escalation, dependency installation, cloud-provider switching, or model-weight training.
+
 ## Self-X Evolution Engine
 
 The **Self-X** web dashboard adds operational self-identity/status, local diagnostics, deterministic readiness evaluation, an unverified research notebook, and state recovery checkpoints.
