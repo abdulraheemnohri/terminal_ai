@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — deployment and operational readiness
+
+- Add explicit Linux systemd/macOS launchd startup installation, Windows Task Scheduler startup, and optional Termux:Boot entry point.
+- Add a guarded Linux/macOS updater with source-bundle backup, fast-forward-only Git updates, dependency installation, compilation, tests, and managed-service restart.
+- Add liveness (`/healthz`) and readiness (`/readyz`) probes for supervisors and deployment checks.
+- Expand CI to compile the extracted agent/router modules and validate POSIX deployment scripts.
+- Document that ChatGPT/Hermes/OpenClaw feature inspiration is not complete product parity; retain local-first safety boundaries and avoid exposing private chain-of-thought.
+
+
 ## Unreleased — Command Control Center and operational audit
 
 - Add a dedicated Command Control Center to the existing web presentation layer with global auto-execution locked off, per-tool rule toggles, command allowlists/blocklists, and one-click approval/rejection.
