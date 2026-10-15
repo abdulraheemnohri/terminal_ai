@@ -13,6 +13,8 @@ def test_dashboard_returns_html():
     assert "overview-checklist" in response.text
     assert "Human approval gate" in response.text
     assert "Reviewer note (optional, saved to audit history)" in response.text
+    assert "Skill evolution review queue" in response.text
+    assert "Draft from reviewed learning" in response.text
     assert "LOCAL-FIRST AGENT CONTROL CENTER" in response.text
 
 
