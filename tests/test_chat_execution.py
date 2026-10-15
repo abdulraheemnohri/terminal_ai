@@ -33,10 +33,14 @@ def test_chat_response_includes_execution_trace_and_request_metadata(monkeypatch
     assert payload["backend"] == "fake-local-backend"
     assert payload["session"]
     assert payload["persistence"] == "not_configured"
+    assert payload["plan"]["task_type"] == "conversation"
+    assert payload["agent_capabilities"]["planning"] is True
+    assert payload["agent_capabilities"]["structured_tool_calling"] is False
     assert [step["name"] for step in payload["execution"]] == [
         "request_received",
         "request_serialized",
         "backend_resolved",
+        "task_planning",
         "inference",
         "long_term_archive",
         "history_persistence",
@@ -81,3 +85,28 @@ def test_advanced_chat_controls_and_script_are_served():
     assert script.status_code == 200
     assert "sendMessage" in script.text
     assert "localStorage" in script.text
+
+
+
+def test_safe_web_tool_registry_rejects_unlisted_tools():
+    registry = web_app.SafeWebToolRegistry(object())
+    assert registry.call("shell", {"cmd": "echo unsafe"}).startswith("error:")
+    assert registry.call("write_file", {"path": "x", "content": "bad"}).startswith("error:")
+
+
+def test_agent_settings_validate_styles_and_boolean_types(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "web_settings.json")
+    with TestClient(app=web_app.app) as client:
+        good = client.patch("/api/settings", json={
+            "agentic_planning_enabled": True,
+            "agent_self_correction_enabled": False,
+            "agent_tool_calling_enabled": True,
+            "agent_response_style": "technical",
+        })
+        bad_style = client.patch("/api/settings", json={"agent_response_style": "mind-reader"})
+        bad_type = client.patch("/api/settings", json={"agent_tool_calling_enabled": "yes"})
+    assert good.status_code == 200
+    assert good.json()["agent_response_style"] == "technical"
+    assert good.json()["agent_tool_calling_enabled"] is True
+    assert bad_style.status_code == 400
+    assert bad_type.status_code == 400
