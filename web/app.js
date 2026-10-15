@@ -574,8 +574,9 @@ if($("control-queue-form"))$("control-queue-form").addEventListener("submit",asy
 if($("control-pending-list"))$("control-pending-list").addEventListener("click",async e=>{
  const b=e.target.closest("[data-control-review]");if(!b)return;
  const approve=b.dataset.controlReview==="approve";
- if(!confirm((approve?"Approve":"Reject")+" this operation? This records a decision only and will not execute it."))return;
- try{await controlApi("/api/control/pending/"+encodeURIComponent(b.dataset.id)+"/review",{method:"POST",body:JSON.stringify({approve})});await loadControlPending();await loadControlAudit();}
+ const note=($("control-review-note")?.value||"").trim();
+ if(!confirm((approve?"Approve":"Reject")+" this operation?"+(note?"\nReviewer note: "+note:"")+"\nThis records a decision only and will not execute it."))return;
+ try{await controlApi("/api/control/pending/"+encodeURIComponent(b.dataset.id)+"/review",{method:"POST",body:JSON.stringify({approve,note})});$("control-review-note").value="";await loadControlPending();await loadControlAudit();}
  catch(err){$("control-pending-error").textContent=err.message;}
 });
 if($("control-skills-export"))$("control-skills-export").addEventListener("click",async()=>{
