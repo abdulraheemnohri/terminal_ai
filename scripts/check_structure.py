@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "application/learning.py",
     "application/skill_evolution.py",
     "application/task_lifecycle.py",
+    "application/recovery_proposals.py",
     "web/index.html",
     "web/app.js",
     "web/app.css",
