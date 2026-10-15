@@ -103,3 +103,14 @@ This section documents the remaining refactor work accurately; the large legacy 
 - `GET /api/agentic/learning/summary` returns aggregated reviewed outcomes. `POST /api/agentic/learning/outcome` records a result only when `verified=true` and all fields match the supported enumerations.
 - The store retains at most 5,000 newest outcomes. Strategy adaptation requires at least three reviewed examples; a strategy with no baseline must have a high repeated outcome score before it can replace the default.
 - Learning changes recommendations only. It never grants tool permissions, skips user approval, executes a task, or modifies safety policy. Treat the verification flag as a review assertion from a trusted UI/operator; production deployments should authenticate and authorize these endpoints.
+
+
+
+## Human-reviewed skill evolution
+
+- \`application/skill_evolution.py\` stores bounded plain-text skill proposals in \`skill_proposals.sqlite3\`; it stores no task prompts or credentials by design.
+- The UI in **Self-improvement → Skill evolution review queue** supports proposal submission, static validation, explicit approval, rejection, and promotion to a reviewed-catalog state.
+- The lifecycle is \`proposed → validated → approved → promoted\`; rejection is available before promotion. Invalid state transitions are rejected. Static checks validate structure and reject a small set of executable-code patterns, but are not a security sandbox and do not prove a procedure is safe.
+- Promotion only changes proposal state; it does not install tools, change permissions, execute a skill, or rewrite source code. Skills remain non-executable procedure text.
+- The proposal store is capped at 1,000 records; each proposal has bounded fields and at most 20 steps.
+- The API routes under \`/api/agentic/skills/proposals\` must be placed behind authenticated, authorized access before exposing the application to an untrusted network. Human approval is a UI workflow, not a substitute for server-side identity and access control.
