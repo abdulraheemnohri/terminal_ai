@@ -508,11 +508,17 @@ async function saveControlPolicy(){
  }catch(e){$("control-policy-error").textContent=e.message;}
 }
 async function loadControlPending(){
- const list=$("control-pending-list");list.innerHTML='<div class="empty">Loading queue…</div>';
+ const list=$("control-pending-list");list.innerHTML='<div class="empty">Loading operations…</div>';
+ const status=$("control-status-filter")?.value||"pending";
  try{
-  const data=await controlApi("/api/control/pending?status=pending");
+  const data=await controlApi("/api/control/pending?status="+encodeURIComponent(status));
   const ops=data.operations||[];
-  list.innerHTML=ops.length?ops.map(o=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(o.tool+'.'+o.operation)+'</b><span class="badge">Pending</span></div><p class="muted">ID: '+escapeHtml(o.id)+' · '+escapeHtml(new Date(o.created_at*1000).toLocaleString())+'</p><pre class="reflection" style="white-space:pre-wrap;max-height:140px;overflow:auto">'+escapeHtml(JSON.stringify(o.arguments,null,2))+'</pre><div class="row" style="gap:8px"><button class="btn primary" data-control-review="approve" data-id="'+escapeHtml(o.id)+'">Approve</button><button class="btn danger" data-control-review="reject" data-id="'+escapeHtml(o.id)+'">Reject</button></div></div>').join(""):'<div class="empty">No operations are waiting for review.</div>';
+  const label=status.charAt(0).toUpperCase()+status.slice(1);
+  list.innerHTML=ops.length?ops.map(o=>{
+   const canReview=o.status==="pending";
+   const args=JSON.stringify(o.arguments,null,2);
+   return '<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(o.tool+'.'+o.operation)+'</b><span class="badge">'+escapeHtml(o.status||label)+'</span></div><p class="muted">ID: '+escapeHtml(o.id)+' · Created '+escapeHtml(new Date(o.created_at*1000).toLocaleString())+(o.reviewed_at?' · Reviewed '+escapeHtml(new Date(o.reviewed_at*1000).toLocaleString()):'')+'</p><pre class="reflection" style="white-space:pre-wrap;max-height:140px;overflow:auto">'+escapeHtml(args)+'</pre>'+(o.note?'<p class="muted">Review note: '+escapeHtml(o.note)+'</p>':'')+(canReview?'<div class="row" style="gap:8px"><button class="btn primary" data-control-review="approve" data-id="'+escapeHtml(o.id)+'">Approve</button><button class="btn danger" data-control-review="reject" data-id="'+escapeHtml(o.id)+'">Reject</button></div>':'')+'</div>';
+  }).join(""):'<div class="empty">No '+escapeHtml(status)+' operations found.</div>';
   $("control-pending-error").textContent="";
  }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
 }
@@ -555,6 +561,7 @@ if($("control-tool-toggles"))$("control-tool-toggles").addEventListener("change"
 
 if($("control-save-policy"))$("control-save-policy").addEventListener("click",saveControlPolicy);
 if($("control-refresh-pending"))$("control-refresh-pending").addEventListener("click",loadControlPending);
+if($("control-status-filter"))$("control-status-filter").addEventListener("change",loadControlPending);
 if($("control-audit-refresh"))$("control-audit-refresh").addEventListener("click",loadControlAudit);
 if($("control-queue-form"))$("control-queue-form").addEventListener("submit",async e=>{
  e.preventDefault();$("control-queue-error").textContent="";
