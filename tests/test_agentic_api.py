@@ -299,3 +299,46 @@ def test_recovery_api_requires_failed_linked_operation():
         })
     assert response.status_code == 409
     assert response.json()["detail"].startswith("Recovery proposals require a linked operation")
+
+
+def test_approved_recovery_proposal_creates_new_pending_operation_only(tmp_path):
+    from litestar import Litestar
+    from litestar.testing import TestClient
+    from command_control import CommandControl
+    from routers.agentic import create_agentic_router
+    from application.recovery_proposals import RecoveryProposalStore
+
+    control = CommandControl(tmp_path / "control.sqlite3")
+    app = Litestar(route_handlers=[create_agentic_router(control, tmp_path)])
+    with TestClient(app=app) as client:
+        created = client.post("/api/agentic/tasks", json={
+            "goal": "Recover after a transient service timeout",
+            "risk": "read", "complexity": 2,
+        })
+        assert created.status_code == 201
+        task_id = created.json()["task"]["id"]
+
+        recovery = RecoveryProposalStore(tmp_path / "recovery_proposals.sqlite3")
+        proposal = recovery.propose(task_id=task_id, failure_category="timeout",
+                                    error_summary="Recorded operation timed out")
+        recovery.review(task_id=task_id, proposal_id=proposal["id"],
+                        decision="approve", reviewer="operator")
+
+        response = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal['id']}/operation",
+            json={"tool": "workspace", "operation": "workspace",
+                  "arguments": {"path": "README.md"}},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["operation"]["status"] == "pending"
+        assert body["approval_required"] is True
+        assert body["execution_started"] is False
+        assert body["proposal"]["new_operation_id"] == body["operation"]["id"]
+
+        duplicate = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal['id']}/operation",
+            json={"tool": "workspace", "operation": "workspace",
+                  "arguments": {"path": "README.md"}},
+        )
+        assert duplicate.status_code == 409
