@@ -77,11 +77,12 @@ ARQ is optional. When `TERMINAL_AI_ARQ_ENABLED=1`, manual Self-X maintenance and
 
 ## Startup and update lifecycle
 
-- Linux: `install-service.sh` registers a user systemd service with restart-on-failure; `install-auto-update.sh` optionally registers a weekly updater timer.
-- macOS: `install-launchagent.sh` starts/restarts the server at login; `install-auto-update-macos.sh` optionally registers a weekly update LaunchAgent. A successful update restarts the server LaunchAgent.
-- Windows: `install-startup.ps1` registers a user logon task; `install-auto-update.ps1` optionally registers a weekly update task.
-- Termux: copy `termux-boot/com.terminal-ai.start.sh` into `~/.termux/boot/` after installing and opening the separate Termux:Boot add-on. Android background restrictions may delay startup.
-- All automatic project updates are opt-in and update Terminal AI only. They do not install operating-system updates. The guarded updater requires a clean Git working tree, fast-forward updates, dependency checks, syntax compilation, and tests before it restarts a configured server.
+- Linux: `scripts/install-service.sh` installs a user systemd service and enables restart-on-failure. Boot-before-login requires optional systemd lingering.
+- macOS: `scripts/install-service.sh` installs a launchd LaunchAgent for user login and restart-on-exit.
+- Windows: `scripts/install-service.ps1` registers a Task Scheduler task at user logon with bounded restart attempts.
+- Termux: copy `scripts/termux-boot-start.sh` into `~/.termux/boot/terminal-ai` after installing Termux:Boot. Android background restrictions may still interrupt the process.
+- `scripts/update.sh` is a guarded, explicit Linux/macOS updater. It requires a clean Git worktree and fast-forward-only update, creates a source bundle, installs dependencies, compiles modules, runs tests, and restarts a detected service. It is not scheduled to apply unattended updates.
+- These helpers update the Terminal AI project only; they do not install operating-system updates. All startup helpers bind to localhost by default. The health probes `/healthz` and `/readyz` support process supervisors and readiness checks without exposing credentials.
 
 ## Refactoring status and target module boundaries
 
