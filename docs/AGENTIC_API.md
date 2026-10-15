@@ -39,3 +39,81 @@ Allowed risk values are `read`, `low`, `medium`, `high`, and `critical`. Complex
 Confidence is clamped by the underlying model and validated to the range 0–1 at the API boundary. Values are limited to 20,000 serialized characters. TTL is optional and, when supplied, must be between one second and one year. Facts are stored in `world_model.json` under the configured application state directory. The model stores operational evidence; it is not a complete simulation of the world and is not evidence of sentience.
 
 All routes are data/planning operations. They do not launch browser actions, execute shell commands, mutate system settings, or start a planned workflow. Actual side effects must continue through the existing Command Control Center review and execution boundaries. Keep the web server on loopback unless authentication, CSRF protections, and network controls are configured.
+
+
+## Tracked task lifecycle
+
+The task lifecycle API records the path from a planned goal to an existing Command Control operation, operator verification, and reviewed learning. It does not add a tool dispatcher.
+
+### Create a tracked plan
+
+`POST /api/agentic/tasks`
+
+```json
+{
+  "goal": "Inspect application health and verify the result",
+  "risk": "read",
+  "complexity": 2,
+  "has_external_side_effects": false,
+  "evidence_available": false
+}
+```
+
+- `goal`: required non-empty string, at most 4,000 characters.
+- `risk`: `read`, `low`, `medium`, `high`, or `critical`.
+- `complexity`: integer from 1 through 10.
+- `has_external_side_effects` and `evidence_available`: booleans when supplied.
+- The response includes a persisted task, plan strategy/signals, and `execution_started: false`.
+
+### List and inspect
+
+- `GET /api/agentic/tasks?limit=50` — list recent records; `limit` is bounded to 1–200.
+- `GET /api/agentic/tasks?status=planned` — filter by lifecycle status.
+- `GET /api/agentic/tasks/{task_id}` — inspect a task and synchronize its linked operation status from Command Control.
+
+Lifecycle statuses include `planned`, `awaiting_approval`, `approved`, `executing`, `executed`, `verified`, `reviewed`, `failed`, `rejected`, and `expired`.
+
+### Link an existing operation
+
+`POST /api/agentic/tasks/{task_id}/operation`
+
+```json
+{"operation_id": "existing-command-control-operation-id"}
+```
+
+The operation must already exist in Command Control. A task can be linked once. Linking records the relationship; it does not approve, authorize, or execute the operation.
+
+### Record verification
+
+`POST /api/agentic/tasks/{task_id}/verify`
+
+```json
+{
+  "passed": true,
+  "evidence": "A separate health check returned HTTP 200",
+  "verifier": "operator"
+}
+```
+
+Verification is rejected until the linked operation is recorded as `executed`. Evidence must be non-empty and at most 4,000 characters; verifier labels are bounded. If verification fails, the task enters `failed` and cannot be reviewed for learning. Operator-entered evidence is an attestation, not cryptographic proof.
+
+### Submit a reviewed outcome
+
+`POST /api/agentic/tasks/{task_id}/review`
+
+```json
+{
+  "outcome": "success",
+  "rating": 5,
+  "reviewer": "operator"
+}
+```
+
+Allowed outcomes are `success`, `partial`, and `failure`; rating is an integer from 1 to 5. Only a passing verified task can be reviewed. A successful review writes a verified outcome to the learning store and adds an audit event. Learning influences recommendations only; it does not change tool permissions or safety policy.
+
+### Operational and security boundaries
+
+- The lifecycle database is bounded to 2,000 recent tasks.
+- Task goals and evidence can contain user data; secure the state directory and backups accordingly.
+- Lifecycle routes do not run shell commands, browser actions, or planned steps.
+- Protect these APIs with authentication and authorization before exposing the application to an untrusted network. Loopback binding is the safe default.
