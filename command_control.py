@@ -66,17 +66,24 @@ class CommandControl:
                 self._audit(db, "system", "control.initialized", "command-control", {"safe_defaults": True})
 
     def _audit(self, db, actor: str, action: str, target: str, details: dict[str, Any]):
-        previous = db.execute("SELECT entry_hash FROM audit_log ORDER BY seq DESC LIMIT 1").fetchone()
-        previous_hash = previous["entry_hash"] if previous else "0" * 64
-        record = {"event_id": uuid.uuid4().hex, "timestamp": time.time(), "actor": actor[:80],
-                  "action": action[:100], "target": target[:240],
-                  "details": details, "previous_hash": previous_hash}
-        canonical = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-        db.execute("INSERT INTO audit_log(event_id,timestamp,actor,action,target,details_json,previous_hash,entry_hash) VALUES(?,?,?,?,?,?,?,?)",
-                   (record["event_id"], record["timestamp"], record["actor"], record["action"],
-                    record["target"], json.dumps(details, ensure_ascii=False), previous_hash, digest))
-        return {**record, "entry_hash": digest}
+        # Serialize hash-head lookup + append so concurrent writers cannot fork the chain.
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            previous = db.execute("SELECT entry_hash FROM audit_log ORDER BY seq DESC LIMIT 1").fetchone()
+            previous_hash = previous["entry_hash"] if previous else "0" * 64
+            record = {"event_id": uuid.uuid4().hex, "timestamp": time.time(), "actor": actor[:80],
+                      "action": action[:100], "target": target[:240],
+                      "details": details, "previous_hash": previous_hash}
+            canonical = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            db.execute("INSERT INTO audit_log(event_id,timestamp,actor,action,target,details_json,previous_hash,entry_hash) VALUES(?,?,?,?,?,?,?,?)",
+                       (record["event_id"], record["timestamp"], record["actor"], record["action"],
+                        record["target"], json.dumps(details, ensure_ascii=False), previous_hash, digest))
+            db.commit()
+            return {**record, "entry_hash": digest}
+        except Exception:
+            db.rollback()
+            raise
 
     def audit(self, actor: str, action: str, target: str, details: dict[str, Any] | None = None):
         with self._connect() as db:
