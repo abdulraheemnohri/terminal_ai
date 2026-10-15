@@ -38,14 +38,17 @@ jobs:
 
       - name: Compile application modules
         run: |
-          python -m compileall -q app.py terminal_ai.py litert_api_backend.py api_provider_backend.py application agent routers scripts/execute_approved_browser_operation.py api_schemas.py command_control.py selfx_engine.py workspace_tools.py task_scheduler.py
+          python -m compileall -q app.py terminal_ai.py litert_api_backend.py api_provider_backend.py application agent routers scripts api_schemas.py command_control.py selfx_engine.py workspace_tools.py task_scheduler.py
 
       - name: Validate POSIX startup/update scripts
         run: |
-          sh -n install.sh scripts/install-service.sh scripts/update.sh scripts/termux-boot-start.sh
+          for script in ./*.sh scripts/*.sh termux-boot/*.sh; do [ -f "$script" ] || continue; sh -n "$script"; done
 
       - name: Validate dashboard JavaScript syntax
-        run: node --check web/app.js
+        run: |
+          node --check web/app.js
+          node --check web/chat-enhancements.js
+          sh -n scripts/validate.sh
 
       - name: Run test suite
         run: python -m pytest tests/ -v --color=yes
