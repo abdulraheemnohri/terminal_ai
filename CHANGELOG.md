@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — fresh operation handoff for recovery
+
+- Register all recovery API routes and add a one-shot transition from an approved recovery proposal to a new pending Command Control operation.
+- Persist the new operation ID, block duplicate queue attempts, expose queue/review controls in Self-X, and test that the new operation remains pending with fresh approval required.
+
 ## Unreleased — bounded failure recovery proposals
 
 - Add a bounded SQLite recovery proposal ledger with structured operator-supplied failure categories, a maximum of three proposals per task, and bounded global retention.
