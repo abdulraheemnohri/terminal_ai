@@ -11,11 +11,15 @@ git fetch origin
 git pull --ff-only origin main
 "$PYTHON" -m pip install -r requirements.txt
 "$PYTHON" -m pip check
-"$PYTHON" -m py_compile app.py terminal_ai.py
+"$PYTHON" -m compileall -q app.py terminal_ai.py agentic_features.py api_schemas.py command_control.py memory_store.py selfx_engine.py workspace_tools.py task_scheduler.py routers
 "$PYTHON" -m pytest -q
+
 if command -v systemctl >/dev/null 2>&1 && systemctl --user is-enabled terminal-ai.service >/dev/null 2>&1; then
   systemctl --user restart terminal-ai.service
   echo "Updated and restarted terminal-ai.service."
+elif [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1 && [ -f "$HOME/Library/LaunchAgents/com.terminal-ai.server.plist" ]; then
+  launchctl kickstart -k "gui/$(id -u)/com.terminal-ai.server"
+  echo "Updated and restarted the Terminal AI LaunchAgent."
 else
   echo "Update checks passed. Restart the running server to load the new code."
 fi
