@@ -46,3 +46,34 @@ def test_yaml_import_payload_has_size_limit():
     assert YAMLImportRequest(content="format: terminal-ai-skills").content
     with pytest.raises(ValidationError):
         YAMLImportRequest(content="x" * 200_001)
+
+
+from api_schemas import (
+    KnowledgeCreateRequest, KnowledgeSearchRequest,
+    WorkspaceExecuteRequest, WorkspaceReadRequest, WorkspaceWriteRequest,
+)
+
+
+def test_workspace_read_normalizes_empty_path_to_root():
+    assert WorkspaceReadRequest(path="").path == "."
+    assert WorkspaceReadRequest().path == "."
+
+
+def test_workspace_write_defaults_to_unapproved():
+    request = WorkspaceWriteRequest(path="notes.txt", content="safe")
+    assert request.approved is False
+
+
+def test_workspace_execute_bounds_timeout_and_argv():
+    assert WorkspaceExecuteRequest(argv=["pytest"], timeout=60).timeout == 60
+    with pytest.raises(ValidationError):
+        WorkspaceExecuteRequest(argv=["pytest"], timeout=61)
+    with pytest.raises(ValidationError):
+        WorkspaceExecuteRequest(argv=[])
+
+
+def test_knowledge_requests_reject_unknown_fields_and_bound_search():
+    with pytest.raises(ValidationError):
+        KnowledgeCreateRequest(title="test", content="body", arbitrary_command="rm -rf /")
+    with pytest.raises(ValidationError):
+        KnowledgeSearchRequest(query="hello", limit=500)
