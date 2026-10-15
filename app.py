@@ -2139,9 +2139,20 @@ async def _run_scheduled_task(task: dict[str, Any]) -> str:
 async def _scheduler_worker() -> None:
     while True:
         for task in (_TASK_SCHEDULER.due() if _read_settings().get("scheduled_tasks_enabled", True) else []):
-            try: _TASK_SCHEDULER.mark(task["id"], await _run_scheduled_task(task))
-            except asyncio.CancelledError: raise
-            except Exception as exc: _TASK_SCHEDULER.mark(task["id"], "Failed: " + type(exc).__name__)
+            try:
+                job_id = await _enqueue_arq_job("run_scheduled_task", task)
+                if job_id is not None:
+                    _TASK_SCHEDULER.mark(task["id"], "Queued to ARQ: " + str(job_id))
+                    _COMMAND_CONTROL.audit("scheduler", "scheduled-task.queued", task["id"],
+                                           {"kind": task.get("kind"), "worker": "arq"})
+                else:
+                    _TASK_SCHEDULER.mark(task["id"], await _run_scheduled_task(task))
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                _TASK_SCHEDULER.mark(task["id"], "Failed: " + type(exc).__name__)
+                _COMMAND_CONTROL.audit("scheduler", "scheduled-task.failed", task["id"],
+                                       {"kind": task.get("kind"), "reason": type(exc).__name__})
         await asyncio.sleep(15)
 
 async def _start_scheduler() -> None:
