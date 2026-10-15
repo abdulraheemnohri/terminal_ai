@@ -1,5 +1,6 @@
 # Terminal AI web application runtime
 litestar[standard]
+pydantic>=2.7,<3
 google-genai
 litert-lm-api
 huggingface_hub
