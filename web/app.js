@@ -283,7 +283,7 @@ async function loadTaskLifecycle(){
    if(t.status==="executed")actions+='<button class="btn primary" data-task-verify="'+id+'">Verify result</button>';
    if(t.status==="verified")actions+='<button class="btn primary" data-task-review="'+id+'">Review outcome</button>';
    if(t.operation_id&&["failed","expired"].includes(t.execution_status))actions+='<button class="btn" data-task-recovery="'+id+'">Draft recovery proposal</button>';
-   const recovery=(t.recovery_proposals||[]).map(p=>'<div class="list-item"><b>Recovery proposal '+escapeHtml(p.attempt)+' · '+escapeHtml(p.failure_category)+'</b><p>'+escapeHtml(p.error_summary)+'</p><p class="muted">Policy: '+escapeHtml(p.retry_policy)+' · Status: '+escapeHtml(p.status)+'</p><ol>'+((p.recovery_steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join(""))+'</ol>'+(p.status==="proposed"?'<button class="btn" data-recovery-review="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Review proposal</button>':'')+(p.status==="approved_for_replanning"?'<button class="btn primary" data-recovery-queue="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Create fresh approved operation</button>':'')+(p.new_operation_id?'<p>New Command Control operation: <code>'+escapeHtml(p.new_operation_id)+'</code></p>':'')+'</div>').join("");
+   const recovery=(t.recovery_proposals||[]).map(p=>'<div class="list-item"><b>Recovery proposal '+escapeHtml(p.attempt)+' · '+escapeHtml(p.failure_category)+'</b><p>'+escapeHtml(p.error_summary)+'</p><p class="muted">Policy: '+escapeHtml(p.retry_policy)+' · Status: '+escapeHtml(p.status)+'</p><ol>'+((p.recovery_steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join(""))+'</ol>'+(p.status==="proposed"?'<button class="btn" data-recovery-review="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Review proposal</button>':'')+(p.status==="approved_for_replanning"?'<button class="btn primary" data-recovery-queue="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Create fresh approved operation</button>':'')+(p.new_operation_id?'<p>New Command Control operation: <code>'+escapeHtml(p.new_operation_id)+'</code> · status: '+escapeHtml(p.new_operation_status||"unknown")+'</p>':'')+(p.verification?'<p><b>Recovery verification:</b> '+(p.verification.passed?"Passed":"Failed")+' · '+escapeHtml(p.verification.evidence)+'</p>':"")+(p.new_operation_id&&p.new_operation_status==="executed"&&!p.verification?'<button class="btn primary" data-recovery-verify="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Verify recovery result</button>':"")+'</div>').join("");
    const steps=(t.steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join("");
    const verify=t.verification?'<p><b>Verification:</b> '+(t.verification.passed?"Passed":"Failed")+' · '+escapeHtml(t.verification.evidence)+'</p>':"";
    const review=t.review?'<p><b>Reviewed:</b> '+escapeHtml(t.review.outcome)+' · rating '+escapeHtml(t.review.rating)+'/5</p>':"";
@@ -326,6 +326,11 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
    const decision=prompt("Review proposal: type approve to approve replanning only, or reject to reject.","reject");
    if(decision!=="approve"&&decision!=="reject")return;
    await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.recoveryReview)+"/recovery-proposals/"+encodeURIComponent(b.dataset.recoveryProposal)+"/review",{decision,reviewer:"operator",note:"Reviewed in Self-X task lifecycle UI"});
+  }else if(b.dataset.recoveryVerify){
+   const evidence=prompt("Describe independent verification evidence (max 4,000 chars; no secrets):");
+   if(!evidence||!evidence.trim())return;
+   const passed=confirm("Did the independent verification pass? OK = passed; Cancel = failed.");
+   await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.recoveryVerify)+"/recovery-proposals/"+encodeURIComponent(b.dataset.recoveryProposal)+"/verify",{passed,evidence:evidence.trim(),verifier:"operator"});
   }else if(b.dataset.recoveryQueue){
    const tool=prompt("Enter the exact registered tool name for the new operation (tool and operation must match):");
    if(!tool||!tool.trim())return;
