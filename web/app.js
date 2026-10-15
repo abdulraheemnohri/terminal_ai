@@ -283,7 +283,7 @@ async function loadTaskLifecycle(){
    if(t.status==="executed")actions+='<button class="btn primary" data-task-verify="'+id+'">Verify result</button>';
    if(t.status==="verified")actions+='<button class="btn primary" data-task-review="'+id+'">Review outcome</button>';
    if(t.operation_id&&["failed","expired"].includes(t.execution_status))actions+='<button class="btn" data-task-recovery="'+id+'">Draft recovery proposal</button>';
-   const recovery=(t.recovery_proposals||[]).map(p=>'<div class="list-item"><b>Recovery proposal '+escapeHtml(p.attempt)+' · '+escapeHtml(p.failure_category)+'</b><p>'+escapeHtml(p.error_summary)+'</p><p class="muted">Policy: '+escapeHtml(p.retry_policy)+' · Status: '+escapeHtml(p.status)+'</p><ol>'+((p.recovery_steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join(""))+'</ol>'+(p.status==="proposed"?'<button class="btn" data-recovery-review="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Review proposal</button>':'')+'</div>').join("");
+   const recovery=(t.recovery_proposals||[]).map(p=>'<div class="list-item"><b>Recovery proposal '+escapeHtml(p.attempt)+' · '+escapeHtml(p.failure_category)+'</b><p>'+escapeHtml(p.error_summary)+'</p><p class="muted">Policy: '+escapeHtml(p.retry_policy)+' · Status: '+escapeHtml(p.status)+'</p><ol>'+((p.recovery_steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join(""))+'</ol>'+(p.status==="proposed"?'<button class="btn" data-recovery-review="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Review proposal</button>':'')+(p.status==="approved_for_replanning"?'<button class="btn primary" data-recovery-queue="'+id+'" data-recovery-proposal="'+escapeHtml(p.id)+'">Create fresh approved operation</button>':'')+(p.new_operation_id?'<p>New Command Control operation: <code>'+escapeHtml(p.new_operation_id)+'</code></p>':'')+'</div>').join("");
    const steps=(t.steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join("");
    const verify=t.verification?'<p><b>Verification:</b> '+(t.verification.passed?"Passed":"Failed")+' · '+escapeHtml(t.verification.evidence)+'</p>':"";
    const review=t.review?'<p><b>Reviewed:</b> '+escapeHtml(t.review.outcome)+' · rating '+escapeHtml(t.review.rating)+'/5</p>':"";
@@ -326,6 +326,17 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
    const decision=prompt("Review proposal: type approve to approve replanning only, or reject to reject.","reject");
    if(decision!=="approve"&&decision!=="reject")return;
    await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.recoveryReview)+"/recovery-proposals/"+encodeURIComponent(b.dataset.recoveryProposal)+"/review",{decision,reviewer:"operator",note:"Reviewed in Self-X task lifecycle UI"});
+  }else if(b.dataset.recoveryQueue){
+   const tool=prompt("Enter the exact registered tool name for the new operation (tool and operation must match):");
+   if(!tool||!tool.trim())return;
+   const raw=prompt("Enter the exact JSON arguments for the new operation.");
+   if(raw===null)return;
+   let args;try{args=JSON.parse(raw||"{}");}catch(_){$("task-lifecycle-error").textContent="Arguments must be valid JSON.";return;}
+   if(!args||Array.isArray(args)||typeof args!=="object"){$("task-lifecycle-error").textContent="Arguments must be a JSON object.";return;}
+   if(!confirm("Queue a NEW Command Control operation for human approval? This will not execute it."))return;
+   const taskId=encodeURIComponent(b.dataset.recoveryQueue),proposalId=encodeURIComponent(b.dataset.recoveryProposal);
+   const result=await run("/api/agentic/tasks/"+taskId+"/recovery-proposals/"+proposalId+"/operation",{tool:tool.trim(),operation:tool.trim(),arguments:args});
+   alert("New operation queued for separate approval. Execution started: "+result.execution_started);
   }else if(b.dataset.taskRecovery){
    const category=prompt("Failure category: timeout, transient_network, rate_limit, missing_dependency, validation, permission, destructive, unknown","timeout");
    if(!["timeout","transient_network","rate_limit","missing_dependency","validation","permission","destructive","unknown"].includes(category))return;
