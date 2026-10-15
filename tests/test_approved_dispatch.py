@@ -57,3 +57,36 @@ def test_failed_tool_consumes_approval(tmp_path):
     result = execute_approved_operation(control, registry, operation["id"])
     assert result["status"] == "failed"
     assert control.get_operation(operation["id"])["status"] == "failed"
+
+
+
+def test_claim_rejects_argument_mismatch(tmp_path):
+    control = CommandControl(tmp_path / "control.sqlite3")
+    operation = control.queue(
+        "browser.read_page", "browser.read_page", {"url": "https://example.com"}
+    )
+    control.review(operation["id"], True)
+    with pytest.raises(ValueError, match="arguments do not match"):
+        control.claim_approved(
+            operation["id"], "browser.read_page", "browser.read_page",
+            {"url": "https://attacker.invalid"},
+        )
+    # A mismatched claim cannot consume or rewrite the original approval.
+    assert control.get_operation(operation["id"])["status"] == "approved"
+
+
+def test_claim_rejects_replay_after_first_claim(tmp_path):
+    control = CommandControl(tmp_path / "control.sqlite3")
+    operation = control.queue(
+        "browser.read_page", "browser.read_page", {"url": "https://example.com"}
+    )
+    control.review(operation["id"], True)
+    control.claim_approved(
+        operation["id"], "browser.read_page", "browser.read_page",
+        {"url": "https://example.com"},
+    )
+    with pytest.raises(ValueError, match="unused approval"):
+        control.claim_approved(
+            operation["id"], "browser.read_page", "browser.read_page",
+            {"url": "https://example.com"},
+        )
