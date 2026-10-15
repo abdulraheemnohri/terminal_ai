@@ -100,3 +100,58 @@ def test_learning_api_requires_verified_outcome_and_returns_summary():
         summary = client.get("/api/agentic/learning/summary")
     assert summary.status_code == 200
     assert summary.json()["count"] >= 1
+
+
+
+def test_skill_evolution_api_requires_validate_then_approval():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        created = client.post("/api/agentic/skills/proposals", json={
+            "name": "Review API test skill",
+            "task_type": "debugging",
+            "rationale": "A repeatable test workflow helps diagnose regressions.",
+            "steps": ["Reproduce the failure", "Add a regression test", "Run the focused test"],
+            "evidence_summary": "Test-only proposal; evidence is a concise operator summary.",
+        })
+        assert created.status_code == 201
+        proposal_id = created.json()["proposal"]["id"]
+        assert created.json()["permissions_changed"] is False
+        assert created.json()["proposal"]["status"] == "proposed"
+
+        premature = client.post(f"/api/agentic/skills/proposals/{proposal_id}/approve", json={"note": "not yet"})
+        assert premature.status_code == 409
+
+        validated = client.post(f"/api/agentic/skills/proposals/{proposal_id}/validate")
+        assert validated.status_code == 201
+        assert validated.json()["static_validation_only"] is True
+
+        approved = client.post(f"/api/agentic/skills/proposals/{proposal_id}/approve", json={"note": "Human reviewed"})
+        assert approved.status_code == 201
+        assert approved.json()["approved_by_human"] is True
+        assert approved.json()["execution_started"] is False
+
+        promoted = client.post(f"/api/agentic/skills/proposals/{proposal_id}/promote", json={"note": "Approved catalog"})
+        assert promoted.status_code == 201
+        assert promoted.json()["proposal"]["status"] == "promoted"
+        assert promoted.json()["permissions_changed"] is False
+
+        listed = client.get("/api/agentic/skills/proposals?status=promoted")
+        assert listed.status_code == 200
+        assert any(item["id"] == proposal_id for item in listed.json()["proposals"])
+
+
+def test_skill_evolution_api_rejects_executable_skill_text():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        response = client.post("/api/agentic/skills/proposals", json={
+            "name": "Unsafe API test",
+            "task_type": "debugging",
+            "rationale": "Unsafe content should never be accepted.",
+            "steps": ["Use eval(user_input) to execute the workflow"],
+            "evidence_summary": "No evidence",
+        })
+    assert response.status_code == 400
