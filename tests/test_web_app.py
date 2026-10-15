@@ -285,3 +285,44 @@ def test_roleplay_persona_setting_is_supported_and_validated(monkeypatch, tmp_pa
     assert response.status_code == 200
     assert response.json()["agentic_persona"] == "roleplay"
     assert invalid.status_code == 400
+
+
+def test_browser_domain_settings_validate_and_normalize_without_enabling_execution():
+    with TestClient(app=app) as client:
+        before = client.get("/api/settings")
+        previous = before.json().get("browser_allowed_domains", [])
+        try:
+            accepted = client.patch("/api/settings", json={
+                "browser_allowed_domains": [".EXAMPLE.COM.", "example.com", "docs.example.org"]
+            })
+            assert accepted.status_code == 200
+            assert accepted.json()["browser_allowed_domains"] == ["example.com", "docs.example.org"]
+
+            invalid = client.patch("/api/settings", json={
+                "browser_allowed_domains": ["*.example.com"]
+            })
+            assert invalid.status_code == 400
+
+            status = client.get("/api/browser/status")
+            assert status.status_code == 200
+            assert status.json()["enabled"] is True
+            assert status.json()["allowed_domain_count"] == 2
+            assert status.json()["execution_enabled"] is False
+        finally:
+            client.patch("/api/settings", json={"browser_allowed_domains": previous})
+
+
+def test_browser_domain_settings_reject_urls_and_ip_literals():
+    with TestClient(app=app) as client:
+        for value in ("https://example.com", "example.com/path", "127.0.0.1", "example.com:443"):
+            response = client.patch("/api/settings", json={"browser_allowed_domains": [value]})
+            assert response.status_code == 400, value
+
+
+def test_browser_status_does_not_start_browser_or_enable_actions():
+    with TestClient(app=app) as client:
+        response = client.get("/api/browser/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["execution_enabled"] is False
+    assert "authenticated dispatch" in payload["notice"]
