@@ -134,6 +134,7 @@ async function loadSettings(){
   $("setting-scheduler").checked=data.scheduled_tasks_enabled!==false;
   $("setting-agent-planning").checked=data.agentic_planning_enabled!==false;
   $("setting-agent-style").value=data.agent_response_style||"balanced";
+  $("setting-agent-persona").value=data.agent_persona||"general";
   $("setting-agent-correction").checked=data.agent_self_correction_enabled!==false;
   $("setting-agent-tools").checked=!!data.agent_tool_calling_enabled;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
@@ -246,6 +247,7 @@ $("settings-form").addEventListener("submit",async e=>{
    scheduled_tasks_enabled:$("setting-scheduler").checked,
    agentic_planning_enabled:$("setting-agent-planning").checked,
    agent_response_style:$("setting-agent-style").value,
+   agent_persona:$("setting-agent-persona").value,
    agent_self_correction_enabled:$("setting-agent-correction").checked,
    agent_tool_calling_enabled:$("setting-agent-tools").checked
   })});
