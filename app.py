@@ -32,6 +32,7 @@ from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
 from command_control import CommandControl
 from routers.control import create_control_router
+from api_schemas import ChatRequest, MemoryWriteRequest
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -461,9 +462,9 @@ async def status() -> dict[str, Any]:
 
 
 @post("/api/chat", status_code=200)
-async def chat(data: dict[str, Any]) -> dict[str, Any]:
+async def chat(data: ChatRequest) -> dict[str, Any]:
     """Run one serialized chat turn and return an inspectable execution trace."""
-    message = str(data.get("message", "")).strip()
+    message = data.message
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
     if len(message) > 20000:
@@ -605,8 +606,8 @@ async def memory() -> dict[str, Any]:
 
 
 @post("/api/memory")
-async def remember(data: dict[str, Any]) -> dict[str, str]:
-    key, value = str(data.get("key", "")).strip(), str(data.get("value", "")).strip()
+async def remember(data: MemoryWriteRequest) -> dict[str, str]:
+    key, value = data.key, data.value
     if not key or not value:
         raise HTTPException(status_code=400, detail="Both key and value are required.")
     if len(key) > 200 or len(value) > 4000:
