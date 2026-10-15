@@ -203,6 +203,58 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"proposals": items, "count": len(items), "execution_started": False}
 
+    @post("/skills/proposals/from-learning")
+    async def draft_skill_from_reviewed_learning() -> dict[str, Any]:
+        """Create a non-executable proposal from repeated, explicitly verified outcomes."""
+        groups = learning_store.summary()["groups"]
+        candidates = [
+            item for item in groups
+            if item["samples"] >= 3
+            and item["success_score"] >= 0.67
+            and item["average_rating"] >= 3.5
+        ]
+        if not candidates:
+            raise HTTPException(
+                status_code=409,
+                detail="No task family has enough strong reviewed outcomes yet (minimum 3 samples, score 0.67, rating 3.5/5).",
+            )
+        chosen = max(
+            candidates,
+            key=lambda item: (item["success_score"], item["average_rating"], item["samples"], item["task_type"]),
+        )
+        family = chosen["task_type"]
+        algorithm = chosen["algorithm"]
+        item = skill_evolution.create(
+            name=("Reviewed " + family.replace("_", " ") + " workflow")[:80],
+            task_type=family,
+            rationale=(
+                "A candidate checklist derived from repeated, explicitly verified outcomes. "
+                "This aggregate signal is not proof that the workflow is universally safe or correct."
+            ),
+            steps=[
+                "Define the objective and observable success criteria before acting.",
+                "Gather relevant evidence and record important uncertainty.",
+                "Apply the reviewed strategy: " + algorithm + ".",
+                "Verify the result against the stated success criteria.",
+                "Summarize the evidence and unresolved risks for human review.",
+                "Obtain separate human approval before any side-effectful operation.",
+            ],
+            evidence_summary=(
+                f"{chosen['samples']} verified outcomes; success score {chosen['success_score']:.2f}; "
+                f"average reviewer rating {chosen['average_rating']:.1f}/5; strategy {algorithm}. "
+                "Aggregate evidence only; no task prompts or credentials included."
+            ),
+        )
+        control.audit("skills", "proposal.generated_from_learning", item["name"], {
+            "proposal_id": item["id"], "task_type": family, "algorithm": algorithm,
+            "samples": chosen["samples"], "success_score": chosen["success_score"],
+        })
+        return {
+            "proposal": item, "generated_from_reviewed_outcomes": True,
+            "execution_started": False, "permissions_changed": False,
+            "notice": "Draft created in proposed state. Static validation and explicit human approval are still required.",
+        }
+
     @post("/skills/proposals")
     async def create_skill_proposal(data: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -270,6 +322,6 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
     return Router(path="/api/agentic", route_handlers=[
         agentic_status, plan, learning_summary, record_learning_outcome,
         list_world_facts, observe_world_fact, validate_skill,
-        list_skill_proposals, create_skill_proposal, validate_skill_proposal,
+        list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
         approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
     ])
