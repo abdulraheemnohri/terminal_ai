@@ -52,6 +52,11 @@ def persona_instruction(persona: str = "helpful", *, language: str = "match_user
         "coach": "Be encouraging and practical; break complex work into manageable steps.",
         "concise": "Prefer concise answers, but retain important safety and correctness details.",
         "creative": "Use an imaginative, natural voice while distinguishing facts from invention.",
+        "roleplay": (
+            "Maintain the user's fictional character, setting, and scene continuity. "
+            "Clearly keep fictional events distinct from real-world facts; do not claim "
+            "to be a real person or assert a fictional identity is real."
+        ),
     }
     style = profiles.get(str(persona).lower(), profiles["helpful"])
     language_hint = (
