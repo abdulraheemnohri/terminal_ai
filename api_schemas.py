@@ -84,3 +84,26 @@ class KnowledgeCreateRequest(APIRequest):
 class KnowledgeSearchRequest(APIRequest):
     query: str = Field(default="", max_length=1000)
     limit: int = Field(default=10, ge=1, le=50)
+
+
+class WorkspaceReadRequest(APIRequest):
+    path: str = Field(min_length=1, max_length=1000)
+
+
+class WorkspaceWriteRequest(APIRequest):
+    path: str = Field(min_length=1, max_length=1000)
+    content: str = Field(max_length=500_000)
+    approved: bool = False
+
+
+class WorkspaceExecuteRequest(APIRequest):
+    argv: list[str] = Field(min_length=1, max_length=32)
+    approved: bool = False
+    timeout: int = Field(default=30, ge=1, le=60)
+
+    @field_validator("argv")
+    @classmethod
+    def validate_argv(cls, argv: list[str]) -> list[str]:
+        if any(len(arg) > 2000 for arg in argv):
+            raise ValueError("Command arguments must be at most 2000 characters.")
+        return argv
