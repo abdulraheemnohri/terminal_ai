@@ -76,7 +76,7 @@ class LearningStore:
                 "outcome": outcome, "rating": rating, "verified": True, "created_at": now}
 
     def summary(self) -> dict[str, Any]:
-        with self._lock, init_sqlite(self.path) as conn:
+        with self._lock, closing(init_sqlite(self.path)) as conn:
             rows = conn.execute("""
                 SELECT task_type, algorithm, COUNT(*),
                     AVG(CASE outcome WHEN 'success' THEN 1.0 WHEN 'partial' THEN 0.5 ELSE 0.0 END),
