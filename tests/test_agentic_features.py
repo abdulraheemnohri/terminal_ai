@@ -62,3 +62,11 @@ def test_parse_tool_calls_supports_nested_json():
     text = '<tool_call>{"name":"remember","args":{"key":"profile","value":{"nested":[1,2]}}}</tool_call>'
     calls = parse_tool_calls(text)
     assert calls == [{"name": "remember", "args": {"key": "profile", "value": {"nested": [1, 2]}}}]
+
+
+
+def test_roleplay_persona_preserves_fictional_continuity_without_claiming_real_identity():
+    value = persona_instruction("roleplay")
+    assert "fictional character" in value
+    assert "real person" in value
+    assert "real-world facts" in value
