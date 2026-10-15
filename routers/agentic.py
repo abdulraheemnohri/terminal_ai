@@ -312,6 +312,44 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"proposal": proposal, "execution_started": False,
                 "notice": "Proposal only. Approval does not execute or dispatch a retry; any revised operation requires fresh Command Control approval."}
 
+    @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/operation")
+    async def queue_recovery_operation(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new pending Command Control operation; this never executes it."""
+        if task_lifecycle.get(task_id) is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        tool = data.get("tool")
+        operation = data.get("operation")
+        arguments = data.get("arguments", {})
+        if not isinstance(tool, str) or not isinstance(operation, str) or tool != operation:
+            raise HTTPException(status_code=400, detail="tool and operation must match a registered dispatchable tool name.")
+        if not isinstance(arguments, dict):
+            raise HTTPException(status_code=400, detail="arguments must be a JSON object.")
+        try:
+            recovery_store.prepare_operation_queue(task_id=task_id, proposal_id=proposal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Recovery proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        try:
+            operation_record = control.queue(tool, operation, arguments)
+            proposal = recovery_store.attach_new_operation(
+                task_id=task_id, proposal_id=proposal_id, operation_id=operation_record["id"],
+            )
+        except Exception as exc:
+            recovery_store.release_operation_queue(task_id=task_id, proposal_id=proposal_id)
+            if isinstance(exc, ValueError):
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise
+        control.audit("agentic", "task.recovery_operation_queued", task_id, {
+            "proposal_id": proposal_id, "new_operation_id": operation_record["id"],
+            "tool": tool, "operation": operation,
+        })
+        return {
+            "proposal": proposal, "operation": operation_record,
+            "execution_started": False, "approval_required": True,
+            "notice": "A new pending operation was created. It must be reviewed and separately approved in Command Control; this route never executes it.",
+        }
+
     @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/review")
     async def review_recovery_proposal(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if task_lifecycle.get(task_id) is None:
