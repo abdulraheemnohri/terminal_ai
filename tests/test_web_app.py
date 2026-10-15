@@ -255,3 +255,13 @@ def test_favicon_route_returns_svg_without_404():
     assert response.status_code == 200
     assert "image/svg+xml" in response.headers["content-type"]
     assert "<svg" in response.text
+
+
+def test_roleplay_persona_setting_is_supported_and_validated():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"agentic_persona": "roleplay"})
+        invalid = client.patch("/api/settings", json={"agentic_persona": "real-person-impersonation"})
+        client.patch("/api/settings", json={"agentic_persona": "helpful"})
+    assert response.status_code == 200
+    assert response.json()["agentic_persona"] == "roleplay"
+    assert invalid.status_code == 400
