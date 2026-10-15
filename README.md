@@ -14,7 +14,7 @@ The **Self-X** web dashboard adds operational self-identity/status, local diagno
 - **Self-goals / self-skills:** existing goal planner and reviewed reusable procedure library, controlled by independent settings. AI can draft a skill from a described workflow; the user reviews/edits it before saving. Generated skills are instructions, never executable code.
 - **Self-learning:** local memories, skill procedures, and outcome records; no model-weight training.
 - **Self-recovery:** checksummed allowlisted state checkpoints and explicitly confirmed restore; restores create a safety checkpoint first and exclude Hugging Face tokens and other secret files.
-- **Self-maintenance:** advisory proposals and manual update review. When explicitly enabled, a background worker runs local diagnostics/evaluation at the configured interval. It does not execute commands, apply repairs, install dependencies, or update source code.
+- **Self-maintenance:** advisory proposals and manual update review. When explicitly enabled, a background worker runs local diagnostics/evaluation at the configured interval, creates scheduled state checkpoints when checkpointing is enabled, enforces checkpoint retention, and creates deduplicated goals from failed local checks. Autonomous activity is recorded in the Self-X event history. It does not execute commands, apply repairs, install dependencies, or update source code.
 
 Self-X data is stored locally in the Terminal AI state directory. Keep the web UI on localhost unless authentication and network access controls are configured.
 
