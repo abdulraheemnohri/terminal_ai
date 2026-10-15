@@ -49,3 +49,19 @@ def test_invalid_skill_package_rejected(tmp_path):
         pass
     else:
         raise AssertionError("invalid package should be rejected")
+
+
+def test_audit_rows_cannot_be_updated_or_deleted(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "control.sqlite3"
+    control = CommandControl(path)
+    control.audit("test", "example", "item", {"safe": True})
+    with sqlite3.connect(path) as db:
+        row = db.execute("SELECT seq FROM audit_log LIMIT 1").fetchone()
+        try:
+            db.execute("UPDATE audit_log SET action='tampered' WHERE seq=?", (row[0],))
+        except sqlite3.IntegrityError:
+            pass
+        else:
+            raise AssertionError("audit updates should be blocked by SQLite trigger")
