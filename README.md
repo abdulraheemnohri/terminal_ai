@@ -272,6 +272,10 @@ Interactive API documentation is available at `/schema/swagger` while the app is
 
 Back up the state directory before upgrades or checkpoint restores. Store backups securely because local state can include conversation and operational history.
 
+## Bounded failure recovery
+
+Tracked tasks can collect up to three recovery proposals after a linked Command Control operation is recorded as failed or expired. Recovery guidance uses explicit categories and distinguishes transient failures, failures requiring a change, and unsafe/unknown cases. A human can review a proposal, but approval authorizes replanning only—not execution. Any retry or changed arguments require a new Command Control operation and fresh human approval. Do not include secrets in failure summaries. See [Agentic API](docs/AGENTIC_API.md) for endpoints and policy details.
+
 ## Security model
 
 **Keep the server on `127.0.0.1` unless you have deliberately configured a secure remote deployment.**
