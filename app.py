@@ -953,7 +953,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
     prompt = (
         "Translate a user's request into a minimal JSON settings proposal. Return ONLY JSON with keys "
         "'changes' (object) and 'explanation' (string). Allowed keys are: " + ", ".join(sorted(allowed)) + ". "
-        "Use only these keys. Values must match their types. mode is auto/cloud/local/hybrid. active_provider may be "
+        "Use only these keys. Values must match their types. self_autonomy_profile is observe (checks only), maintain (checks and scheduled checkpoints), or goal-driven (maintain plus bounded diagnostic goal creation). Goal creation is separately gated and limited by self_max_goals_per_cycle. mode is auto/cloud/local/hybrid. active_provider may be "
         "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai. "
         "Never propose API keys, credentials, URLs, code, commands, permission changes, or disabling tool approval. "
         "If the request cannot be expressed safely, return empty changes and explain why. The proposal is not applied.\n"
