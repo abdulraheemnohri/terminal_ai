@@ -32,6 +32,7 @@ from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
 from command_control import CommandControl
 from routers.control import create_control_router
+from routers.health import create_health_router
 from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
@@ -1973,6 +1974,7 @@ app = Litestar(
         status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_control_router(_COMMAND_CONTROL),
+        create_health_router(ROOT, core.STATE_DIR),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
