@@ -55,6 +55,10 @@ class CommandControl:
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, version TEXT NOT NULL,
                 description TEXT NOT NULL, steps_json TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0,
                 source TEXT NOT NULL, created_at REAL NOT NULL)""")
+            db.execute("""CREATE TRIGGER IF NOT EXISTS audit_log_no_update
+                BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END""")
+            db.execute("""CREATE TRIGGER IF NOT EXISTS audit_log_no_delete
+                BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END""")
             row = db.execute("SELECT id FROM control_settings WHERE id=1").fetchone()
             if not row:
                 db.execute("INSERT INTO control_settings VALUES(1,?,?)",
