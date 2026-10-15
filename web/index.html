@@ -34,7 +34,7 @@
   <div class="side-foot"><span class="dot"></span><b id="side-state">Web interface</b><br>Local state storage<br><span id="side-version">Loading version…</span></div>
 </aside>
 <main class="main">
-  <header class="topbar"><div><div class="eyebrow">LOCAL CONTROL CENTER</div><h1 id="page-title">Overview</h1></div><div class="topbar-actions"><button class="btn command-open" type="button" id="command-open" aria-haspopup="dialog" aria-controls="command-palette"><span aria-hidden="true">⌕</span> <span>Jump to…</span> <kbd>Ctrl K</kbd></button><div class="status-pill"><span class="dot" id="status-dot"></span><strong id="status-label">Checking system</strong></div></div></header>
+  <header class="topbar"><div><div class="eyebrow">LOCAL CONTROL CENTER</div><h1 id="page-title">Overview</h1></div><div class="topbar-actions"><button class="btn theme-toggle" type="button" id="theme-toggle" aria-pressed="false" aria-label="Switch to light theme" title="Switch theme"><span id="theme-toggle-icon" aria-hidden="true">☼</span><span class="theme-toggle-label">Theme</span></button><button class="btn command-open" type="button" id="command-open" aria-haspopup="dialog" aria-controls="command-palette"><span aria-hidden="true">⌕</span> <span>Jump to…</span> <kbd>Ctrl K</kbd></button><div class="status-pill"><span class="dot" id="status-dot"></span><strong id="status-label">Checking system</strong></div></div></header>
 
   <section class="view active" id="view-overview">
     <div class="overview-hero card span-12">
@@ -317,6 +317,7 @@
 <div class="command-backdrop" id="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-title" aria-hidden="true"><div class="command-dialog"><div class="command-heading"><div><div class="eyebrow">QUICK NAVIGATION</div><h2 id="command-title">Jump to a page</h2></div><button class="btn command-close" type="button" id="command-close" aria-label="Close command palette">Esc</button></div><label class="command-search-label" for="command-search">Search dashboard pages</label><input id="command-search" type="search" autocomplete="off" maxlength="100" placeholder="Type a page name…" aria-controls="command-results" aria-expanded="true"><div id="command-results" class="command-results" role="listbox" aria-label="Dashboard pages"></div><div class="command-hint"><span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span><span><kbd>Enter</kbd> to open</span><span><kbd>Esc</kbd> to close</span></div></div></div>
 </main>
 </div>
+<div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="false"></div>
 <script defer src="/static/app.js"></script>
 <script defer src="/static/chat-enhancements.js"></script>
 </body>
