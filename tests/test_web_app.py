@@ -19,6 +19,9 @@ def test_dashboard_returns_html():
     assert 'id="command-palette"' in response.text
     assert 'id="overview-browser-badge"' in response.text
     assert "Jump to…" in response.text
+    assert 'id="ui-pref-compact"' in response.text
+    assert 'id="ui-pref-large-text"' in response.text
+    assert 'id="ui-pref-reduced-motion"' in response.text
 
 
 def test_status_endpoint_is_available_without_model():
@@ -379,3 +382,17 @@ def test_command_palette_and_browser_overview_assets_are_served():
     assert css.status_code == 200
     assert ".command-backdrop.open" in css.text
     assert ".browser-security-card" in css.text
+
+
+def test_interface_preferences_are_browser_local_and_styled():
+    with TestClient(app=app) as client:
+        js = client.get("/static/app.js")
+        css = client.get("/static/app.css")
+    assert js.status_code == 200
+    assert "terminal-ai-ui-preferences" in js.text
+    assert "ui-pref-reset" in js.text
+    assert "applyUiPreferences" in js.text
+    assert css.status_code == 200
+    assert ".ui-compact" in css.text
+    assert ".ui-large-text" in css.text
+    assert ".ui-reduced-motion" in css.text
