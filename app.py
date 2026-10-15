@@ -50,8 +50,8 @@ _CHAT_RUNS_LOCK = threading.Lock()
 # Browser agent tools are intentionally read-only. Writes, deletes, shell,
 # environment mutation, tool forging and network fetches remain unavailable here.
 AGENTIC_SAFE_TOOLS = {
-    "now", "sys_info", "find_files", "read_lines", "list_dir", "read_file",
-    "grep_files", "search_memory", "query_graph", "list_goals", "read_journal", "done",
+    # No file paths, shell, network, mutation, deletion, or environment access.
+    "now", "sys_info", "search_memory", "query_graph", "list_goals", "read_journal", "done",
 }
 _LONG_MEMORY = MemoryStore(core.STATE_DIR / "long_term_memory.sqlite3")
 _WORKSPACE_TOOLS = WorkspaceTools(ROOT)
