@@ -16,7 +16,7 @@ training, or expose hidden chain-of-thought.
   results include duration and call ID.
 - **Self-correction/recovery:** a bounded retry/repair loop supports application-level
   validators and repair callbacks. Maximum attempts are capped at five.
-- **Multi-turn context:** bounded message and character budgets; supported roles are
+- **Conversation personas:** helpful, technical, coach, concise, creative, and fictional roleplay modes. Roleplay preserves fictional character/scene continuity while distinguishing fiction from real-world facts and avoiding claims to be a real person. Persona settings do not grant permissions.\n- **Multi-turn context:** bounded message and character budgets; supported roles are
   system, user, assistant, and tool. Private chain-of-thought is deliberately not
   stored or emitted as a conversation role.
 - **Test coverage:** unit tests exercise structured calls, schema rejection, approval,
