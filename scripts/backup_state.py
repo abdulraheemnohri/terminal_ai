@@ -36,7 +36,7 @@ def main() -> int:
     manifest = {"format": 1, "created_at": stamp, "state_root_name": STATE.name, "files": {}}
     with zipfile.ZipFile(target, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(STATE.rglob("*")):
-            if not path.is_file() or "backups" in path.relative_to(STATE).parts:
+            if path.is_symlink() or not path.is_file() or "backups" in path.relative_to(STATE).parts:
                 continue
             relative = path.relative_to(STATE).as_posix()
             manifest["files"][relative] = digest(path)
