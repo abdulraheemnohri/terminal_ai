@@ -9,7 +9,7 @@
 - terminal_ai.py: core agent, backend abstractions, conversation/session management, skill library, tools, memory and provider integration.
 - litert_api_backend.py: local LiteRT-LM Python API adapter. Local inference does not require Gemini or network access when a local model is selected and available.
 - selfx_engine.py: local diagnostics, evaluation, research notes, recovery checkpoints and bounded maintenance.
-- memory_store.py: local SQLite knowledge and conversation archive.
+- memory_store.py: compatibility shim re-exporting `agent.memory.MemoryStore` for existing imports.
 - workspace_tools.py: workspace-confined file operations and approval-gated subprocess execution.
 - task_scheduler.py: persistent allowlisted interval jobs.
 - web/index.html, web/app.js, web/app.css: browser dashboard and client interactions.
