@@ -163,3 +163,6 @@ The task ledger is an orchestration record, not a tool runner. It stores a bound
 ## Failure recovery boundary
 
 Recovery proposals are stored separately from task records. They require a linked operation with a recorded terminal `failed` or `expired` status, allow at most three proposals per task, and retain at most 5,000 proposals. Timeout/network/rate-limit categories can be approved for replanning after review; dependency/validation issues require correction and a fresh operation; permission, destructive, and unknown failures are not retry-approvable. This is proposal metadata only: the prior operation is never re-opened, and a new operation must go through Command Control's exact-argument approval gate. Operator-supplied categories are not an automated root-cause diagnosis.
+
+
+Approved recovery continuation is a one-shot state transition: `approved_for_replanning → queueing → operation_queued`. The API queues a separate pending Command Control operation with the supplied exact tool and arguments, records its ID on the proposal, and never dispatches it. A failed queue request releases the reservation; duplicate queue attempts are rejected. The new operation must be reviewed and approved independently.
