@@ -138,7 +138,7 @@ class TaskLifecycleStore:
             if row["operation_id"] != operation.get("id"):
                 db.rollback()
                 raise ValueError("operation does not match the task's linked operation")
-            if row["status"] in {"verified", "reviewed"}:
+            if row["status"] in {"verified", "reviewed"} or row["verification_json"] is not None:
                 db.commit()
                 return self._decode(row)
             status = self._status_for_operation(operation["status"])
