@@ -14,6 +14,7 @@ REQUIRED_FILES = (
     "application/task_intelligence.py",
     "application/learning.py",
     "application/skill_evolution.py",
+    "application/task_lifecycle.py",
     "web/index.html",
     "web/app.js",
     "web/app.css",
