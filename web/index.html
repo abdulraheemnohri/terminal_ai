@@ -224,6 +224,19 @@
 
   <section class="view" id="view-improvements">
     <div class="grid">
+      <article class="card span-12"><div class="card-head"><div><h2>Skill evolution review queue</h2><p class="muted">Create, statically validate, approve, reject, and promote non-executable skill procedure drafts.</p></div><button class="btn" id="skill-evolution-refresh">Refresh queue</button></div>
+        <div class="notice"><b>Human approval required.</b> Static validation checks structure only; it does not prove a procedure is safe. Promotion adds a reviewed procedure proposal to the approved catalog state only. It never executes code, installs tools, changes permissions, or edits source files.</div>
+        <form id="skill-evolution-form" class="grid" style="margin-top:12px">
+          <div class="field"><label for="evolution-name">Skill name</label><input id="evolution-name" maxlength="80" required placeholder="Debug startup failures"></div>
+          <div class="field"><label for="evolution-task-type">Task family</label><select id="evolution-task-type"><option value="debugging">Debugging</option><option value="software_change">Software change</option><option value="research">Research</option><option value="browser_work">Browser work</option><option value="planning">Planning</option><option value="writing">Writing</option><option value="general">General</option></select></div>
+          <div class="field"><label for="evolution-rationale">Why is this improvement useful?</label><textarea id="evolution-rationale" maxlength="2000" rows="2" required></textarea></div>
+          <div class="field"><label for="evolution-steps">Procedure steps (one per line, up to 20)</label><textarea id="evolution-steps" maxlength="8000" rows="4" required placeholder="Collect evidence&#10;Reproduce the issue&#10;Verify the fix with a test"></textarea></div>
+          <div class="field"><label for="evolution-evidence">Evidence summary (reviewed outcome references, no secrets)</label><textarea id="evolution-evidence" maxlength="2000" rows="2" required placeholder="Summarize the reviewed evidence; do not include prompts, credentials, or private data."></textarea></div>
+          <div class="row"><button class="btn primary" type="submit">Submit skill proposal</button><span class="muted">New proposals are not trusted until reviewed.</span></div><div id="skill-evolution-error" class="error"></div>
+        </form>
+        <div class="field" style="margin-top:12px"><label for="skill-evolution-note">Reviewer note (used for approve, reject, or promote)</label><input id="skill-evolution-note" maxlength="500" placeholder="Reason for this decision"></div>
+        <div class="list" id="skill-evolution-list"><div class="empty">Loading skill proposals…</div></div>
+      </article>
       <article class="card span-12"><div class="card-head"><div><h2>Self-improvement proposals</h2><p class="muted">Evidence-based maintenance suggestions generated from current configuration and local state.</p></div><button class="btn" id="refresh-improvements">Reassess</button></div>
         <div class="notice">Proposals are advisory. This page does not rewrite source code, install dependencies, grant permissions, or run commands automatically. Review a proposal before acting.</div>
         <div class="list" id="improvement-list" style="margin-top:14px"><div class="empty">Assessing current state…</div></div><div id="improvements-error" class="error"></div>
