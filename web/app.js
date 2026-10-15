@@ -129,6 +129,23 @@ $("apply-update").addEventListener("click",async()=>{
  finally{b.disabled=true;b.textContent="Apply available update";}
 });
 
+$("reset-autonomy-settings").addEventListener("click",async()=>{
+ if(!confirm("Reset autonomy to safe defaults? This disables autonomous maintenance and goal generation. Other model and provider settings will remain unchanged."))return;
+ const button=$("reset-autonomy-settings");button.disabled=true;$("settings-error").textContent="";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify({
+   self_autonomous_enabled:false,self_autonomy_profile:"observe",
+   self_maintenance_enabled:true,self_diagnostics_enabled:true,self_evaluation_enabled:true,
+   self_recovery_enabled:true,self_auto_checkpoint:true,self_goal_generation_enabled:false,
+   self_max_goals_per_cycle:3,self_evaluation_interval_hours:24,
+   self_checkpoint_interval_hours:24,self_checkpoint_retention:10,
+   tool_approval_required:true
+  })});
+  $("settings-saved").textContent="Autonomy reset to safe defaults";await loadSettings();await loadStatus();
+ }catch(err){$("settings-error").textContent=err.message;}
+ finally{button.disabled=false;}
+});
+
 $("settings-form").addEventListener("submit",async e=>{
  e.preventDefault();$("settings-error").textContent="";$("settings-saved").textContent="Saving…";
  try{
