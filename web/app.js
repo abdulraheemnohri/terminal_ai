@@ -35,7 +35,7 @@ function closeCommandPalette(){
 if($("command-open"))$("command-open").addEventListener("click",openCommandPalette);
 if($("command-close"))$("command-close").addEventListener("click",closeCommandPalette);
 if(commandSearch)commandSearch.addEventListener("input",()=>{commandActiveIndex=0;renderCommandResults();});
-if(commandResults)commandResults.addEventListener("click",e=>{const item=e.target.closest("[data-command-view]");if(!item)return;const view=item.dataset.commandView;closeCommandPalette();showView(view);const navButton=document.querySelector('#nav [data-view="'+CSS.escape(view)+'"]');if(navButton)navButton.focus();});
+if(commandResults)commandResults.addEventListener("click",e=>{const item=e.target.closest("[data-command-view]");if(!item)return;const view=item.dataset.commandView;closeCommandPalette();showView(view);const navButton=Array.from(document.querySelectorAll("#nav [data-view]")).find(button=>button.dataset.view===view);if(navButton)navButton.focus();});
 if(commandPalette)commandPalette.addEventListener("click",e=>{if(e.target===commandPalette)closeCommandPalette();});
 document.addEventListener("keydown",e=>{
  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openCommandPalette();return;}
