@@ -77,6 +77,10 @@ class ApprovalGate:
             req.decided_at, req.decided_by = time.time(), actor[:120]
             return req
 
+    def get(self, request_id: str) -> ApprovalRequest | None:
+        with self._lock:
+            return self._requests.get(request_id)
+
     def pending(self) -> list[ApprovalRequest]:
         with self._lock:
             now = time.time()
