@@ -44,6 +44,8 @@ class PersistentWorldModel:
                         confidence=float(item.get("confidence", 0.5)), ttl_seconds=ttl,
                     )
                     fact.observed_at = float(item.get("observed_at", fact.observed_at))
+                    # Preserve the original absolute expiry; restarting must not extend a fact's TTL.
+                    fact.expires_at = float(item["expires_at"]) if item.get("expires_at") is not None else None
                 except (KeyError, TypeError, ValueError):
                     continue
         except (OSError, json.JSONDecodeError):
