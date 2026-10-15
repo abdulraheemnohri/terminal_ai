@@ -2074,10 +2074,14 @@ async def workspace_execute(data: dict[str, Any]) -> dict[str, Any]:
         _COMMAND_CONTROL.audit("user", "workspace.command.blocked", command or "invalid-argv",
                                {"approved": True, "reason": "control-center policy denied executable"})
         raise HTTPException(status_code=403, detail="Command is blocked by the Command Control Center policy.")
-    _COMMAND_CONTROL.audit("user", "workspace.command.approved", command,
-                           {"approved": True, "timeout": max(1, min(60, int(data.get("timeout", 30))))})
     try:
-        result = _WORKSPACE_TOOLS.run_command(argv, approved=True, timeout=int(data.get("timeout", 30)))
+        timeout = max(1, min(60, int(data.get("timeout", 30))))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="timeout must be an integer from 1 to 60 seconds.") from exc
+    _COMMAND_CONTROL.audit("user", "workspace.command.approved", command,
+                           {"approved": True, "timeout": timeout})
+    try:
+        result = _WORKSPACE_TOOLS.run_command(argv, approved=True, timeout=timeout)
         _COMMAND_CONTROL.audit("user", "workspace.command.completed", command,
                                {"returncode": result.get("returncode"), "approved": True})
         return result
