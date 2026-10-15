@@ -66,10 +66,10 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
-from agentic_features import (
-    needs_planning, persona_instruction, planning_instruction,
-    recovery_instruction, validate_tool_calls,
+from agent.planning import (
+    needs_planning, persona_instruction, planning_instruction, recovery_instruction,
 )
+from agent.tools import validate_tool_calls
 
 try:
     import readline  # noqa: F401
