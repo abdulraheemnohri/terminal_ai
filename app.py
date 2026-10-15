@@ -33,6 +33,7 @@ from task_scheduler import TaskScheduler
 from command_control import CommandControl
 from routers.control import create_control_router
 from routers.knowledge import create_knowledge_router
+from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 
 logger = logging.getLogger("terminal_ai.web")
@@ -1891,64 +1892,6 @@ async def _stop_update_checker() -> None:
         _UPDATE_TASK = None
 
 
-@get("/api/workspace")
-async def workspace_list(path: str = ".") -> dict[str, Any]:
-    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
-    try: return {"workspace": str(_WORKSPACE_TOOLS.workspace), "path": path, "items": _WORKSPACE_TOOLS.list_files(path)}
-    except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-@post("/api/workspace/read")
-async def workspace_read(data: dict[str, Any]) -> dict[str, Any]:
-    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
-    try: return {"path": data.get("path", ""), "content": _WORKSPACE_TOOLS.read_file(str(data.get("path", "")))}
-    except (ValueError, FileNotFoundError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-@post("/api/workspace/write")
-async def workspace_write(data: dict[str, Any]) -> dict[str, Any]:
-    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
-    # Approval is intentionally an explicit API field; the UI must display the exact path and content first.
-    if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
-    relative_path = str(data.get("path", ""))
-    content = str(data.get("content", ""))
-    try:
-        result = {"status": "written", **_WORKSPACE_TOOLS.write_file(relative_path, content, approved=True)}
-        _COMMAND_CONTROL.audit("user", "workspace.file.written", result.get("path", relative_path),
-                               {"bytes": result.get("bytes", 0), "approved": True})
-        return result
-    except (ValueError, PermissionError) as exc:
-        _COMMAND_CONTROL.audit("user", "workspace.file.write_rejected", relative_path, {"reason": type(exc).__name__})
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-@post("/api/workspace/execute")
-async def workspace_execute(data: dict[str, Any]) -> dict[str, Any]:
-    if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
-    if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
-    argv = data.get("argv")
-    policy = _COMMAND_CONTROL.get_policy()
-    command = Path(argv[0]).name if isinstance(argv, list) and argv and isinstance(argv[0], str) else ""
-    if command in set(policy.get("blocklist", [])) or command not in set(policy.get("allowlist", [])):
-        _COMMAND_CONTROL.audit("user", "workspace.command.blocked", command or "invalid-argv",
-                               {"approved": True, "reason": "control-center policy denied executable"})
-        raise HTTPException(status_code=403, detail="Command is blocked by the Command Control Center policy.")
-    try:
-        timeout = max(1, min(60, int(data.get("timeout", 30))))
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="timeout must be an integer from 1 to 60 seconds.") from exc
-    _COMMAND_CONTROL.audit("user", "workspace.command.approved", command,
-                           {"approved": True, "timeout": timeout})
-    try:
-        result = _WORKSPACE_TOOLS.run_command(argv, approved=True, timeout=timeout)
-        _COMMAND_CONTROL.audit("user", "workspace.command.completed", command,
-                               {"returncode": result.get("returncode"), "approved": True})
-        return result
-    except subprocess.TimeoutExpired as exc:
-        _COMMAND_CONTROL.audit("user", "workspace.command.timeout", command, {"approved": True})
-        raise HTTPException(status_code=408, detail="Command timed out.") from exc
-    except (ValueError, PermissionError) as exc:
-        _COMMAND_CONTROL.audit("user", "workspace.command.rejected", command,
-                               {"approved": True, "reason": type(exc).__name__})
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
 @get("/api/scheduled-tasks")
 async def list_scheduled_tasks() -> dict[str, Any]:
     return {"tasks": _TASK_SCHEDULER.list(), "allowed_types": ["diagnostics", "backup_memory", "cleanup_temp"]}
@@ -2028,7 +1971,7 @@ app = Litestar(
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
         status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
-        create_knowledge_router(_LONG_MEMORY, _read_settings), workspace_list, workspace_read, workspace_write, workspace_execute,
+        create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_control_router(_COMMAND_CONTROL),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
