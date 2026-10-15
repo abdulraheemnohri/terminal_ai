@@ -67,7 +67,7 @@ class SkillEvolutionStore:
             errors.append("combined step text exceeds 8000 characters")
         # This is a deliberately small structural check, not a sandbox/security scanner.
         if isinstance(steps, list) and any(
-            isinstance(step, str) and re.search(r"(^|\s)(exec|eval|subprocess|os\.system)\s*\(", step, re.I)
+            isinstance(step, str) and re.search(r"(^|\s)(exec|eval|subprocess(?:\.[A-Za-z_][A-Za-z0-9_]*)?|os\.system)\s*\(", step, re.I)
             for step in steps
         ):
             errors.append("executable-code patterns are not allowed in skill procedure text")
