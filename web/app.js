@@ -5,11 +5,53 @@ function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
 function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
-document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
-async function loadStatus(){try{statusData=await api("/api/status");$("status-label").textContent=statusData.ready?"System online":"Setup required";$("status-dot").style.background=statusData.ready?"var(--green)":"var(--red)";$("metric-ready").textContent=statusData.ready?"Ready":"Setup";$("metric-backend").textContent=statusData.backend||"Not loaded";$("metric-mode").textContent="Mode: "+statusData.mode;$("metric-memory").textContent=statusData.memory_facts;$("metric-goals").textContent=statusData.active_goals;$("side-version").textContent="v"+statusData.version;$("side-state").textContent=statusData.ready?"Agent connected":"Backend not ready";$("system-list").innerHTML=[["Application",statusData.interface],["Version","v"+statusData.version],["Gemini key",statusData.gemini_configured?"Configured":"Not configured"],["Local models",statusData.local_models.length?statusData.local_models.join(", "):"No .litertlm files found"],["State directory",statusData.state_dir],["Uptime",statusData.uptime_seconds+" seconds"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");$("system-error").textContent=statusData.error||"";$("storage-list").innerHTML=[["State",statusData.state_dir],["Models",statusData.local_models.length+" found"],["Interface","Litestar + HTML/CSS/JS"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");}catch(e){$("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;}}
+if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
+document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
+async function loadStatus(){
+ try{
+  statusData=await api("/api/status");
+  const ready=Boolean(statusData.ready);
+  $("status-label").textContent=ready?"System online":"Setup required";
+  $("status-dot").style.background=ready?"var(--green)":"var(--red)";
+  $("metric-ready").textContent=ready?"Ready":"Setup";
+  $("metric-backend").textContent=statusData.backend||"Not loaded";
+  $("metric-mode").textContent="Mode: "+(statusData.mode||"auto");
+  $("metric-memory").textContent=Number(statusData.memory_facts||0).toLocaleString();
+  $("metric-goals").textContent=Number(statusData.active_goals||0).toLocaleString();
+  $("side-version").textContent="v"+(statusData.version||"—");
+  $("side-state").textContent=ready?"Agent connected":"Backend not ready";
+  const localModels=statusData.local_models||[];
+  const checks=[
+   ["API server","Available","ok"],
+   ["Inference backend",statusData.backend||"Not initialized",ready?"ok":"warn"],
+   ["Local model files",localModels.length?localModels.length+" model(s) found":"No .litertlm files found",localModels.length?"ok":"warn"],
+   ["Saved sessions",String(statusData.session_count??"—"),"neutral"],
+   ["Application uptime",formatDuration(statusData.uptime_seconds),"neutral"],
+   ["Self-X maintenance",statusData.selfx_enabled?"Enabled":"Configured in Settings",statusData.selfx_enabled?"ok":"neutral"]
+  ];
+  $("overview-health").innerHTML=checks.map(([k,v,s])=>'<div class="health-item"><span class="health-indicator '+s+'"></span><div><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div></div>').join("");
+  $("overview-health-badge").textContent=ready?"Runtime reachable":"Action required";
+  $("overview-ready-sub").textContent=ready?"Backend initialized · API responding":"Open Settings or Diagnostics to resolve setup";
+  $("system-list").innerHTML=[["Application",statusData.interface],["Version","v"+statusData.version],["Active session",statusData.active_session||"web-session"],["Session count",statusData.session_count??"Unknown"],["State directory",statusData.state_dir],["Uptime",formatDuration(statusData.uptime_seconds)]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v??"Unknown")+'</p></div>').join("");
+  $("overview-inference").innerHTML=[["Selected mode",statusData.mode||"auto"],["Active backend",statusData.backend||"Not loaded"],["Gemini credentials",statusData.gemini_configured?"Present (not displayed)":"Not configured"],["Local models",localModels.length?localModels.join(", "):"None detected"],["Network dependency",statusData.mode==="local"?"Not required for inference":"Depends on selected provider / fallback"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
+  const checklist=[
+   [ready,"Initialize an inference backend",ready?"Backend is ready":"Check model/provider configuration","settings"],
+   [false,"Verify offline model",localModels.length?"Model file detected; run a test with network disabled to confirm inference":"Add a compatible .litertlm model in the models directory","models"],
+   [false,"Verify session persistence",statusData.session_count?"Saved session records are discoverable; reopen one to verify messages":"Create a session, send a message, then reopen it to verify persistence","sessions"],
+   [!statusData.error,"Review runtime errors",statusData.error||"No current backend initialization error reported","diagnostics"]
+  ];
+  $("overview-checklist").innerHTML=checklist.map(([ok,title,detail,view])=>'<div class="check-item"><span class="check-mark '+(ok?"done":"pending")+'">'+(ok?"✓":"!")+'</span><div><b>'+escapeHtml(title)+'</b><p>'+escapeHtml(detail)+'</p><button class="btn" data-go="'+view+'">Open</button></div></div>').join("");
+  $("system-error").textContent=statusData.error||"";
+  $("storage-list").innerHTML=[["State",statusData.state_dir],["Models",localModels.length+" found"],["Interface","Litestar + HTML/CSS/JS"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
+ }catch(e){
+  $("status-label").textContent="API unavailable";$("metric-ready").textContent="Offline";$("system-error").textContent=e.message;
+  if($("overview-health"))$("overview-health").innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';
+ }
+}
+function formatDuration(value){let s=Math.max(0,Number(value)||0);const d=Math.floor(s/86400);s%=86400;const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s=Math.floor(s%60);return [d?d+"d":"",h?h+"h":"",m?m+"m":"",(!d&&!h&&!m)||s?s+"s":""].filter(Boolean).join(" ");}
 function addMessage(role,text){const welcome=$("welcome");if(welcome)welcome.remove();const div=document.createElement("div");div.className="message "+role;const who=document.createElement("span");who.className="who";who.textContent=role==="user"?"You":"Terminal AI";const body=document.createElement("div");body.textContent=text;div.append(who,body);$("messages").append(div);$("messages").scrollTop=$("messages").scrollHeight;return div;}
 document.querySelectorAll(".suggestions button").forEach(b=>b.addEventListener("click",()=>{$("chat-input").value=b.textContent;showView("chat");$("chat-input").focus();}));
-$("chat-form").addEventListener("submit",async e=>{e.preventDefault();const message=$("chat-input").value.trim();if(!message)return;$("chat-error").textContent="";addMessage("user",message);$("chat-input").value="";$("send-btn").disabled=true;$("send-btn").textContent="Thinking…";const pending=addMessage("assistant","Thinking…");try{const data=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});pending.lastChild.textContent=data.answer||"(empty response)";await loadStatus();}catch(err){pending.lastChild.textContent="";$("chat-error").textContent=err.message;pending.remove();}finally{$("send-btn").disabled=false;$("send-btn").textContent="Send message ↗";}});
+$("chat-form").addEventListener("submit",async e=>{e.preventDefault();const message=$("chat-input").value.trim();if(!message)return;$("chat-error").textContent="";addMessage("user",message);$("chat-input").value="";$("send-btn").disabled=true;$("send-btn").textContent="Thinking…";const pending=addMessage("assistant","Thinking…");try{const data=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});pending.lastChild.textContent=data.answer||"The selected model returned an empty answer. Check Diagnostics and the active backend.";const meta=document.createElement("small");meta.className="response-meta";meta.textContent="Generated by "+(data.backend||"unknown backend")+" · "+(Number(data.elapsed_seconds)||0).toFixed(1)+"s · "+(data.history_count??"—")+" history entries";pending.append(meta);await loadStatus();}catch(err){pending.lastChild.textContent="";$("chat-error").textContent=err.message;pending.remove();}finally{$("send-btn").disabled=false;$("send-btn").textContent="Send message ↗";}});
 $("chat-input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chat-form").requestSubmit();}});
 $("clear-chat").addEventListener("click",async()=>{try{await api("/api/chat/clear",{method:"POST",body:"{}"});$("messages").innerHTML='<div class="welcome" id="welcome"><div class="orb">✧</div><h2>Fresh conversation</h2><p>Your chat history was cleared from the active session.</p></div>';$("chat-error").textContent="";}catch(e){$("chat-error").textContent=e.message;}});
 async function loadMemory(){const list=$("memory-list");list.innerHTML='<div class="empty">Loading…</div>';try{const data=await api("/api/memory");const facts=data.facts||[];list.innerHTML=facts.length?facts.slice().reverse().map(f=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(f.k)+'</b><button class="btn danger forget-btn" data-key="'+escapeHtml(f.k)+'">Forget</button></div><p>'+escapeHtml(f.v)+'</p><div class="muted" style="font-size:11px;margin-top:8px">Source: '+escapeHtml(f.source||"unknown")+'</div></div>').join(""):'<div class="empty">No saved facts yet. Add a memory using the form.</div>';}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}

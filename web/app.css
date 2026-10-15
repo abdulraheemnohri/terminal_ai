@@ -54,3 +54,40 @@ button,input,textarea,select{font:inherit}button{cursor:pointer}.app{display:gri
 #view-settings .notice{line-height:1.6}
 @media(max-width:920px){#view-settings .settings-layout{grid-template-columns:1fr}#view-settings .settings-section:first-child{grid-column:auto}}
 @media(max-width:560px){#view-settings .settings-section{padding:13px}#view-settings .settings-actions{align-items:stretch}#view-settings .settings-actions .btn{width:100%}}
+
+
+/* Overview v2: responsive local-agent operations center */
+#view-overview .overview-hero{grid-column:span 12;display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;position:relative;background:radial-gradient(ellipse at 85% 15%,#4b4b9430,transparent 38%),linear-gradient(120deg,#14263b,#11182c 65%,#161b32);min-height:210px;padding:clamp(20px,3vw,34px)}
+#view-overview .overview-hero h2{font-size:clamp(25px,3vw,36px);letter-spacing:-.045em;margin:10px 0}
+#view-overview .overview-hero p{max-width:650px;margin:0 0 18px;line-height:1.7}
+#view-overview .overview-orb{flex:0 0 150px;width:150px;height:150px;border-radius:50%;display:grid;place-items:center;position:relative;border:1px solid #7adfff60;background:radial-gradient(circle at 35% 30%,#7be6ff50,#9a91ff20 45%,#11182c 70%);box-shadow:0 0 65px #66e3ff20,inset 0 0 30px #66e3ff16;color:var(--cyan);font-size:46px}
+#view-overview .overview-orb:before,#view-overview .overview-orb:after{content:"";position:absolute;inset:12px;border:1px solid #9fbcff30;border-radius:50%;transform:rotate(35deg) scaleX(1.3)}
+#view-overview .overview-orb:after{transform:rotate(-35deg) scaleX(1.3)}
+#view-overview .overview-orb span{position:absolute;bottom:28px;font-size:8px;letter-spacing:.18em;color:#b4c7e5}
+#view-overview .overview-metrics{margin:16px 0}
+#view-overview .overview-grid{align-items:stretch}
+#view-overview .health-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#view-overview .health-item{display:flex;align-items:flex-start;gap:11px;border:1px solid var(--line);border-radius:12px;padding:13px;background:#0c1525;min-width:0}
+#view-overview .health-item b,#view-overview .check-item b{font-size:12px}
+#view-overview .health-item p,#view-overview .check-item p{margin:5px 0 0;font-size:11px;overflow-wrap:anywhere}
+#view-overview .health-indicator{flex:0 0 9px;width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--muted);box-shadow:0 0 12px currentColor}
+#view-overview .health-indicator.ok{background:var(--green);color:var(--green)}
+#view-overview .health-indicator.warn{background:#ffc779;color:#ffc779}
+#view-overview .health-indicator.neutral{background:var(--cyan);color:var(--cyan)}
+#view-overview .quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#view-overview .quick-action{display:grid;gap:6px;text-align:left;align-content:start;min-height:112px;padding:13px;border:1px solid var(--line);border-radius:13px;background:#0d1728;color:var(--text)}
+#view-overview .quick-action:hover{border-color:#5b799e;background:#14223a}
+#view-overview .quick-action span{font-size:20px;color:var(--cyan)}
+#view-overview .quick-action b{font-size:12px}
+#view-overview .quick-action small{font-size:10px;color:var(--muted);line-height:1.4}
+#view-overview .checklist-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#view-overview .check-item{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:13px;padding:14px;background:#0c1525;min-width:0}
+#view-overview .check-item .btn{margin-top:10px;padding:7px 10px}
+#view-overview .check-mark{display:grid;place-items:center;flex:0 0 24px;width:24px;height:24px;border-radius:8px;font-size:12px;font-weight:800}
+#view-overview .check-mark.done{color:var(--green);background:#78e6ad18;border:1px solid #78e6ad50}
+#view-overview .check-mark.pending{color:#ffc779;background:#ffc77915;border:1px solid #ffc77950}
+#view-overview .card-head{margin-bottom:14px}
+@media(max-width:850px){#view-overview .overview-orb{flex-basis:110px;width:110px;height:110px}#view-overview .health-grid,#view-overview .checklist-grid{grid-template-columns:1fr}}
+@media(max-width:560px){#view-overview .overview-hero{align-items:flex-start}#view-overview .overview-orb{display:none}#view-overview .overview-hero .row{align-items:stretch}#view-overview .overview-hero .btn{font-size:11px;padding:9px}#view-overview .quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#view-overview .overview-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.response-meta{display:block;margin-top:10px;padding-top:8px;border-top:1px solid #26334b;color:var(--muted);font-size:10px;line-height:1.5}

@@ -9,6 +9,9 @@ def test_dashboard_returns_html():
     assert response.status_code == 200
     assert "Terminal AI" in response.text
     assert "AI Chat" in response.text
+    assert "overview-health" in response.text
+    assert "overview-checklist" in response.text
+    assert "LOCAL-FIRST AGENT CONTROL CENTER" in response.text
 
 
 def test_status_endpoint_is_available_without_model():
@@ -18,6 +21,9 @@ def test_status_endpoint_is_available_without_model():
     payload = response.json()
     assert payload["interface"] == "Litestar Web UI"
     assert "gemini_configured" in payload
+    assert isinstance(payload["session_count"], int)
+    assert payload["active_session"]
+    assert isinstance(payload["local_model_details"], list)
 
 
 def test_settings_reject_invalid_mode():
@@ -103,6 +109,8 @@ def test_dashboard_assets_are_served_separately():
     assert "font-family" in css.text
     assert js.status_code == 200
     assert "routeViews" in js.text
+    assert "response-meta" in js.text
+    assert "overview-health" in js.text
 
 
 def test_self_status_exposes_operational_model_without_claiming_sentience():
