@@ -13,6 +13,7 @@ from litestar.exceptions import HTTPException
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
 from application.learning import LearningStore
+from application.skill_evolution import SkillEvolutionStore
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
@@ -74,6 +75,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
     planner = AdaptivePlanner()
     world = PersistentWorldModel(Path(state_dir) / "world_model.json")
     learning_store = learning or LearningStore(Path(state_dir) / "learning.sqlite3")
+    skill_evolution = SkillEvolutionStore(Path(state_dir) / "skill_proposals.sqlite3")
 
     @get("/status")
     async def agentic_status() -> dict[str, Any]:
@@ -193,7 +195,81 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             raise HTTPException(status_code=400, detail=str(exc)[:300]) from exc
         return {"skill": validated, "saved": False, "execution_started": False}
 
+    @get("/skills/proposals")
+    async def list_skill_proposals(status: str | None = None, limit: int = 100) -> dict[str, Any]:
+        try:
+            items = skill_evolution.list(status=status, limit=limit)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"proposals": items, "count": len(items), "execution_started": False}
+
+    @post("/skills/proposals")
+    async def create_skill_proposal(data: dict[str, Any]) -> dict[str, Any]:
+        try:
+            item = skill_evolution.create(
+                name=data.get("name"), task_type=data.get("task_type"),
+                rationale=data.get("rationale"), steps=data.get("steps"),
+                evidence_summary=data.get("evidence_summary"),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        control.audit("skills", "proposal.created", item["name"], {"proposal_id": item["id"], "task_type": item["task_type"]})
+        return {"proposal": item, "execution_started": False, "permissions_changed": False}
+
+    @post("/skills/proposals/{proposal_id:str}/validate")
+    async def validate_skill_proposal(proposal_id: str) -> dict[str, Any]:
+        item = skill_evolution.get(proposal_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Skill proposal not found.")
+        errors = SkillEvolutionStore.validate_fields(item["name"], item["task_type"], item["rationale"], item["steps"], item["evidence_summary"])
+        if errors:
+            raise HTTPException(status_code=400, detail="; ".join(errors))
+        try:
+            item = skill_evolution.transition(proposal_id, "validate", "Static structural checks passed; no code executed.")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("skills", "proposal.validated", item["name"], {"proposal_id": proposal_id})
+        return {"proposal": item, "static_validation_only": True, "execution_started": False}
+
+    @post("/skills/proposals/{proposal_id:str}/approve")
+    async def approve_skill_proposal(proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        note = data.get("note", "")
+        try:
+            item = skill_evolution.transition(proposal_id, "approve", note)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Skill proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("skills", "proposal.approved", item["name"], {"proposal_id": proposal_id, "note": note[:500] if isinstance(note, str) else ""})
+        return {"proposal": item, "approved_by_human": True, "execution_started": False, "permissions_changed": False}
+
+    @post("/skills/proposals/{proposal_id:str}/reject")
+    async def reject_skill_proposal(proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        note = data.get("note", "")
+        try:
+            item = skill_evolution.transition(proposal_id, "reject", note)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Skill proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("skills", "proposal.rejected", item["name"], {"proposal_id": proposal_id, "note": note[:500] if isinstance(note, str) else ""})
+        return {"proposal": item, "execution_started": False, "permissions_changed": False}
+
+    @post("/skills/proposals/{proposal_id:str}/promote")
+    async def promote_skill_proposal(proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        note = data.get("note", "")
+        try:
+            item = skill_evolution.transition(proposal_id, "promote", note)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Skill proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("skills", "proposal.promoted", item["name"], {"proposal_id": proposal_id, "note": note[:500] if isinstance(note, str) else ""})
+        return {"proposal": item, "promoted_to_reviewed_catalog": True, "execution_started": False, "permissions_changed": False}
+
     return Router(path="/api/agentic", route_handlers=[
         agentic_status, plan, learning_summary, record_learning_outcome,
         list_world_facts, observe_world_fact, validate_skill,
+        list_skill_proposals, create_skill_proposal, validate_skill_proposal,
+        approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
     ])
