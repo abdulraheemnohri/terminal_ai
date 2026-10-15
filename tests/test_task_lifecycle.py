@@ -129,3 +129,45 @@ def test_recovery_proposal_validation_and_single_review(tmp_path):
         assert "already been reviewed" in str(exc)
     else:
         raise AssertionError("proposal review must be single-use")
+
+
+
+def test_approved_recovery_proposal_queues_once_for_fresh_operation(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    proposal = store.propose(task_id="task-q", failure_category="timeout",
+                             error_summary="Timed out")
+    approved = store.review(task_id="task-q", proposal_id=proposal["id"],
+                            decision="approve", reviewer="operator")
+    assert approved["status"] == "approved_for_replanning"
+
+    reserved = store.prepare_operation_queue(task_id="task-q", proposal_id=proposal["id"])
+    assert reserved["status"] == "queueing"
+    assert reserved["execution_started"] is False
+    queued = store.attach_new_operation(task_id="task-q", proposal_id=proposal["id"],
+                                        operation_id="new-operation-123")
+    assert queued["status"] == "operation_queued"
+    assert queued["new_operation_id"] == "new-operation-123"
+    assert queued["execution_started"] is False
+
+    try:
+        store.prepare_operation_queue(task_id="task-q", proposal_id=proposal["id"])
+    except ValueError as exc:
+        assert "approved for replanning" in str(exc)
+    else:
+        raise AssertionError("an operation must not be queued twice from one proposal")
+
+
+def test_recovery_operation_queue_reservation_can_be_released_on_queue_failure(tmp_path):
+    from application.recovery_proposals import RecoveryProposalStore
+
+    store = RecoveryProposalStore(tmp_path / "recovery.sqlite3")
+    proposal = store.propose(task_id="task-r", failure_category="transient_network",
+                             error_summary="Network reset")
+    store.review(task_id="task-r", proposal_id=proposal["id"],
+                 decision="approve", reviewer="operator")
+    store.prepare_operation_queue(task_id="task-r", proposal_id=proposal["id"])
+    store.release_operation_queue(task_id="task-r", proposal_id=proposal["id"])
+    retried = store.prepare_operation_queue(task_id="task-r", proposal_id=proposal["id"])
+    assert retried["status"] == "queueing"
