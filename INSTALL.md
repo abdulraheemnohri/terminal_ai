@@ -174,17 +174,26 @@ The helper stops if the Git working tree has local changes, uses fast-forward-on
 Run `sh install-launchagent.sh` to register a per-user LaunchAgent that starts at login and restarts the server if it exits. Remove it with `sh uninstall-launchagent.sh`. Logs are stored under `~/Library/Logs/`.
 
 
-### Optional weekly automatic project updates (Linux/systemd only)
+### Optional weekly automatic project updates
 
-1. Review the source repository and make sure the working tree is clean.
-2. Run `sh install-auto-update.sh` from the repository root.
-3. Check the timer with `systemctl --user list-timers terminal-ai-update.timer`.
-4. Inspect logs with `journalctl --user -u terminal-ai-update.service`.
-5. Disable with `sh uninstall-auto-update.sh`.
+Automatic updates are opt-in. The scripts update Terminal AI source/dependencies only, never operating-system packages. Keep backups and review the Git remote before enabling unattended code updates.
 
-The timer runs weekly on Sunday at approximately 04:30 local system time. A user timer normally runs while the user manager is active; running before login may require enabling systemd lingering. Automatic source/dependency updates can break an installation, so keep backups and do not enable them on sensitive systems without a recovery plan. OS security updates must be configured separately using the operating system's trusted update mechanism.
+- **Linux/systemd:** run `sh install-auto-update.sh`; inspect with `systemctl --user list-timers terminal-ai-update.timer` and `journalctl --user -u terminal-ai-update.service`; remove with `sh uninstall-auto-update.sh`.
+- **macOS:** run `sh install-auto-update-macos.sh`; logs are in `~/Library/Logs/terminal-ai-update.log` and `terminal-ai-update-error.log`; remove with `sh uninstall-auto-update-macos.sh`.
+- **Windows:** run `./install-auto-update.ps1` in PowerShell; remove with `./uninstall-auto-update.ps1`. The current user must be signed in.
+- **Termux:** automatic updates are not enabled by the boot helper. Run `sh update.sh` manually after reviewing local changes.
+
+Linux's user timer may require systemd lingering to run before login. The macOS LaunchAgent and Windows task run in the logged-in user's context. If validation fails, inspect logs and recover manually rather than bypassing checks.
 
 
-### Optional weekly automatic project updates on Windows
+## 10. Termux automatic start after Android reboot
 
-In PowerShell from the repository root, run `./install-auto-update.ps1`. This creates a weekly Sunday 04:30 Task Scheduler task that runs the existing guarded updater. The current user must be signed in. Remove the task with `./uninstall-auto-update.ps1` or delete TerminalAI-AutoUpdate in Task Scheduler. Review the Git remote and backup/recovery policy before enabling unattended code updates. This updates Terminal AI only, not Windows itself.
+Termux cannot start itself after a device reboot without the separate **Termux:Boot** add-on. Install Termux:Boot from the same trusted distribution source as Termux, open it once, then from the project directory run:
+
+```sh
+mkdir -p ~/.termux/boot
+cp termux-boot/com.terminal-ai.start.sh ~/.termux/boot/
+chmod 700 ~/.termux/boot/com.terminal-ai.start.sh
+```
+
+Edit the copied script's `PROJECT_DIR` if the repository is not at `$HOME/terminal_ai`. The script starts Uvicorn bound to `127.0.0.1:8000` and writes logs to `~/.terminal_ai/logs/termux-server.log`. Open Termux after a reboot if Android battery/background restrictions delay startup. Check the log if the server did not start. No OS update or unattended source update is performed by this boot helper.
