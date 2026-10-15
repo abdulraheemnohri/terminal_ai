@@ -12,6 +12,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from application.learning import ALGORITHMS, TASK_TYPES
+
 _MAX_TASKS = 2000
 
 
@@ -52,17 +54,19 @@ class TaskLifecycleStore:
     def _decode(row: sqlite3.Row) -> dict[str, Any]:
         item = dict(row)
         item["steps"] = json.loads(item.pop("steps_json"))
-        item["verification"] = json.loads(item.pop("verification_json")) if item["verification_json"] else None
-        item["review"] = json.loads(item.pop("review_json")) if item["review_json"] else None
+        verification_json = item.pop("verification_json")
+        review_json = item.pop("review_json")
+        item["verification"] = json.loads(verification_json) if verification_json else None
+        item["review"] = json.loads(review_json) if review_json else None
         return item
 
     def create(self, *, goal: str, task_type: str, algorithm: str, risk: str,
                steps: list[str]) -> dict[str, Any]:
         if not isinstance(goal, str) or not goal.strip() or len(goal) > 4000:
             raise ValueError("goal must be 1-4000 characters")
-        if not isinstance(task_type, str) or len(task_type) > 80:
+        if not isinstance(task_type, str) or task_type not in TASK_TYPES:
             raise ValueError("task_type is invalid")
-        if not isinstance(algorithm, str) or len(algorithm) > 80:
+        if not isinstance(algorithm, str) or algorithm not in ALGORITHMS:
             raise ValueError("algorithm is invalid")
         if risk not in {"read", "low", "medium", "high", "critical"}:
             raise ValueError("risk is invalid")
