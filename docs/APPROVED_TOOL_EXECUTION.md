@@ -15,7 +15,7 @@ pip install playwright
 playwright install chromium
 ```
 
-Use `agent/playwright_browser.py` with an explicit `allowed_domains` list, then pass its `handlers()` mapping to `register_browser_tools` in `agent/browser_tools.py`. The adapter rejects non-HTTP(S) schemes, embedded URL credentials, unlisted hosts, private/loopback/reserved IPs and hostnames resolving to non-public addresses. Browser contexts block service workers, disallow downloads, restrict page count, and apply the same allowlist to subresources and redirects.
+Use `application/browser_runtime.py:create_browser_runtime()` with an explicit `allowed_domains` list to wire the Playwright adapter to `ToolRegistry`. It registers only implemented handlers and starts Chromium lazily on first use; call `BrowserRuntime.close()` during shutdown. The lower-level `handlers()` and `register_browser_tools()` APIs remain available for custom hosts. The adapter rejects non-HTTP(S) schemes, embedded URL credentials, unlisted hosts, private/loopback/reserved IPs and hostnames resolving to non-public addresses. Browser contexts block service workers, disallow downloads, restrict page count, and apply the same allowlist to subresources and redirects.
 
 Read-only page reading is registered without tool-level approval; clicks, screenshots, form fills and submissions require approval through `ToolRegistry`. Use the approval dispatcher for state-changing actions. The allowlist accepts DNS names only (including IDNs normalized to IDNA), not wildcards, URL-shaped entries, ports, or IP literals. Malformed URL authorities and ports are rejected before DNS resolution. Browser output is untrusted page content. Do not place passwords, session cookies, API keys or private tokens into browser pages or tool results.
 
