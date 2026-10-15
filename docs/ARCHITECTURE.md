@@ -158,3 +158,8 @@ The task ledger is an orchestration record, not a tool runner. It stores a bound
 - Promotion only changes proposal state; it does not install tools, change permissions, execute a skill, or rewrite source code. Skills remain non-executable procedure text.
 - The proposal store is capped at 1,000 records; each proposal has bounded fields and at most 20 steps.
 - The API routes under \`/api/agentic/skills/proposals\` must be placed behind authenticated, authorized access before exposing the application to an untrusted network. Human approval is a UI workflow, not a substitute for server-side identity and access control.
+
+
+## Failure recovery boundary
+
+Recovery proposals are stored separately from task records. They require a linked operation with a recorded terminal `failed` or `expired` status, allow at most three proposals per task, and retain at most 5,000 proposals. Timeout/network/rate-limit categories can be approved for replanning after review; dependency/validation issues require correction and a fresh operation; permission, destructive, and unknown failures are not retry-approvable. This is proposal metadata only: the prior operation is never re-opened, and a new operation must go through Command Control's exact-argument approval gate. Operator-supplied categories are not an automated root-cause diagnosis.
