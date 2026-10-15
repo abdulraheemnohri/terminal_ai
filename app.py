@@ -41,6 +41,9 @@ _LOCK = asyncio.Lock()
 _STARTED_AT = time.time()
 _DOWNLOAD_JOBS: dict[str, dict[str, Any]] = {}
 _DOWNLOAD_LOCK = threading.Lock()
+# Bounded in-memory execution traces for debugging chat reliability. No prompt text or secrets are stored here.
+CHAT_RUNS: list[dict[str, Any]] = []
+_CHAT_RUNS_LOCK = threading.Lock()
 
 
 def _load_env() -> None:
@@ -423,31 +426,107 @@ async def status() -> dict[str, Any]:
 
 @post("/api/chat")
 async def chat(data: dict[str, Any]) -> dict[str, Any]:
+    """Run one serialized chat turn and return an inspectable execution trace."""
     message = str(data.get("message", "")).strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
     if len(message) > 20000:
         raise HTTPException(status_code=413, detail="Message is too long (20,000 characters max).")
+
     request_started = time.monotonic()
-    async with _LOCK:
-        agent = _get_agent()
-        try:
-            answer = await asyncio.to_thread(agent.turn, message)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
-        try:
-            if agent.session_mgr:
-                agent.session_mgr.save(_ACTIVE_SESSION, agent.history)
-        except Exception:
-            logger.warning("Could not persist active chat session", exc_info=True)
-        return {
-            "answer": answer,
-            "backend": getattr(agent.backend, "label", "unknown"),
-            "history_count": len(agent.history),
-            "elapsed_seconds": round(time.monotonic() - request_started, 2),
+    request_id = uuid.uuid4().hex
+    trace: list[dict[str, Any]] = []
+
+    def stage(name: str, status: str, started: float, detail: str = "") -> None:
+        item: dict[str, Any] = {
+            "name": name,
+            "status": status,
+            "elapsed_ms": max(0, round((time.monotonic() - started) * 1000)),
         }
+        if detail:
+            item["detail"] = detail[:240]
+        trace.append(item)
+
+    stage("request_received", "completed", request_started, "Input validated; prompt content is not copied into diagnostics.")
+    lock_started = time.monotonic()
+    try:
+        async with _LOCK:
+            stage("request_serialized", "completed", lock_started, "Chat turn has exclusive access to the active conversation.")
+            resolve_started = time.monotonic()
+            agent = _get_agent()
+            backend_label = getattr(agent.backend, "label", "unknown")
+            stage("backend_resolved", "completed", resolve_started, backend_label)
+
+            inference_started = time.monotonic()
+            try:
+                answer = await asyncio.to_thread(agent.turn, message)
+            except Exception as exc:
+                stage("inference", "failed", inference_started, type(exc).__name__)
+                raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
+            stage("inference", "completed", inference_started, "Model turn returned.")
+
+            persist_started = time.monotonic()
+            persisted = False
+            if agent.session_mgr:
+                try:
+                    agent.session_mgr.save(_ACTIVE_SESSION, agent.history)
+                    persisted = True
+                except Exception:
+                    logger.warning("Could not persist active chat session", exc_info=True)
+            stage("history_persistence", "completed" if persisted or not agent.session_mgr else "warning",
+                  persist_started, "Saved active session." if persisted else (
+                      "No session manager configured." if not agent.session_mgr else "Session save failed; see server log."
+                  ))
+            stage("response_ready", "completed", time.monotonic(), "Response metadata and trace assembled.")
+            result = {
+                "request_id": request_id,
+                "answer": str(answer or ""),
+                "backend": backend_label,
+                "history_count": len(agent.history),
+                "session": _ACTIVE_SESSION,
+                "elapsed_seconds": round(time.monotonic() - request_started, 2),
+                "execution": trace,
+                "persistence": "saved" if persisted else ("not_configured" if not agent.session_mgr else "warning"),
+            }
+            _remember_chat_run({
+                "request_id": request_id,
+                "started_at": time.time() - (time.monotonic() - request_started),
+                "elapsed_seconds": result["elapsed_seconds"],
+                "backend": backend_label,
+                "session": _ACTIVE_SESSION,
+                "status": "completed",
+                "execution": trace,
+            })
+            return result
+    except HTTPException as exc:
+        if not trace or trace[-1].get("status") != "failed":
+            stage("request_failed", "failed", request_started, f"HTTP {exc.status_code}")
+        _remember_chat_run({
+            "request_id": request_id,
+            "started_at": time.time() - (time.monotonic() - request_started),
+            "elapsed_seconds": round(time.monotonic() - request_started, 2),
+            "backend": None,
+            "session": _ACTIVE_SESSION,
+            "status": "failed",
+            "execution": trace,
+            "error": str(exc.detail)[:240],
+        })
+        raise
+
+
+def _remember_chat_run(run: dict[str, Any]) -> None:
+    """Keep a bounded metadata-only trace list; never retain prompt or answer text."""
+    with _CHAT_RUNS_LOCK:
+        CHAT_RUNS.append(run)
+        del CHAT_RUNS[:-50]
+
+
+@get("/api/chat/runs")
+async def chat_runs() -> dict[str, Any]:
+    """Return recent chat execution metadata without conversation contents."""
+    with _CHAT_RUNS_LOCK:
+        runs = [dict(item) for item in CHAT_RUNS]
+    return {"runs": list(reversed(runs)), "count": len(runs), "retention_limit": 50}
 
 
 @post("/api/chat/clear")
