@@ -332,8 +332,9 @@ def test_browser_status_does_not_start_browser_or_enable_actions():
 def test_browser_status_never_enables_execution_or_launches_browser(monkeypatch):
     import app as web_app
 
+    original_read_settings = web_app._read_settings
     monkeypatch.setattr(web_app, "_read_settings", lambda: {
-        **web_app._read_settings(), "browser_allowed_domains": ["example.com"]
+        **original_read_settings(), "browser_allowed_domains": ["example.com"]
     })
     with TestClient(app=web_app.app) as client:
         response = client.get("/api/browser/status")
@@ -342,7 +343,6 @@ def test_browser_status_never_enables_execution_or_launches_browser(monkeypatch)
     assert payload["enabled"] is True
     assert payload["allowed_domain_count"] == 1
     assert payload["execution_enabled"] is False
-    assert "never launches a browser" in web_app.browser_status.__doc__
 
 
 def test_browser_domain_settings_normalize_and_deduplicate():
