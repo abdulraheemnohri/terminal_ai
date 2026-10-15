@@ -2052,16 +2052,42 @@ async def workspace_write(data: dict[str, Any]) -> dict[str, Any]:
     if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     # Approval is intentionally an explicit API field; the UI must display the exact path and content first.
     if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
-    try: return {"status": "written", **_WORKSPACE_TOOLS.write_file(str(data.get("path", "")), str(data.get("content", "")), approved=True)}
-    except (ValueError, PermissionError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+    relative_path = str(data.get("path", ""))
+    content = str(data.get("content", ""))
+    try:
+        result = {"status": "written", **_WORKSPACE_TOOLS.write_file(relative_path, content, approved=True)}
+        _COMMAND_CONTROL.audit("user", "workspace.file.written", result.get("path", relative_path),
+                               {"bytes": result.get("bytes", 0), "approved": True})
+        return result
+    except (ValueError, PermissionError) as exc:
+        _COMMAND_CONTROL.audit("user", "workspace.file.write_rejected", relative_path, {"reason": type(exc).__name__})
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @post("/api/workspace/execute")
 async def workspace_execute(data: dict[str, Any]) -> dict[str, Any]:
     if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
     if data.get("approved") is not True: raise HTTPException(status_code=403, detail="Explicit approval is required.")
-    try: return _WORKSPACE_TOOLS.run_command(data.get("argv"), approved=True, timeout=int(data.get("timeout", 30)))
-    except subprocess.TimeoutExpired as exc: raise HTTPException(status_code=408, detail="Command timed out.") from exc
-    except (ValueError, PermissionError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+    argv = data.get("argv")
+    policy = _COMMAND_CONTROL.get_policy()
+    command = Path(argv[0]).name if isinstance(argv, list) and argv and isinstance(argv[0], str) else ""
+    if command in set(policy.get("blocklist", [])) or command not in set(policy.get("allowlist", [])):
+        _COMMAND_CONTROL.audit("user", "workspace.command.blocked", command or "invalid-argv",
+                               {"approved": True, "reason": "control-center policy denied executable"})
+        raise HTTPException(status_code=403, detail="Command is blocked by the Command Control Center policy.")
+    _COMMAND_CONTROL.audit("user", "workspace.command.approved", command,
+                           {"approved": True, "timeout": max(1, min(60, int(data.get("timeout", 30))))})
+    try:
+        result = _WORKSPACE_TOOLS.run_command(argv, approved=True, timeout=int(data.get("timeout", 30)))
+        _COMMAND_CONTROL.audit("user", "workspace.command.completed", command,
+                               {"returncode": result.get("returncode"), "approved": True})
+        return result
+    except subprocess.TimeoutExpired as exc:
+        _COMMAND_CONTROL.audit("user", "workspace.command.timeout", command, {"approved": True})
+        raise HTTPException(status_code=408, detail="Command timed out.") from exc
+    except (ValueError, PermissionError) as exc:
+        _COMMAND_CONTROL.audit("user", "workspace.command.rejected", command,
+                               {"approved": True, "reason": type(exc).__name__})
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @get("/api/scheduled-tasks")
 async def list_scheduled_tasks() -> dict[str, Any]:
