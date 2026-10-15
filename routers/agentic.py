@@ -98,7 +98,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         if not isinstance(goal, str) or not goal.strip() or len(goal) > 4000:
             raise HTTPException(status_code=400, detail="goal must be a non-empty string of at most 4000 characters.")
         risk = data.get("risk", "read")
-        if risk not in {"read", "low", "medium", "high", "critical"}:
+        if not isinstance(risk, str) or risk not in {"read", "low", "medium", "high", "critical"}:
             raise HTTPException(status_code=400, detail="Invalid risk level.")
         complexity = data.get("complexity", 1)
         if isinstance(complexity, bool) or not isinstance(complexity, int) or not 1 <= complexity <= 10:
@@ -252,10 +252,12 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
                 except ValueError:
                     pass
         outcome, rating, reviewer = data.get("outcome"), data.get("rating"), data.get("reviewer", "operator")
-        if outcome not in {"success", "partial", "failure"}:
+        if not isinstance(outcome, str) or outcome not in {"success", "partial", "failure"}:
             raise HTTPException(status_code=400, detail="outcome must be success, partial, or failure.")
         if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
             raise HTTPException(status_code=400, detail="rating must be an integer from 1 to 5.")
+        if not isinstance(reviewer, str) or not reviewer.strip() or len(reviewer) > 100:
+            raise HTTPException(status_code=400, detail="reviewer must be 1-100 characters.")
         try:
             task = task_lifecycle.review(task_id, outcome=outcome, rating=rating, reviewer=reviewer)
             record = learning_store.record(task_type=task["task_type"], algorithm=task["algorithm"],
