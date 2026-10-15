@@ -33,6 +33,19 @@ def test_settings_reject_invalid_mode():
 
 
 
+def test_human_approval_is_mandatory_and_cannot_be_disabled():
+    with TestClient(app=app) as client:
+        before = client.get("/api/settings")
+        rejected = client.patch("/api/settings", json={"tool_approval_required": False})
+        after = client.get("/api/settings")
+    assert before.status_code == 200
+    assert before.json()["tool_approval_required"] is True
+    assert rejected.status_code == 400
+    assert "cannot be disabled" in rejected.json()["detail"]
+    assert after.json()["tool_approval_required"] is True
+
+
+
 def test_models_endpoint_does_not_require_backend():
     with TestClient(app=app) as client:
         response = client.get("/api/models")
