@@ -54,8 +54,32 @@
 
   <section class="view" id="view-chat">
     <article class="card span-12"><div class="card-head"><div><h2>AI conversation</h2><p style="margin:5px 0 0">Ask questions, work through tasks, and use your saved memory.</p></div><button class="btn danger" id="clear-chat">Clear conversation</button></div>
+      <div class="chat-toolbar" aria-label="Chat tools">
+        <label class="chat-search-wrap" for="chat-search">Find in chat <input id="chat-search" type="search" maxlength="200" placeholder="Search visible messages…"></label>
+        <div class="chat-toolbar-actions">
+          <button class="btn" type="button" id="chat-export-md">Export Markdown</button>
+          <button class="btn" type="button" id="chat-export-json">Export JSON</button>
+          <button class="btn" type="button" id="chat-copy-transcript">Copy transcript</button>
+          <button class="btn" type="button" id="chat-new-session">New chat</button>
+          <details class="chat-settings"><summary class="btn">Chat settings</summary>
+            <div class="chat-settings-panel">
+              <label><input type="checkbox" id="chat-setting-enter" checked> Enter sends message</label>
+              <label><input type="checkbox" id="chat-setting-scroll" checked> Auto-scroll to latest</label>
+              <label><input type="checkbox" id="chat-setting-meta" checked> Show response metadata</label>
+              <label><input type="checkbox" id="chat-setting-compact"> Compact messages</label>
+              <label for="chat-setting-font">Message text size <input type="range" id="chat-setting-font" min="12" max="19" value="14"></label>
+              <p class="muted">Preferences stay in this browser. Local model calls are not streamed yet; execution details appear after the request finishes.</p>
+            </div>
+          </details>
+        </div>
+      </div>
       <div class="chat-shell"><div class="messages" id="messages"><div class="welcome" id="welcome"><div class="orb">✧</div><h2>What are we working on?</h2><p>Your assistant is ready when a model backend is configured. Conversations are stored in your local Terminal AI state directory.</p><div class="suggestions"><button>Explain my project structure</button><button>Help me debug Python</button><button>Make a plan for my next goal</button></div></div></div>
       <form class="composer" id="chat-form"><textarea id="chat-input" placeholder="Message Terminal AI… (Enter to send, Shift+Enter for a new line)" required maxlength="20000"></textarea><div class="compose-bottom"><span class="muted" style="font-size:11px">Tool execution is disabled by default in the web UI.</span><button class="btn primary" id="send-btn" type="submit">Send message ↗</button></div><div id="chat-error" class="error"></div></form></div>
+      <section class="chat-execution card" aria-live="polite">
+        <div class="card-head"><div><h3>Latest chat execution</h3><p class="muted">Request stages, timing and persistence status. Prompt and answer text are excluded from the run log.</p></div><button class="btn" type="button" id="chat-refresh-runs">Refresh runs</button></div>
+        <div id="chat-execution-trace" class="execution-trace"><div class="empty">Send a message to inspect its execution path.</div></div>
+        <div id="chat-run-error" class="error"></div>
+      </section>
     </article>
   </section>
 
