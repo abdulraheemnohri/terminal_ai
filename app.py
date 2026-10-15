@@ -461,51 +461,55 @@ async def create_session(data: dict[str, Any]) -> dict[str, Any]:
     name = str(data.get("name", "")).strip() or f"session-{time.strftime('%Y%m%d-%H%M%S')}"
     if len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Session name must be 1–80 characters without path separators.")
-    manager = core.SessionManager()
-    safe = manager._safe_name(name)
-    target = manager.dir / safe
-    if target.exists():
-        raise HTTPException(status_code=409, detail="A session with that name already exists.")
-    manager.save(name, [])
-    _ACTIVE_SESSION = Path(safe).stem
-    if _AGENT is not None:
-        _AGENT.history = []
-    return {"status": "created", "active_session": _ACTIVE_SESSION}
+    async with _LOCK:
+        manager = core.SessionManager()
+        safe = manager._safe_name(name)
+        target = manager.dir / safe
+        if target.exists():
+            raise HTTPException(status_code=409, detail="A session with that name already exists.")
+        manager.save(name, [])
+        _ACTIVE_SESSION = Path(safe).stem
+        if _AGENT is not None:
+            _AGENT.history = []
+        return {"status": "created", "active_session": _ACTIVE_SESSION}
 
 
 @post("/api/sessions/select")
 async def select_session(data: dict[str, Any]) -> dict[str, Any]:
     global _ACTIVE_SESSION
     name = str(data.get("name", "")).strip()
-    if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", "\\\\")):
+    if not name or len(name) > 80 or name in {".", ".."} or any(ch in name for ch in ("/", chr(92), chr(0))):
         raise HTTPException(status_code=400, detail="Invalid session name.")
-    manager = core.SessionManager()
-    if name not in manager.list_sessions():
-        raise HTTPException(status_code=404, detail="Session not found.")
-    history = manager.load(name)
-    _ACTIVE_SESSION = name
-    if _AGENT is not None:
-        _AGENT.history = history
-    return {"status": "selected", "active_session": name, "history": [{"role": m.role, "text": m.text} for m in history]}
+    async with _LOCK:
+        manager = core.SessionManager()
+        if name not in manager.list_sessions():
+            raise HTTPException(status_code=404, detail="Session not found.")
+        history = manager.load(name)
+        _ACTIVE_SESSION = name
+        if _AGENT is not None:
+            _AGENT.history = history
+        return {"status": "selected", "active_session": name,
+                "history": [{"role": m.role, "text": m.text} for m in history]}
 
 
 @post("/api/sessions/delete")
 async def delete_session(data: dict[str, Any]) -> dict[str, Any]:
     global _ACTIVE_SESSION
     name = str(data.get("name", "")).strip()
-    manager = core.SessionManager()
-    if not name or name not in manager.list_sessions():
-        raise HTTPException(status_code=404, detail="Session not found.")
-    target = (manager.dir / manager._safe_name(name)).resolve()
-    if target.parent != manager.dir.resolve():
-        raise HTTPException(status_code=400, detail="Invalid session path.")
-    target.unlink()
-    if _ACTIVE_SESSION == name:
-        _ACTIVE_SESSION = "web-session"
-        manager.save(_ACTIVE_SESSION, [])
-        if _AGENT is not None:
-            _AGENT.history = []
-    return {"status": "deleted", "name": name, "active_session": _ACTIVE_SESSION}
+    async with _LOCK:
+        manager = core.SessionManager()
+        if not name or name not in manager.list_sessions():
+            raise HTTPException(status_code=404, detail="Session not found.")
+        target = (manager.dir / manager._safe_name(name)).resolve()
+        if target.parent != manager.dir.resolve():
+            raise HTTPException(status_code=400, detail="Invalid session path.")
+        target.unlink()
+        if _ACTIVE_SESSION == name:
+            _ACTIVE_SESSION = "web-session"
+            manager.save(_ACTIVE_SESSION, [])
+            if _AGENT is not None:
+                _AGENT.history = []
+        return {"status": "deleted", "name": name, "active_session": _ACTIVE_SESSION}
 
 
 @get("/api/skills")
@@ -962,9 +966,15 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(proposed, dict):
             raise ValueError("changes must be an object")
         changes = {key: value for key, value in proposed.items() if key in allowed}
-        if "mode" in changes and changes["mode"] not in {"auto", "cloud", "local", "hybrid"}:
+        if "mode" in changes and (
+            not isinstance(changes["mode"], str)
+            or changes["mode"] not in {"auto", "cloud", "local", "hybrid"}
+        ):
             changes.pop("mode")
-        if "active_provider" in changes and changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+        if "active_provider" in changes and (
+            not isinstance(changes["active_provider"], str)
+            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}
+        ):
             changes.pop("active_provider")
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
@@ -972,15 +982,29 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                     "self_autonomous_enabled", "self_auto_checkpoint"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
-        if "max_ctx_chars" in changes and not isinstance(changes["max_ctx_chars"], int):
-            changes.pop("max_ctx_chars")
-        if "self_checkpoint_retention" in changes and not isinstance(changes["self_checkpoint_retention"], int):
-            changes.pop("self_checkpoint_retention")
-        if "self_evaluation_interval_hours" in changes and not isinstance(changes["self_evaluation_interval_hours"], int):
-            changes.pop("self_evaluation_interval_hours")
-        for key in ("provider_model",):
-            if key in changes and not isinstance(changes[key], str):
-                changes.pop(key)
+        # Validate AI output as untrusted input; bool is a subclass of int in Python.
+        if "max_ctx_chars" in changes:
+            value = changes["max_ctx_chars"]
+            if isinstance(value, bool) or not isinstance(value, int):
+                changes.pop("max_ctx_chars")
+            else:
+                changes["max_ctx_chars"] = max(2000, min(50000, value))
+        for key, minimum, maximum in (
+            ("self_checkpoint_retention", 1, 30),
+            ("self_evaluation_interval_hours", 1, 168),
+        ):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, int):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, value))
+        if "provider_model" in changes:
+            value = changes["provider_model"]
+            if not isinstance(value, str):
+                changes.pop("provider_model")
+            else:
+                changes["provider_model"] = value.strip()[:200]
         return {"changes": changes, "explanation": str(parsed.get("explanation", "Review this proposal before applying."))[:1000],
                 "applied": False, "notice": "AI suggestions are untrusted proposals. Review the diff and explicitly apply them; credentials and risky tool permissions are excluded."}
     except Exception as exc:
@@ -1211,11 +1235,8 @@ async def selfx_checkpoint() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Self-recovery is disabled in Settings.")
     try:
         manifest = await asyncio.to_thread(_selfx_engine().create_checkpoint)
-        retention = int(_read_settings().get("self_checkpoint_retention", 10))
-        backup_dir = core.STATE_DIR / "backups" / "selfx"
-        checkpoints = sorted((p for p in backup_dir.iterdir() if p.is_dir()), key=lambda p: p.name, reverse=True)
-        for old in checkpoints[retention:]:
-            shutil.rmtree(old, ignore_errors=True)
+        retention = max(1, min(30, int(_read_settings().get("self_checkpoint_retention", 10))))
+        await asyncio.to_thread(_selfx_engine().prune_checkpoints, retention)
         return {"checkpoint": manifest}
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Checkpoint failed: {exc}") from exc
@@ -1392,21 +1413,48 @@ _SELFX_TASK: asyncio.Task | None = None
 
 
 async def _automatic_selfx_maintenance() -> None:
-    """Run safe local checks only when the user explicitly enables Self-X autonomy."""
+    """Run bounded, local-only maintenance; never execute tools or mutate source code."""
     engine = SelfXEngine(core.STATE_DIR, core.MODELS_DIR, ROOT)
     while True:
         try:
             settings = _read_settings()
             if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
-                interval = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24)))) * 3600
+                interval_hours = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24))))
+                interval = interval_hours * 3600
                 state = engine.status()
                 latest_eval = state.get("latest_evaluation") or {}
-                due = not latest_eval or time.time() - float(latest_eval.get("created_at", 0)) >= interval
-                if due:
+                latest_checkpoint = (state.get("checkpoints") or [{}])[0]
+                now = time.time()
+                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval
+                checkpoint_due = (
+                    settings.get("self_recovery_enabled", True)
+                    and settings.get("self_auto_checkpoint", True)
+                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= interval
+                )
+                if eval_due:
                     if settings.get("self_evaluation_enabled", True):
                         await asyncio.to_thread(engine.evaluate)
                     elif settings.get("self_diagnostics_enabled", True):
                         await asyncio.to_thread(engine.diagnose)
+                if checkpoint_due:
+                    manifest = await asyncio.to_thread(engine.create_checkpoint)
+                    retention = max(1, min(30, int(settings.get("self_checkpoint_retention", 10))))
+                    await asyncio.to_thread(engine.prune_checkpoints, retention)
+                    engine.record_event("autonomous-checkpoint", f"Scheduled checkpoint created: {manifest['id']}")
+
+                # Turn failed local diagnostics into deduplicated, measurable goals.
+                if settings.get("self_goals_enabled", True) and settings.get("self_diagnostics_enabled", True):
+                    latest = engine.status().get("latest_diagnostic") or {}
+                    planner = core.GoalPlanner.load()
+                    active_goals = planner.active()
+                    active_texts = [str(getattr(g, "text", "")).casefold() for g in active_goals]
+                    for check in latest.get("checks", []):
+                        if check.get("ok") is False:
+                            goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
+                            if goal_text.casefold() not in active_texts:
+                                planner.add(goal_text)
+                                active_texts.append(goal_text.casefold())
+                                engine.record_event("autonomous-goal", goal_text)
         except asyncio.CancelledError:
             raise
         except Exception:

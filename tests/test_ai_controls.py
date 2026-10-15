@@ -55,3 +55,53 @@ def test_ui_exposes_session_and_ai_controls():
     assert js.status_code == 200
     assert "/api/sessions/select" in js.text
     assert "/api/ai/settings/propose" in js.text
+
+
+def test_session_rejects_single_backslash():
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/sessions/select", json={"name": "folder\\\\session"})
+    assert response.status_code == 400
+
+
+def test_ai_settings_proposal_clamps_numeric_values(monkeypatch):
+    class FakeBackend:
+        def stream(self, *args, **kwargs):
+            yield '{"changes":{"max_ctx_chars":999999,"self_checkpoint_retention":999,"self_evaluation_interval_hours":9999},"explanation":"test"}'
+
+    class FakeAgent:
+        backend = FakeBackend()
+
+    monkeypatch.setattr(web_app, "_get_agent", lambda: FakeAgent())
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/ai/settings/propose", json={"request": "Use larger limits"})
+    assert response.status_code == 201
+    changes = response.json()["changes"]
+    assert changes["max_ctx_chars"] == 50000
+    assert changes["self_checkpoint_retention"] == 30
+    assert changes["self_evaluation_interval_hours"] == 168
+
+
+def test_selfx_event_is_persisted(tmp_path):
+    from selfx_engine import SelfXEngine
+
+    engine = SelfXEngine(tmp_path / "state", tmp_path / "models", tmp_path)
+    event = engine.record_event("test", "bounded maintenance event")
+    assert event["kind"] == "test"
+    assert engine.status()["events"][0]["summary"] == "bounded maintenance event"
+
+
+def test_checkpoint_retention_removes_stale_manifests_and_directories(tmp_path):
+    from selfx_engine import SelfXEngine
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / "memory.json").write_text("{}", encoding="utf-8")
+    engine = SelfXEngine(state_dir, tmp_path / "models", tmp_path)
+    for _ in range(3):
+        engine.create_checkpoint()
+    result = engine.prune_checkpoints(2)
+    state = engine.status()
+    checkpoint_dirs = [p for p in engine.backup_dir.iterdir() if p.is_dir()]
+    assert result["retained"] == 2
+    assert len(checkpoint_dirs) == 2
+    assert len(state["checkpoints"]) == 2

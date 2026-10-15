@@ -16,6 +16,13 @@
 
 This file records notable changes to Terminal AI. Dates describe repository changes, not guarantees of compatibility with every platform.
 
+## Unreleased — bounded Self-X autonomy and control fixes
+
+- Hardened session name validation against both slash styles and NUL characters.
+- Validated AI-proposed settings as untrusted input and clamped numeric settings to the same bounds enforced by the settings API.
+- Expanded opt-in local autonomy to create periodic state checkpoints, enforce checkpoint retention, and convert failed local diagnostics into deduplicated goals.
+- Recorded autonomous maintenance events in the Self-X audit history. No autonomous shell execution, source-code mutation, permission changes, or model-weight training was added.
+
 ## Unreleased — local LiteRT-LM inference fixes
 
 - Fix the duplicate module header block that caused Python import/syntax failures.
