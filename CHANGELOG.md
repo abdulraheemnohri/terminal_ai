@@ -1,3 +1,8 @@
+## Unreleased — browser settings regression coverage
+
+- Extend web-app tests for configured browser status, normalized/deduplicated domain settings, malformed entry types, and the 50-domain cap.
+- Verify status reporting never enables browser execution and restore browser settings after tests to avoid cross-test state leakage.
+
 ## Unreleased — browser allowlist settings
 
 - Add Settings UI for a configurable browser DNS allowlist with strict server-side normalization and rejection of wildcard, URL-shaped, port-bearing, malformed, and IP-literal entries.
