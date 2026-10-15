@@ -448,6 +448,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
         trace.append(item)
 
     stage("request_received", "completed", request_started, "Input validated; prompt content is not copied into diagnostics.")
+    backend_label: str | None = None
     lock_started = time.monotonic()
     try:
         async with _LOCK:
@@ -505,7 +506,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             "request_id": request_id,
             "started_at": time.time() - (time.monotonic() - request_started),
             "elapsed_seconds": round(time.monotonic() - request_started, 2),
-            "backend": None,
+            "backend": backend_label,
             "session": _ACTIVE_SESSION,
             "status": "failed",
             "execution": trace,
