@@ -429,15 +429,6 @@ async function loadSkillEvolution(){
 }
 if($("skill-evolution-refresh"))$("skill-evolution-refresh").addEventListener("click",loadSkillEvolution);
 if($("skill-evolution-from-learning"))$("skill-evolution-from-learning").addEventListener("click",async()=>{
- if(!confirm("Create a non-executable skill draft from aggregated, explicitly verified outcomes? It will remain proposed and require static validation and your approval."))return;
- $("skill-evolution-error").textContent="";
- try{
-  const result=await api("/api/agentic/skills/proposals/from-learning",{method:"POST"});
-  $("skill-evolution-error").textContent=result.notice||"Draft created; review is still required.";
-  await loadSkillEvolution();await loadControlAudit();
- }catch(err){$("skill-evolution-error").textContent=err.message;}
-});
-if($("skill-evolution-from-learning"))$("skill-evolution-from-learning").addEventListener("click",async()=>{
  const button=$("skill-evolution-from-learning");const error=$("skill-evolution-error");error.textContent="";
  if(!confirm("Create a non-executable skill draft from repeated, explicitly verified outcomes? It will remain unapproved and cannot execute tools or change permissions."))return;
  button.disabled=true;button.textContent="Preparing draft…";
