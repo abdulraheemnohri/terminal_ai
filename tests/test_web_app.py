@@ -257,7 +257,10 @@ def test_favicon_route_returns_svg_without_404():
     assert "<svg" in response.text
 
 
-def test_roleplay_persona_setting_is_supported_and_validated():
+def test_roleplay_persona_setting_is_supported_and_validated(monkeypatch, tmp_path):
+    import app as web_app
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "web_settings.json")
+    monkeypatch.setattr(web_app.SelfXEngine, "create_checkpoint", lambda self: {"id": "test"})
     with TestClient(app=app) as client:
         response = client.patch("/api/settings", json={"agentic_persona": "roleplay"})
         invalid = client.patch("/api/settings", json={"agentic_persona": "real-person-impersonation"})
