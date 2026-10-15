@@ -7,9 +7,75 @@ function showView(name){document.querySelectorAll(".view").forEach(el=>el.classL
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
+const commandPalette=$("command-palette");
+const commandSearch=$("command-search");
+const commandResults=$("command-results");
+let commandItems=[];
+let commandActiveIndex=0;
+let commandReturnFocus=null;
+function refreshCommandItems(){
+ commandItems=Array.from(document.querySelectorAll("#nav [data-view]")).map(button=>({view:button.dataset.view,label:button.querySelector(".nav-text")?.textContent.trim()||button.dataset.view,icon:button.querySelector(".ico")?.textContent.trim()||"◈"}));
+}
+function renderCommandResults(){
+ const query=(commandSearch.value||"").trim().toLowerCase();
+ const filtered=commandItems.filter(item=>item.label.toLowerCase().includes(query)||item.view.toLowerCase().includes(query));
+ commandActiveIndex=Math.max(0,Math.min(commandActiveIndex,filtered.length-1));
+ commandResults.innerHTML=filtered.length?filtered.map((item,index)=>'<button type="button" class="command-result'+(index===commandActiveIndex?' active':'')+'" role="option" aria-selected="'+(index===commandActiveIndex?'true':'false')+'" data-command-view="'+escapeHtml(item.view)+'"><span class="command-result-icon">'+escapeHtml(item.icon)+'</span><span>'+escapeHtml(item.label)+'</span><kbd>↵</kbd></button>').join(""):'<div class="empty command-empty">No pages match “'+escapeHtml(query)+'”. Try another search.</div>';
+}
+function openCommandPalette(){
+ if(!commandPalette)return;
+ refreshCommandItems();commandReturnFocus=document.activeElement;commandSearch.value="";commandActiveIndex=0;renderCommandResults();
+ commandPalette.classList.add("open");commandPalette.setAttribute("aria-hidden","false");document.body.classList.add("command-open");commandSearch.focus();
+}
+function closeCommandPalette(){
+ if(!commandPalette)return;
+ commandPalette.classList.remove("open");commandPalette.setAttribute("aria-hidden","true");document.body.classList.remove("command-open");
+ if(commandReturnFocus&&typeof commandReturnFocus.focus==="function")commandReturnFocus.focus();
+}
+if($("command-open"))$("command-open").addEventListener("click",openCommandPalette);
+if($("command-close"))$("command-close").addEventListener("click",closeCommandPalette);
+if(commandSearch)commandSearch.addEventListener("input",()=>{commandActiveIndex=0;renderCommandResults();});
+if(commandResults)commandResults.addEventListener("click",e=>{const item=e.target.closest("[data-command-view]");if(!item)return;const view=item.dataset.commandView;closeCommandPalette();showView(view);const navButton=document.querySelector('#nav [data-view="'+CSS.escape(view)+'"]');if(navButton)navButton.focus();});
+if(commandPalette)commandPalette.addEventListener("click",e=>{if(e.target===commandPalette)closeCommandPalette();});
+document.addEventListener("keydown",e=>{
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openCommandPalette();return;}
+ if(!commandPalette||!commandPalette.classList.contains("open"))return;
+ if(e.key==="Escape"){e.preventDefault();closeCommandPalette();return;}
+ if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+  e.preventDefault();const buttons=Array.from(commandResults.querySelectorAll("[data-command-view]"));if(!buttons.length)return;
+  commandActiveIndex=(commandActiveIndex+(e.key==="ArrowDown"?1:-1)+buttons.length)%buttons.length;renderCommandResults();
+  const active=commandResults.querySelectorAll("[data-command-view]")[commandActiveIndex];if(active)active.scrollIntoView({block:"nearest"});
+ }else if(e.key==="Enter"){
+  const active=commandResults.querySelectorAll("[data-command-view]")[commandActiveIndex];if(active){e.preventDefault();active.click();}
+ }
+});
+async function loadBrowserOverview(){
+ const badge=$("overview-browser-badge");
+ try{
+  const data=await api("/api/browser/status");
+  const enabled=Boolean(data.enabled);
+  badge.textContent=enabled?"Allowlist ready":"Disabled";
+  badge.className="badge "+(enabled?"success":"");
+  $("overview-browser-mark").textContent=enabled?"✓":"◈";
+  $("overview-browser-state").textContent=enabled?"Browser allowlist configured":"Browser access is disabled";
+  $("overview-browser-detail").textContent=enabled?"Domain policy is configured; actions remain gated":"Add trusted DNS names in Settings to enable browser access";
+  $("overview-browser-domains").textContent=String(data.allowed_domain_count??0);
+  $("overview-browser-playwright").textContent=data.playwright_installed?"Installed":"Not installed";
+  $("overview-browser-actions").textContent="Disabled";
+ }catch(error){
+  badge.textContent="Unavailable";badge.className="badge";
+  $("overview-browser-mark").textContent="!";
+  $("overview-browser-state").textContent="Could not read browser status";
+  $("overview-browser-detail").textContent=error.message;
+  $("overview-browser-domains").textContent="—";$("overview-browser-playwright").textContent="—";$("overview-browser-actions").textContent="Disabled";
+ }
+}
+if($("overview-browser-refresh"))$("overview-browser-refresh").addEventListener("click",loadBrowserOverview);
+
 async function loadStatus(){
  try{
   statusData=await api("/api/status");
+  loadBrowserOverview();
   const ready=Boolean(statusData.ready);
   $("status-label").textContent=ready?"System online":"Setup required";
   $("status-dot").style.background=ready?"var(--green)":"var(--red)";
