@@ -47,6 +47,16 @@ These features improve orchestration, not the underlying model weights. Actual r
 
 The dashboard source has been statically checked for navigation/view parity, missing static JavaScript element references, and duplicate IDs. Responsive layout rules cover compact phones through wide desktop screens, including scrollable mobile navigation, safe-area insets, keyboard focus, and reduced-motion preferences. See [the UI responsive audit and manual regression checklist](docs/UI_RESPONSIVE_AUDIT.md). Static checks do not replace browser-based visual regression testing.
 
+## Architecture and project structure
+
+The repository is organized as a **modular monolith**: Litestar routes, agent primitives, browser/provider adapters, persistence, and the HTML dashboard have explicit responsibilities while retaining compatibility with the current root-level runtime. The migration plan deliberately avoids a risky one-shot file move.
+
+- [Project structure and incremental migration plan](docs/PROJECT_STRUCTURE.md)
+- [Architecture, runtime flow, and trust boundaries](docs/ARCHITECTURE.md)
+- [Automated structure check](scripts/check_structure.py)
+
+Run `python scripts/check_structure.py` and `python -m pytest tests/ -q` locally. CI runs the structure check and the test suite on pushes and pull requests.
+
 ## What it includes
 
 - Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Knowledge Base, Workspace Tools, Command Control Center, Task Scheduler, Goals, Self-awareness, Skills, Tools, Learning, Self-improvement, Self-X, and Settings.
