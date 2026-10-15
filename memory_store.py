@@ -6,7 +6,7 @@ class MemoryStore:
     def __init__(self,path):
         self.path=Path(path).expanduser(); self.path.parent.mkdir(parents=True,exist_ok=True); self._init()
     def _connect(self):
-        db=sqlite3.connect(self.path,timeout=10); db.row_factory=sqlite3.Row; db.execute("PRAGMA journal_mode=WAL"); return db
+        db=sqlite3.connect(self.path,timeout=15); db.row_factory=sqlite3.Row; db.execute("PRAGMA busy_timeout=15000"); db.execute("PRAGMA journal_mode=WAL"); db.execute("PRAGMA synchronous=NORMAL"); return db
     def _init(self):
         with self._connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS knowledge(id TEXT PRIMARY KEY,title TEXT NOT NULL,content TEXT NOT NULL,kind TEXT NOT NULL DEFAULT 'note',tags TEXT NOT NULL DEFAULT '[]',source TEXT NOT NULL DEFAULT 'user',created_at REAL NOT NULL,updated_at REAL NOT NULL,pinned INTEGER NOT NULL DEFAULT 0)")
