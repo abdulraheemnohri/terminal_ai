@@ -213,6 +213,30 @@ class SelfXEngine:
         self._write(data)
         return data.get("events", [])[-1]
 
+    def prune_checkpoints(self, retention: int) -> dict[str, Any]:
+        """Remove expired checkpoint directories and stale manifest entries together."""
+        retention = max(1, min(30, int(retention)))
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        directories = sorted(
+            (path for path in self.backup_dir.iterdir() if path.is_dir()),
+            key=lambda path: path.name,
+            reverse=True,
+        )
+        keep_ids = {path.name for path in directories[:retention]}
+        removed = 0
+        for path in directories[retention:]:
+            shutil.rmtree(path, ignore_errors=True)
+            removed += 1
+        data = self._read()
+        existing = data.get("checkpoints", [])
+        data["checkpoints"] = [
+            item for item in existing
+            if isinstance(item, dict) and item.get("id") in keep_ids
+        ]
+        self._event(data, "checkpoint-retention", f"Retained {len(keep_ids)} checkpoints; removed {removed}")
+        self._write(data)
+        return {"retained": len(keep_ids), "removed": removed}
+
     def status(self) -> dict[str, Any]:
         data = self._read()
         return {
