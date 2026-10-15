@@ -183,3 +183,8 @@ Run `sh install-launchagent.sh` to register a per-user LaunchAgent that starts a
 5. Disable with `sh uninstall-auto-update.sh`.
 
 The timer runs weekly on Sunday at approximately 04:30 local system time. A user timer normally runs while the user manager is active; running before login may require enabling systemd lingering. Automatic source/dependency updates can break an installation, so keep backups and do not enable them on sensitive systems without a recovery plan. OS security updates must be configured separately using the operating system's trusted update mechanism.
+
+
+### Optional weekly automatic project updates on Windows
+
+In PowerShell from the repository root, run `./install-auto-update.ps1`. This creates a weekly Sunday 04:30 Task Scheduler task that runs the existing guarded updater. The current user must be signed in. Remove the task with `./uninstall-auto-update.ps1` or delete TerminalAI-AutoUpdate in Task Scheduler. Review the Git remote and backup/recovery policy before enabling unattended code updates. This updates Terminal AI only, not Windows itself.
