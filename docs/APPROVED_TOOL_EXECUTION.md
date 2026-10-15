@@ -6,6 +6,16 @@
 
 Use this dispatcher only behind an authenticated, CSRF-protected endpoint or a trusted local operator action. Do not expose an unauthenticated public endpoint that accepts arbitrary operation IDs. Approval authorizes only the exact queued operation, never a different tool or modified arguments. Global auto-execution remains disabled.
 
+## Local approved browser dispatch
+
+The web API intentionally does not execute browser actions. For a trusted local operator workflow, queue a browser operation in Command Control, review and approve that exact operation in the UI, then run:
+
+```bash
+python scripts/execute_approved_browser_operation.py --operation-id <operation-id> --confirm
+```
+
+The CLI accepts only the five registered `browser.*` tools, requires the stored operation status to be `approved`, requires the explicit `--confirm` flag, and reads the configured allowlist from the local state directory. It consumes the approval before dispatch, records success or failure in Command Control, closes the browser runtime, and refuses replay. It is not an HTTP endpoint and must only be run by a trusted local operator. Install Playwright and Chromium before using browser actions. Never use this as a substitute for authentication and CSRF protection if a future remote endpoint is added.
+
 ## Optional Playwright browser
 
 Install the optional dependency:
