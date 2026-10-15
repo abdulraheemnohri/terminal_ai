@@ -125,6 +125,7 @@ Allowed outcomes are `success`, `partial`, and `failure`; rating is an integer f
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals` — draft guidance for a task whose linked operation is recorded as `failed` or `expired`.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review` — explicitly approve replanning or reject a proposal.
 - `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/operation` — create a fresh pending Command Control operation from an approved proposal.
+- `POST /api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify` — record verification after the new operation is recorded as executed.
 
 Create request:
 
@@ -154,3 +155,14 @@ Only an `approved_for_replanning` proposal can create one new operation. The ope
 ```
 
 The `tool` and `operation` names must match a dispatchable registered tool. The response includes the new pending operation ID and `approval_required: true`. Each proposal can create at most one new operation. Queueing is not execution; the original failed operation and its approval remain unchanged. Review and approve the new operation through `/api/control/pending/{operation_id}/review`; execute it only through the existing approved dispatcher in an authenticated, CSRF-protected workflow. The UI prompts for exact arguments and displays the new operation ID.
+
+
+### Verify the recovery result
+
+`GET /api/agentic/tasks/{task_id}/recovery-proposals` includes the new operation's current Command Control status. Verification is accepted only when that operation is recorded as `executed`:
+
+```json
+{"passed":true,"evidence":"Independent service health check passed","verifier":"operator"}
+```
+
+Evidence must be non-empty and at most 4,000 characters. Verification can be recorded once and is stored on the recovery proposal as `verified` or `verification_failed`. The operator-supplied evidence is an attestation, not cryptographic proof. A failed verification does not trigger another retry; create and review a separate recovery proposal within the existing attempt limit.
