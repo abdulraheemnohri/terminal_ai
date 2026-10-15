@@ -12,6 +12,7 @@ from litestar.exceptions import HTTPException
 
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
+from application.learning import LearningStore
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
@@ -69,9 +70,10 @@ class PersistentWorldModel:
             return fact.__dict__.copy()
 
 
-def create_agentic_router(control: CommandControl, state_dir: str | Path) -> Router:
+def create_agentic_router(control: CommandControl, state_dir: str | Path, learning: LearningStore | None = None) -> Router:
     planner = AdaptivePlanner()
     world = PersistentWorldModel(Path(state_dir) / "world_model.json")
+    learning_store = learning or LearningStore(Path(state_dir) / "learning.sqlite3")
 
     @get("/status")
     async def agentic_status() -> dict[str, Any]:
@@ -79,6 +81,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path) -> Rou
             "planning": "adaptive-deterministic",
             "world_model": "persistent-evidence-store",
             "world_facts": len(world.model.query()),
+            "learning_records": learning_store.summary()["count"],
+            "learning_mode": "verified-outcomes-only",
             "approval_system": "Command Control Center",
             "global_auto_execution": False,
             "self_consciousness": "operational introspection only; no claim of sentience",
