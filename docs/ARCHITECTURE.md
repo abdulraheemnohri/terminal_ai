@@ -69,3 +69,23 @@ The Command Control Center stores policy, pending review decisions, skill packag
 The WebSocket at `/ws/events` polls durable audit entries and streams only action summaries. It does not reveal hidden chain-of-thought or copy chat prompts into the audit database. Human approval endpoints only update queue state and never execute an operation.
 
 ARQ is optional. When `TERMINAL_AI_ARQ_ENABLED=1`, manual Self-X maintenance and checkpoint requests are submitted to Redis through ARQ. Run `arq maintenance_worker.WorkerSettings` separately. Without this flag, existing local processing remains available. The interval scheduler remains a lightweight poller in the application process, but dispatches diagnostics, memory backup, and temporary-file cleanup to ARQ when queue mode is enabled. Without ARQ, those bounded jobs run locally.
+
+
+## Startup and update lifecycle
+
+- Linux: `install-service.sh` registers a user systemd service with restart-on-failure; `install-auto-update.sh` optionally registers a weekly updater timer.
+- macOS: `install-launchagent.sh` starts/restarts the server at login; `install-auto-update-macos.sh` optionally registers a weekly update LaunchAgent. A successful update restarts the server LaunchAgent.
+- Windows: `install-startup.ps1` registers a user logon task; `install-auto-update.ps1` optionally registers a weekly update task.
+- Termux: copy `termux-boot/com.terminal-ai.start.sh` into `~/.termux/boot/` after installing and opening the separate Termux:Boot add-on. Android background restrictions may delay startup.
+- All automatic project updates are opt-in and update Terminal AI only. They do not install operating-system updates. The guarded updater requires a clean Git working tree, fast-forward updates, dependency checks, syntax compilation, and tests before it restarts a configured server.
+
+## Refactoring status and target module boundaries
+
+Some responsibilities are already separated into `routers/control.py`, `api_schemas.py`, `agentic_features.py`, `command_control.py`, `memory_store.py`, `selfx_engine.py`, `workspace_tools.py`, `task_scheduler.py`, and the optional `maintenance_worker.py`. However, `app.py` still owns many HTTP handlers and lifecycle functions, and `terminal_ai.py` remains the legacy core module. The target structure for the next refactor is:
+
+- `routers/chat.py`, `routers/selfx.py`, `routers/workspace.py`, `routers/settings.py`: route factories receive typed services/dependencies rather than importing globals from `app.py`.
+- `agent/core.py`: orchestration and run lifecycle; `agent/tools.py`: tool registry and validation; `agent/memory.py`: memory interfaces/adapters; `agent/planning.py`: planning and bounded recovery helpers.
+- Pydantic v2 models in `api_schemas.py` (or a dedicated `schemas/` package) remain the boundary for request/response validation.
+- Preserve compatibility with existing state files and API paths while moving one route family at a time; run the complete test suite after each extraction.
+
+This section documents the remaining refactor work accurately; the large legacy modules have not yet been fully decomposed.
