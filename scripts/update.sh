@@ -6,7 +6,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 [ -d .git ] || { echo "Run this from a Git checkout." >&2; exit 1; }
 [ -x .venv/bin/python ] || { echo "Missing virtual environment; run sh install.sh first." >&2; exit 1; }
-if ! git diff --quiet || ! git diff --cached --quiet; then
+if [ -n "$(git status --porcelain)" ]; then
   echo "Working tree has changes. Commit/stash them before updating." >&2
   exit 1
 fi
