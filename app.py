@@ -428,6 +428,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
     if len(message) > 20000:
         raise HTTPException(status_code=413, detail="Message is too long (20,000 characters max).")
+    request_started = time.monotonic()
     async with _LOCK:
         agent = _get_agent()
         try:
@@ -445,7 +446,7 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             "answer": answer,
             "backend": getattr(agent.backend, "label", "unknown"),
             "history_count": len(agent.history),
-            "elapsed_seconds": round(time.time() - _STARTED_AT, 2),
+            "elapsed_seconds": round(time.monotonic() - request_started, 2),
         }
 
 
