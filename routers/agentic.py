@@ -141,7 +141,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         complexity = data.get("complexity", 1)
         if not isinstance(goal, str) or not goal.strip() or len(goal) > 4000:
             raise HTTPException(status_code=400, detail="goal must be a non-empty string of at most 4000 characters.")
-        if risk not in {"read", "low", "medium", "high", "critical"}:
+        if not isinstance(risk, str) or risk not in {"read", "low", "medium", "high", "critical"}:
             raise HTTPException(status_code=400, detail="Invalid risk level.")
         if isinstance(complexity, bool) or not isinstance(complexity, int) or not 1 <= complexity <= 10:
             raise HTTPException(status_code=400, detail="complexity must be an integer from 1 to 10.")
