@@ -281,3 +281,21 @@ def test_task_lifecycle_api_links_existing_approval_without_execution():
         task_status = client.get(f"/api/agentic/tasks/{task['id']}")
         assert task_status.status_code == 200
         assert task_status.json()["task"]["operation_id"] == operation_id
+
+
+
+def test_recovery_api_requires_failed_linked_operation():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        created = client.post("/api/agentic/tasks", json={
+            "goal": "Inspect a failing service", "risk": "read", "complexity": 2,
+        })
+        assert created.status_code == 201
+        task_id = created.json()["task"]["id"]
+        response = client.post(f"/api/agentic/tasks/{task_id}/recovery-proposals", json={
+            "failure_category": "timeout", "error_summary": "Request timed out",
+        })
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("Recovery proposals require a linked operation")
