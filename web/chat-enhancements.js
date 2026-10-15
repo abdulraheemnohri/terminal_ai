@@ -124,8 +124,24 @@ const form=$("chat-form");
 if(form)form.addEventListener("submit",e=>{e.preventDefault();e.stopImmediatePropagation();sendMessage($("chat-input").value);},true);
 const input=$("chat-input");
 if(input)input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!prefs.enter){e.preventDefault();e.stopImmediatePropagation();}},true);
+function decorateRestoredMessages(){
+ document.querySelectorAll("#messages > .message").forEach(el=>{
+  const body=el.children[1];if(!body)return;
+  if(!body.classList.contains("message-body")){
+   const raw=body.textContent||"";body.classList.add("message-body");body.innerHTML=renderAnswer(raw);
+  }
+  if(!el.dataset.timestamp)addTimestamp(el);
+  if(el.classList.contains("assistant")&&!el.querySelector(".message-actions")){
+   let prompt="";let node=el.previousElementSibling;
+   while(node){if(node.classList.contains("user")){prompt=node.querySelector(".message-body")?.textContent||node.children[1]?.textContent||"";break;}node=node.previousElementSibling;}
+   addActions(el,prompt);
+  }
+ });
+ if(prefs.meta)document.querySelectorAll(".response-meta").forEach(el=>el.hidden=false);
+}
 const messages=$("messages");
-if(messages)new MutationObserver(()=>{if(prefs.meta)document.querySelectorAll(".response-meta").forEach(el=>el.hidden=false);}).observe(messages,{childList:true,subtree:true});
+if(messages)new MutationObserver(decorateRestoredMessages).observe(messages,{childList:true,subtree:true});
+decorateRestoredMessages();
 $("chat-search")?.addEventListener("input",applySearch);
 $("chat-export-md")?.addEventListener("click",()=>exportTranscript("md"));
 $("chat-export-json")?.addEventListener("click",()=>exportTranscript("json"));
