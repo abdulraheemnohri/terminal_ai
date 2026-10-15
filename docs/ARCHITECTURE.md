@@ -44,3 +44,19 @@
 5. Confirm path traversal is rejected and writes/commands fail without explicit approval.
 6. Create a diagnostics job with a five-minute interval, pause it, then delete it.
 7. Disconnect the network and verify local knowledge operations still work. For offline chat, explicitly select a compatible local LiteRT-LM model before disconnecting.
+
+
+## Agentic runtime and tool-call policy
+
+`agentic_features.py` provides small, dependency-free helpers for complex-task planning instructions, persona guidance, structured tool-call validation, and bounded retry prompts. It does not persist private scratchpads or expose hidden chain-of-thought.
+
+The core agent parses tagged JSON tool calls and validates the decoded structure against the declared tool schema before dispatch. Nested JSON objects/arrays are supported. Malformed, unknown, disallowed, or type-invalid calls are rejected instead of being executed.
+
+The browser agent enables multi-turn tool use only for a strict allowlist: current time, system information, local memory/knowledge lookup, active goals, journal reading, and the final-answer tool. Shell commands, filesystem path tools, network fetches, file writes/deletes, environment mutation, and dynamic tool forging are excluded from browser tool calling. Workspace Tools remains a separate interface with its own approval flow.
+
+Settings keys:
+- `agentic_planning_enabled` (boolean, default true)
+- `agentic_recovery_enabled` (boolean, default true; maximum two retries per failed turn)
+- `agentic_persona` (`helpful`, `technical`, `coach`, `concise`, or `creative`)
+
+Error logs record exception categories rather than exception messages in retry instructions, reducing the chance of accidentally copying credentials into prompts. Backend-specific retries may also apply; the agent-level retry limit is independently bounded.
