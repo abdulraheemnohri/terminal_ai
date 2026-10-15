@@ -64,3 +64,23 @@ class ChatRequest(APIRequest):
 class MemoryWriteRequest(APIRequest):
     key: str = Field(min_length=1, max_length=200)
     value: str = Field(min_length=1, max_length=4_000)
+
+
+class KnowledgeCreateRequest(APIRequest):
+    title: str = Field(min_length=1, max_length=240)
+    content: str = Field(min_length=1, max_length=20000)
+    kind: str = Field(default="note", min_length=1, max_length=40)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+    pinned: bool = False
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, tags: list[str]) -> list[str]:
+        if any(not tag.strip() or len(tag) > 80 for tag in tags):
+            raise ValueError("Tags must be non-empty and at most 80 characters.")
+        return tags
+
+
+class KnowledgeSearchRequest(APIRequest):
+    query: str = Field(default="", max_length=1000)
+    limit: int = Field(default=10, ge=1, le=50)
