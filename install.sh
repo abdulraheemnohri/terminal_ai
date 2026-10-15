@@ -41,7 +41,7 @@ elif [ -f .env ]; then
   echo "Keeping existing .env."
 fi
 
-"$VENV_PYTHON" -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py
+"$VENV_PYTHON" -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py agentic_runtime.py
 
 echo ""
 echo "Installation and syntax checks completed."
