@@ -384,6 +384,54 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"proposal": verified, "execution_started": False,
                 "notice": "Verification evidence was recorded as an operator attestation; it is not cryptographic proof."}
 
+    @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/review-outcome")
+    async def review_recovery_outcome(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Learn from a recovery only after passing verification and explicit outcome review."""
+        task = task_lifecycle.get(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        proposal = next((item for item in recovery_store.list_for_task(task_id)
+                         if item["id"] == proposal_id), None)
+        if proposal is None:
+            raise HTTPException(status_code=404, detail="Recovery proposal not found.")
+        if proposal.get("status") not in {"verified", "reviewed"} or not (
+            isinstance(proposal.get("verification"), dict)
+            and proposal["verification"].get("passed") is True
+        ):
+            raise HTTPException(status_code=409, detail="Only a passing verified recovery can be reviewed for learning.")
+        outcome, rating = data.get("outcome"), data.get("rating")
+        reviewer, note = data.get("reviewer", "operator"), data.get("note", "")
+        if not isinstance(outcome, str) or outcome not in {"success", "partial", "failure"}:
+            raise HTTPException(status_code=400, detail="outcome must be success, partial, or failure.")
+        if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
+            raise HTTPException(status_code=400, detail="rating must be an integer from 1 to 5.")
+        if not isinstance(reviewer, str) or not reviewer.strip() or len(reviewer) > 100:
+            raise HTTPException(status_code=400, detail="reviewer must be 1-100 characters.")
+        if not isinstance(note, str) or len(note) > 500:
+            raise HTTPException(status_code=400, detail="note must be at most 500 characters.")
+        try:
+            record = learning_store.record(
+                task_type=task["task_type"], algorithm=task["algorithm"],
+                outcome=outcome, rating=rating, verified=True,
+                source_ref="recovery:" + proposal_id,
+            )
+            reviewed = recovery_store.review_verified_outcome(
+                task_id=task_id, proposal_id=proposal_id, outcome=outcome, rating=rating,
+                reviewer=reviewer, note=note, learning_record_id=record["id"],
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Recovery proposal not found.") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.recovery_outcome_reviewed", task_id, {
+            "proposal_id": proposal_id, "learning_record_id": record["id"],
+            "outcome": outcome, "rating": rating,
+            "reviewer": reviewer.strip(), "verified": True,
+        })
+        return {"proposal": reviewed, "learning_record": record,
+                "execution_started": False, "permissions_changed": False,
+                "notice": "Reviewed, independently verified recovery outcome recorded. Learning affects recommendations only; it does not grant permissions."}
+
     @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/review")
     async def review_recovery_proposal(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if task_lifecycle.get(task_id) is None:
