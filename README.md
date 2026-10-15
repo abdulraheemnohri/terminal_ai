@@ -415,3 +415,8 @@ The planner chooses a bounded strategy based on complexity, risk, and external s
 ### Boot startup (opt-in)
 
 Linux systems using systemd can review the unit and installer in systemd/ and scripts/. Windows users can register per-user sign-in startup with scripts/install_autostart_windows.ps1 after installing the project. These options start the web server as an unprivileged user and bind to loopback by default. See [docs/AUTOSTART.md](docs/AUTOSTART.md). Automatic application updates remain separate from startup and are not silently enabled.
+
+
+## Browser tools and one-time approvals
+
+Terminal AI now includes an optional Playwright adapter in `agent/playwright_browser.py` and a one-time approved tool dispatcher in `agent/approved_dispatch.py`. Browser access requires an explicit domain allowlist; form submission and other state-changing tools must use a reviewed, unexpired approval bound to the exact tool and arguments. See [approved tool execution and browser setup](docs/APPROVED_TOOL_EXECUTION.md). The adapter is optional and is not automatically started by the web server.
