@@ -72,3 +72,21 @@ def test_skill_proposals_are_persistent_and_filterable(tmp_path):
     reopened = SkillEvolutionStore(path)
     assert reopened.get(proposal["id"])["name"] == "Debug startup"
     assert reopened.list(status="proposed")[0]["id"] == proposal["id"]
+
+def test_skill_static_validation_catches_subprocess_calls_and_non_string_task_type(tmp_path):
+    store = SkillEvolutionStore(tmp_path / "skills.sqlite3")
+    try:
+        store.create(
+            name="Unsafe subprocess", task_type="debugging", rationale="A valid reason",
+            steps=["Use subprocess.run(command)"], evidence_summary="A valid evidence summary",
+        )
+        assert False, "subprocess execution patterns must be rejected"
+    except ValueError as exc:
+        assert "executable-code" in str(exc)
+
+    errors = SkillEvolutionStore.validate_fields(
+        "Valid workflow", ["unexpected"], "A valid reason",
+        ["Inspect evidence"], "A valid evidence summary",
+    )
+    assert "unsupported task_type" in errors
+
