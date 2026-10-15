@@ -165,6 +165,8 @@ def _read_settings() -> dict[str, Any]:
 
     if defaults.get("agentic_persona") not in {"helpful", "technical", "coach", "concise", "creative"}:
         defaults["agentic_persona"] = "helpful"
+    if defaults.get("agentic_persona") not in {"helpful", "technical", "coach", "concise", "creative", "roleplay"}:
+        defaults["agentic_persona"] = "helpful"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
@@ -1385,6 +1387,9 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         _AGENT.critic.enabled = _AGENT.self_critique
         _AGENT.proactive = bool(current.get("proactive", False))
         _AGENT.max_ctx_chars = int(current.get("max_ctx_chars", 12000))
+        _AGENT.persona = str(current.get("agentic_persona", "helpful"))
+        _AGENT.agentic_planning = bool(current.get("agentic_planning_enabled", True))
+        _AGENT.agentic_recovery = bool(current.get("agentic_recovery_enabled", True))
         _AGENT.agentic_planning = bool(current.get("agentic_planning_enabled", True))
         _AGENT.agentic_recovery = bool(current.get("agentic_recovery_enabled", True))
         _AGENT.persona = str(current.get("agentic_persona", "helpful"))
