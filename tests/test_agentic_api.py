@@ -370,6 +370,12 @@ def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
         current = next(p for p in proposals.json()["proposals"] if p["id"] == proposal_id)
         assert current["new_operation_status"] == "executed"
 
+        premature = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
+            json={"outcome": "success", "rating": 5, "reviewer": "operator"},
+        )
+        assert premature.status_code == 409
+
         verification = client.post(
             f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify",
             json={"passed": True, "evidence": "Independent service health check passed",
@@ -384,12 +390,6 @@ def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
         )
 
         assert duplicate_verification.status_code == 409
-
-        premature = client.post(
-            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
-            json={"outcome": "success", "rating": 5, "reviewer": "operator"},
-        )
-        assert premature.status_code == 409
 
         reviewed_outcome = client.post(
             f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
