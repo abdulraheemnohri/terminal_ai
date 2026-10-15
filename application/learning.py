@@ -115,7 +115,13 @@ class LearningStore:
         baseline = next((item for item in candidates if item["algorithm"] == default_algorithm), None)
         if best["algorithm"] == default_algorithm:
             return {"algorithm": default_algorithm, "adapted": False, "reason": "default_strategy_is_best_reviewed"}
-        if baseline is None or best["success_score"] < baseline["success_score"] + 0.1:
+        if baseline is None:
+            if best["success_score"] >= 0.8:
+                return {"algorithm": best["algorithm"], "adapted": True,
+                        "reason": "repeated_high_scoring_reviewed_outcomes",
+                        "samples": best["samples"], "success_score": round(best["success_score"], 3)}
+            return {"algorithm": default_algorithm, "adapted": False, "reason": "no_reviewed_baseline"}
+        if best["success_score"] < baseline["success_score"] + 0.1:
             return {"algorithm": default_algorithm, "adapted": False, "reason": "no_clear_reviewed_improvement"}
         return {"algorithm": best["algorithm"], "adapted": True,
                 "reason": "better_reviewed_outcome_score", "samples": best["samples"],
