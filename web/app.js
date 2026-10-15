@@ -106,6 +106,9 @@ async function loadSettings(){
   $("setting-endpoint").value=data.custom_base_url||"";
   $("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";
   $("setting-critique").checked=!!data.self_critique;
+  $("setting-agentic-persona").value=data.agentic_persona||"helpful";
+  $("setting-agentic-planning").checked=data.agentic_planning_enabled!==false;
+  $("setting-agentic-recovery").checked=data.agentic_recovery_enabled!==false;
   $("setting-proactive").checked=!!data.proactive;
   $("setting-context").value=data.max_ctx_chars||12000;
   $("setting-learning").checked=data.learning_enabled!==false;
@@ -213,6 +216,9 @@ $("settings-form").addEventListener("submit",async e=>{
    provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
    api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
    self_critique:$("setting-critique").checked,
+   agentic_persona:$("setting-agentic-persona").value,
+   agentic_planning_enabled:$("setting-agentic-planning").checked,
+   agentic_recovery_enabled:$("setting-agentic-recovery").checked,
    proactive:$("setting-proactive").checked,max_ctx_chars:Number($("setting-context").value),
    updates_enabled:$("updates-enabled").checked,
    update_check_interval_hours:Number($("update-interval").value),
