@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Command Control Center and operational audit
+
+- Add a dedicated Command Control Center to the existing web presentation layer with global auto-execution locked off, per-tool rule toggles, command allowlists/blocklists, and one-click approval/rejection.
+- Add persistent pending-operation records; approval endpoints record a decision only and never launch commands.
+- Enforce the Command Control Center allowlist/blocklist in the existing workspace command endpoint and audit approved, blocked, completed, timed-out, and rejected operations without recording command output or secrets.
+- Add SQLite WAL/busy-timeout configuration, append-only audit triggers, and a serialized SHA-256 hash chain with integrity verification.
+- Add a Litestar WebSocket at `/ws/events` for operational stage summaries without exposing hidden chain-of-thought, prompts, or answers.
+- Add versioned JSON and safe YAML skill package import/export; imported workflows remain unverified procedure text.
+- Add optional ARQ/Redis workers for Self-X maintenance, checkpoints, and supported scheduled jobs. Local mode remains available without Redis.
+- Add focused tests for policy defaults, approval semantics, audit integrity, skill packages, API routes, and blocked commands.
+
+
 ## Unreleased
 
 - Add session creation, selection/restoration, deletion, and active-session persistence to the web UI.
