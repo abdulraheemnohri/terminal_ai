@@ -15,7 +15,7 @@ REQUIRED_FILES = (
     "web/app.js",
     "web/app.css",
 )
-REQUIRED_DIRS = ("agent", "routers", "tests", "docs", "scripts")
+REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 
 
 def main() -> int:
