@@ -396,3 +396,21 @@ def test_interface_preferences_are_browser_local_and_styled():
     assert ".ui-compact" in css.text
     assert ".ui-large-text" in css.text
     assert ".ui-reduced-motion" in css.text
+
+
+
+def test_dashboard_theme_and_toast_assets_are_accessible():
+    with TestClient(app=app) as client:
+        page = client.get("/")
+        js = client.get("/static/app.js")
+        css = client.get("/static/app.css")
+    assert page.status_code == 200
+    assert 'id="theme-toggle"' in page.text
+    assert 'id="toast-region"' in page.text
+    assert js.status_code == 200
+    assert "function applyTheme" in js.text
+    assert "function showToast" in js.text
+    assert "Switch to light theme" in js.text
+    assert css.status_code == 200
+    assert ":root.theme-light" in css.text
+    assert ".toast-region" in css.text
