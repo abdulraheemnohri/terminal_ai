@@ -106,6 +106,13 @@ class SafeWebToolRegistry:
                 path = args.get("path", "")
                 if not isinstance(path, str) or not path.strip():
                     return "error: path is required"
+                parts = [part.casefold() for part in path.replace("\\", "/").split("/") if part]
+                blocked_names = {".git", ".venv", "__pycache__", "hf_token", "web_settings.json",
+                                 "settings.json", "credentials", "secrets"}
+                if any(part in blocked_names or part.startswith(".env")
+                       or "secret" in part or "credential" in part or "token" in part or "api_key" in part
+                       for part in parts):
+                    return "error: sensitive paths are not available to chat tools"
                 return _WORKSPACE_TOOLS.read_file(path, max_bytes=50000)
         except Exception as exc:
             return "error: {}: {}".format(type(exc).__name__, str(exc)[:300])
