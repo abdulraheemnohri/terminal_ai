@@ -226,3 +226,24 @@ On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`. Tests is
 - `GET/POST /api/scheduled-tasks`, `PATCH /api/scheduled-tasks/{task_id}`, `POST /api/scheduled-tasks/{task_id}/delete`
 
 The Knowledge Base, Workspace Tools, and Task Scheduler are available as separate UI pages. Review the exact command or file content before approving it.
+
+## Hermes-style agent runtime
+
+Terminal AI now includes provider-neutral foundations for structured tool calls,
+explicit tool allowlists, JSON argument validation, approval-gated actions, bounded
+self-correction/recovery, and bounded multi-turn conversation context.
+
+- [Runtime implementation](agentic_runtime.py)
+- [Feature guide, usage example, and safety boundaries](docs/HERMES_FEATURES.md)
+- [Runtime unit tests](tests/test_agentic_runtime.py)
+
+These primitives do not expose hidden chain-of-thought and do not execute model-generated
+code. They are integration building blocks; provider-native tool-call responses still
+need to be adapted into the normalized tool-call envelope before the chat endpoint can
+use the registry end-to-end.
+
+Run the focused tests with:
+
+```bash
+pytest -q tests/test_agentic_runtime.py
+```
