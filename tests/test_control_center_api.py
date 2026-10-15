@@ -39,3 +39,19 @@ def test_skill_marketplace_rejects_invalid_package_and_exports_schema():
     assert exported.status_code == 200
     assert exported.json()["format"] == "terminal-ai-skills"
     assert exported.json()["version"] == 1
+
+
+def test_workspace_execution_obeys_control_center_blocklist():
+    with TestClient(app=app) as client:
+        response = client.post("/api/workspace/execute", json={
+            "argv": ["rm", "-rf", "/"], "approved": True, "timeout": 2
+        })
+    assert response.status_code == 403
+    assert "blocked" in response.json()["detail"].lower()
+
+
+def test_yaml_skill_export_is_available():
+    with TestClient(app=app) as client:
+        response = client.get("/api/control/skills/export.yaml")
+    assert response.status_code == 200
+    assert "terminal-ai-skills" in response.text
