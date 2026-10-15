@@ -2,7 +2,7 @@ import json
 import pytest
 from terminal_ai_runtime import (
     AdaptivePlanner, ApprovalGate, AuditLedger, PolicyDenied, ToolSpec,
-    WorldModel, validate_skill_package, export_skill, import_skill, ActionEventBus,
+    WorldModel, validate_skill_package, export_skill, import_skill, ActionEventBus, ToolRegistry,
 )
 
 def test_auto_approval_is_limited_to_explicit_low_risk_tools():
@@ -59,3 +59,20 @@ def test_event_bus_isolates_failed_subscriber():
     seen = []; bus.subscribe(seen.append)
     bus.publish("tool.start", "Searching", tool_name="browser.search")
     assert len(seen) == 1 and bus.history()[0]["summary"] == "Searching"
+
+def test_registered_tool_cannot_run_until_approved(tmp_path):
+    gate = ApprovalGate()
+    audit = AuditLedger(tmp_path / "audit.jsonl")
+    bus = ActionEventBus()
+    registry = ToolRegistry(gate, audit=audit, events=bus)
+    registry.register(ToolSpec("browser.search", "Search pages", "read", True, False, {
+        "type": "object", "properties": {"query": {"type": "string", "maxLength": 100}},
+        "required": ["query"], "additionalProperties": False,
+    }), lambda args: {"query": args["query"]})
+    req = registry.request("browser.search", {"query": "docs"}, reason="User requested search")
+    with pytest.raises(PolicyDenied):
+        registry.execute_approved(req.request_id)
+    registry.decide(req.request_id, True, actor="user")
+    assert registry.execute_approved(req.request_id) == {"query": "docs"}
+    assert audit.verify()[0] is True
+    assert any(event["type"] == "tool.completed" for event in bus.history())
