@@ -58,13 +58,25 @@ class LearningStore:
             raise ValueError("outcome must be explicitly verified before it can be learned")
 
     def record(self, *, task_type: str, algorithm: str, outcome: str,
-               rating: int, verified: bool) -> dict[str, Any]:
+               rating: int, verified: bool, source_ref: str | None = None) -> dict[str, Any]:
         self._validate(task_type, algorithm, outcome, rating, verified)
+        if source_ref is not None and (not isinstance(source_ref, str) or not source_ref.strip() or len(source_ref) > 200):
+            raise ValueError("source_ref must be 1-200 characters")
         now = time.time()
         with self._lock, closing(init_sqlite(self.path)) as conn:
+            if source_ref:
+                existing = conn.execute("SELECT * FROM task_outcomes WHERE source_ref=?", (source_ref,)).fetchone()
+                if existing is not None:
+                    if (existing["task_type"], existing["algorithm"], existing["outcome"], existing["rating"]) != (task_type, algorithm, outcome, rating):
+                        raise ValueError("source_ref was already used for a different reviewed outcome")
+                    return {"id": existing["id"], "task_type": existing["task_type"],
+                            "algorithm": existing["algorithm"], "outcome": existing["outcome"],
+                            "rating": existing["rating"], "verified": True,
+                            "created_at": existing["created_at"], "source_ref": source_ref,
+                            "idempotent_replay": True}
             conn.execute(
-                "INSERT INTO task_outcomes(task_type, algorithm, outcome, rating, verified, created_at) VALUES(?,?,?,?,1,?)",
-                (task_type, algorithm, outcome, rating, now),
+                "INSERT INTO task_outcomes(task_type, algorithm, outcome, rating, verified, created_at, source_ref) VALUES(?,?,?,?,1,?,?)",
+                (task_type, algorithm, outcome, rating, now, source_ref),
             )
             conn.execute(
                 "DELETE FROM task_outcomes WHERE id NOT IN (SELECT id FROM task_outcomes ORDER BY id DESC LIMIT ?)",
@@ -73,7 +85,8 @@ class LearningStore:
             conn.commit()
             row_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         return {"id": row_id, "task_type": task_type, "algorithm": algorithm,
-                "outcome": outcome, "rating": rating, "verified": True, "created_at": now}
+                "outcome": outcome, "rating": rating, "verified": True, "created_at": now,
+                "source_ref": source_ref, "idempotent_replay": False}
 
     def summary(self) -> dict[str, Any]:
         with self._lock, closing(init_sqlite(self.path)) as conn:
