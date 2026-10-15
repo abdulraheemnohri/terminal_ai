@@ -114,7 +114,7 @@ class LiteRTPythonBackend(core.Backend):
                     messages=messages or None,
                     system_message=(
                         (system or "You are Terminal AI.")
-                        + "\\n\\nLOCAL INFERENCE RESPONSE RULES: Answer the user's latest message directly. "
+                        + "\n\nLOCAL INFERENCE RESPONSE RULES: Answer the user's latest message directly. "
                         "Be concise, factual, and honest about uncertainty. Do not expose hidden reasoning, "
                         "do not narrate internal steps, do not invent tool use or internet access, and do not "
                         "append unrelated advice or skill-generation instructions. If the request is unclear, "
