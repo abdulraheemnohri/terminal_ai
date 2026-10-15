@@ -32,6 +32,7 @@ from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
 from command_control import CommandControl
 from routers.control import create_control_router
+from routers.knowledge import create_knowledge_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 
 logger = logging.getLogger("terminal_ai.web")
@@ -1890,38 +1891,6 @@ async def _stop_update_checker() -> None:
         _UPDATE_TASK = None
 
 
-@get("/api/knowledge")
-async def list_knowledge(q: str = "", limit: int = 100) -> dict[str, Any]:
-    """List/search durable local knowledge; does not call a remote provider."""
-    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
-    items = _LONG_MEMORY.search(q, limit) if q.strip() else _LONG_MEMORY.list(limit)
-    return {"items": items, "count": len(items), "storage": "sqlite", "offline": True}
-
-@post("/api/knowledge")
-async def add_knowledge(data: dict[str, Any]) -> dict[str, Any]:
-    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
-    try:
-        item = _LONG_MEMORY.add(str(data.get("title", "")), str(data.get("content", "")),
-            kind=str(data.get("kind", "note"))[:40], tags=data.get("tags") if isinstance(data.get("tags"), list) else [],
-            source="web-ui", pinned=bool(data.get("pinned", False)))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"status": "saved", "item": item}
-
-@post("/api/knowledge/search")
-async def search_knowledge(data: dict[str, Any]) -> dict[str, Any]:
-    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
-    query = str(data.get("query", "")).strip()
-    if len(query) > 1000: raise HTTPException(status_code=400, detail="Query is too long.")
-    return {"knowledge": _LONG_MEMORY.search(query, int(data.get("limit", 10))),
-            "conversations": _LONG_MEMORY.archive_search(query, int(data.get("limit", 10))), "offline": True}
-
-@post("/api/knowledge/{item_id:str}/delete")
-async def delete_knowledge(item_id: str) -> dict[str, Any]:
-    if not _read_settings().get("long_term_memory_enabled", True): raise HTTPException(status_code=403, detail="Long-term memory is disabled in Settings.")
-    if not _LONG_MEMORY.delete(item_id): raise HTTPException(status_code=404, detail="Knowledge item not found.")
-    return {"status": "deleted", "id": item_id}
-
 @get("/api/workspace")
 async def workspace_list(path: str = ".") -> dict[str, Any]:
     if not _read_settings().get("workspace_tools_enabled", True): raise HTTPException(status_code=403, detail="Workspace tools are disabled in Settings.")
@@ -2059,7 +2028,7 @@ app = Litestar(
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
         status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
-        list_knowledge, add_knowledge, search_knowledge, delete_knowledge, workspace_list, workspace_read, workspace_write, workspace_execute,
+        create_knowledge_router(_LONG_MEMORY, _read_settings), workspace_list, workspace_read, workspace_write, workspace_execute,
         create_control_router(_COMMAND_CONTROL),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
