@@ -132,8 +132,10 @@ class PlaywrightBrowser:
         with self._lock:
             page = self._page(page_id)
             data = page.screenshot(type="png", full_page=False, timeout=self.timeout_ms)
+            if len(data) > 1_500_000:
+                raise BrowserPolicyError("Screenshot exceeds the 1.5 MB response limit.")
             return {"page_id": page_id, "mime_type": "image/png",
-                    "bytes": len(data), "base64": __import__("base64").b64encode(data).decode("ascii")[:2_000_000]}
+                    "bytes": len(data), "base64": __import__("base64").b64encode(data).decode("ascii")}
 
     def click(self, page_id: str, selector: str) -> dict[str, Any]:
         if not isinstance(selector, str) or not selector.strip() or len(selector) > 1000:
