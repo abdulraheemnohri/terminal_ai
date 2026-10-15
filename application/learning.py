@@ -5,7 +5,7 @@ permissions, executes tools, or changes the approval policy.
 """
 from __future__ import annotations
 
-import sqlite3
+from contextlib import closing
 import threading
 import time
 from pathlib import Path
@@ -29,7 +29,7 @@ class LearningStore:
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        with init_sqlite(self.path) as conn:
+        with closing(init_sqlite(self.path)) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS task_outcomes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,11 +46,11 @@ class LearningStore:
 
     @staticmethod
     def _validate(task_type: Any, algorithm: Any, outcome: Any, rating: Any, verified: Any) -> None:
-        if task_type not in TASK_TYPES:
+        if not isinstance(task_type, str) or task_type not in TASK_TYPES:
             raise ValueError("unsupported task_type")
-        if algorithm not in ALGORITHMS:
+        if not isinstance(algorithm, str) or algorithm not in ALGORITHMS:
             raise ValueError("unsupported algorithm")
-        if outcome not in OUTCOMES:
+        if not isinstance(outcome, str) or outcome not in OUTCOMES:
             raise ValueError("outcome must be success, partial, or failure")
         if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
             raise ValueError("rating must be an integer from 1 to 5")
@@ -61,7 +61,7 @@ class LearningStore:
                rating: int, verified: bool) -> dict[str, Any]:
         self._validate(task_type, algorithm, outcome, rating, verified)
         now = time.time()
-        with self._lock, init_sqlite(self.path) as conn:
+        with self._lock, closing(init_sqlite(self.path)) as conn:
             conn.execute(
                 "INSERT INTO task_outcomes(task_type, algorithm, outcome, rating, verified, created_at) VALUES(?,?,?,?,1,?)",
                 (task_type, algorithm, outcome, rating, now),
