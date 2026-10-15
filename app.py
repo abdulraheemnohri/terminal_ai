@@ -27,7 +27,7 @@ from litestar.static_files import create_static_files_router
 
 import terminal_ai as core
 from selfx_engine import SelfXEngine
-from memory_store import MemoryStore
+from agent.memory import MemoryStore
 from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
 from command_control import CommandControl
