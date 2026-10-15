@@ -1789,7 +1789,7 @@ app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page,
-        status, chat, clear_chat, memory, remember, forget_memory,
+        status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
