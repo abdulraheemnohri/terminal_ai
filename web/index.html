@@ -20,6 +20,7 @@
     <button data-view="memory"><span class="ico">◉</span><span class="nav-text">Memory</span></button>
     <button data-view="knowledge"><span class="ico">▤</span><span class="nav-text">Knowledge Base</span></button>
     <button data-view="workspace"><span class="ico">⌘</span><span class="nav-text">Workspace Tools</span></button>
+    <button data-view="command-control"><span class="ico">⛨</span><span class="nav-text">Command Control</span></button>
     <button data-view="scheduler"><span class="ico">◷</span><span class="nav-text">Task Scheduler</span></button>
     <button data-view="goals"><span class="ico">◎</span><span class="nav-text">Goals</span></button>
     <button data-view="self"><span class="ico">✧</span><span class="nav-text">Self-awareness</span></button>
@@ -84,6 +85,34 @@
         <div id="chat-run-error" class="error"></div>
       </section>
     </article>
+  </section>
+
+  <section class="view" id="view-command-control">
+    <div class="page-head"><div><div class="eyebrow">POLICY · HUMAN APPROVAL · AUDIT</div><h1>Command Control Center</h1><p class="muted">Manage command policy, review queued operations, exchange reusable skills, and inspect tamper-evident audit events.</p></div><button class="btn" id="control-refresh">Refresh all</button></div>
+    <div class="notice">Safety default: global auto-execution remains OFF. Approving an item records the decision only; it does not run commands. Imported skills are unverified procedure text, never executable code. Events stream operational summaries, not private chain-of-thought or prompts.</div>
+    <div class="grid">
+      <article class="card span-6"><div class="card-head"><h2>Execution policy</h2><span class="badge">Safe defaults</span></div>
+        <div class="field"><label><input type="checkbox" id="control-global-auto" style="width:auto;margin-right:8px" disabled> Global auto-execution (locked off)</label><p class="muted">This web agent does not support unrestricted auto-execution.</p></div>
+        <div class="field"><label for="control-allowlist">Allowlisted executable names (comma separated)</label><textarea id="control-allowlist" rows="3"></textarea></div>
+        <div class="field"><label for="control-blocklist">Blocked executable names (comma separated)</label><textarea id="control-blocklist" rows="3"></textarea></div>
+        <div class="field"><label for="control-tool-rules">Per-tool auto-execution rules (JSON object)</label><textarea id="control-tool-rules" rows="3" placeholder='{"read_file": false, "shell": false}'></textarea><p class="muted">Rules are recorded for policy visibility only; they do not bypass approval or enable execution.</p></div>
+        <button class="btn primary" id="control-save-policy">Save policy</button><div id="control-policy-error" class="error"></div>
+      </article>
+      <article class="card span-6"><div class="card-head"><h2>Queue an operation for review</h2></div>
+        <form id="control-queue-form"><div class="field"><label for="control-tool">Tool name</label><input id="control-tool" maxlength="80" value="workspace" required></div>
+        <div class="field"><label for="control-operation">Operation name</label><input id="control-operation" maxlength="80" value="inspect" required></div>
+        <div class="field"><label for="control-arguments">Arguments (JSON object)</label><textarea id="control-arguments" rows="3">{}</textarea></div>
+        <button class="btn" type="submit">Add to approval queue</button><div id="control-queue-error" class="error"></div></form>
+      </article>
+      <article class="card span-12"><div class="card-head"><h2>Pending operations</h2><button class="btn" id="control-refresh-pending">Refresh queue</button></div><div class="list" id="control-pending-list"><div class="empty">Loading approval queue…</div></div><div id="control-pending-error" class="error"></div></article>
+      <article class="card span-6"><div class="card-head"><h2>Skill marketplace</h2><button class="btn" id="control-skills-export">Export JSON</button></div>
+        <p class="muted">Import/export reusable workflow descriptions. Imports are marked unverified and are not run automatically.</p>
+        <div class="field"><label for="control-skills-json">Skill package JSON</label><textarea id="control-skills-json" rows="8" placeholder='{"format":"terminal-ai-skills","version":1,"skills":[{"name":"Example","version":"1.0.0","description":"A reviewed checklist","steps":["Inspect inputs","Validate results"]}]}'></textarea></div>
+        <button class="btn primary" id="control-skills-import">Import package</button><div id="control-skills-error" class="error"></div><pre id="control-skills-result" class="reflection" style="white-space:pre-wrap;max-height:180px;overflow:auto"></pre>
+      </article>
+      <article class="card span-6"><div class="card-head"><h2>Live action feed</h2><span class="badge" id="control-live-status">Connecting…</span></div><p class="muted">WebSocket stream of chat stages, approval decisions, and policy changes.</p><div class="list" id="control-live-feed" aria-live="polite"><div class="empty">Waiting for operational events…</div></div></article>
+      <article class="card span-12"><div class="card-head"><div><h2>Append-only audit log</h2><p class="muted">Hash-chained entries; verification detects unexpected edits or removals.</p></div><button class="btn" id="control-audit-refresh">Refresh audit</button></div><div id="control-audit-integrity" class="notice">Checking audit integrity…</div><div class="list" id="control-audit-list"></div></article>
+    </div>
   </section>
 
   <section class="view" id="view-memory">
