@@ -38,6 +38,7 @@ from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
+from application.container import RuntimeServices
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -61,10 +62,13 @@ AGENTIC_SAFE_TOOLS = {
     # No file paths, shell, network, mutation, deletion, or environment access.
     "now", "sys_info", "search_memory", "query_graph", "list_goals", "read_journal", "done",
 }
-_LONG_MEMORY = MemoryStore(core.STATE_DIR / "long_term_memory.sqlite3")
-_WORKSPACE_TOOLS = WorkspaceTools(ROOT)
-_TASK_SCHEDULER = TaskScheduler(core.STATE_DIR / "scheduled_tasks.sqlite3")
-_COMMAND_CONTROL = CommandControl(core.STATE_DIR / "command_control.sqlite3")
+# Construct long-lived dependencies in one place; keep aliases during gradual
+# migration so existing handlers and routers remain backward compatible.
+_SERVICES = RuntimeServices.create(state_dir=core.STATE_DIR, workspace_root=ROOT)
+_LONG_MEMORY = _SERVICES.memory
+_WORKSPACE_TOOLS = _SERVICES.workspace
+_TASK_SCHEDULER = _SERVICES.scheduler
+_COMMAND_CONTROL = _SERVICES.command_control
 _SCHEDULER_TASK: asyncio.Task | None = None
 
 
