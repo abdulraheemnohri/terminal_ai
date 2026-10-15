@@ -290,6 +290,26 @@ Tracked tasks can collect up to three recovery proposals after a linked Command 
 - Audit hash chaining can reveal unexpected record changes but is not a digital signature against a privileged attacker who can rewrite the database.
 - Self-X features provide operational introspection and controlled adaptation—not consciousness, autonomous source-code mutation, or model-weight training.
 
+## Maintenance scripts
+
+The dashboard now supports browser-local light/dark theme switching, transient system-status notifications, and interface preferences for compact layout, larger text, and reduced motion. These preferences do not alter agent permissions or backend configuration.
+
+The `scripts/` directory is the central operational entrypoint catalog. Start with [scripts/README.md](scripts/README.md).
+
+```sh
+python scripts/doctor.py
+python scripts/backup_state.py
+sh scripts/validate.sh
+```
+
+Restore is intentionally explicit and refuses overwriting files unless you pass `--overwrite` after making a backup:
+
+```sh
+python scripts/restore_state.py /path/to/terminal-ai-state.zip --confirm
+```
+
+Backups can contain sensitive state and credentials; keep them in a private directory. Existing root-level install/update scripts remain available for backwards compatibility and have forwarding entries in `scripts/`.
+
 ## Documentation
 
 | Guide | Description |
