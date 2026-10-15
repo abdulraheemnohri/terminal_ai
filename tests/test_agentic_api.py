@@ -155,3 +155,31 @@ def test_skill_evolution_api_rejects_executable_skill_text():
             "evidence_summary": "No evidence",
         })
     assert response.status_code == 400
+
+def test_reviewed_learning_generates_only_an_unapproved_skill_draft():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        for _ in range(3):
+            outcome = client.post("/api/agentic/learning/outcome", json={
+                "task_type": "browser_work",
+                "algorithm": "observe-act-verify",
+                "outcome": "success",
+                "rating": 5,
+                "verified": True,
+            })
+            assert outcome.status_code == 201
+
+        response = client.post("/api/agentic/skills/proposals/from-learning", json={})
+
+    assert response.status_code == 201
+    payload = response.json()
+    proposal = payload["proposal"]
+    assert payload["generated_from_reviewed_outcomes"] is True
+    assert payload["execution_started"] is False
+    assert payload["permissions_changed"] is False
+    assert proposal["status"] == "proposed"
+    assert proposal["executable"] is False
+    assert any("human approval" in step.lower() for step in proposal["steps"])
+
