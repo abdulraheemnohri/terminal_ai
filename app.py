@@ -1283,8 +1283,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         current["custom_base_url"] = base_url[:500]
     if "agentic_persona" in data:
         persona = data["agentic_persona"]
-        if not isinstance(persona, str) or persona not in {"helpful", "technical", "coach", "concise", "creative"}:
-            raise HTTPException(status_code=400, detail="agentic_persona must be helpful, technical, coach, concise, or creative.")
+        if not isinstance(persona, str) or persona not in {"helpful", "technical", "coach", "concise", "creative", "roleplay"}:
+            raise HTTPException(status_code=400, detail="agentic_persona must be helpful, technical, coach, concise, creative, or roleplay.")
         current["agentic_persona"] = persona
     if "self_identity" in data:
         if not isinstance(data["self_identity"], str):
