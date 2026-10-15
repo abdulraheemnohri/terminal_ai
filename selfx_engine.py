@@ -219,7 +219,7 @@ class SelfXEngine:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         directories = sorted(
             (path for path in self.backup_dir.iterdir() if path.is_dir()),
-            key=lambda path: path.name,
+            key=lambda path: path.stat().st_mtime_ns,
             reverse=True,
         )
         keep_ids = {path.name for path in directories[:retention]}
