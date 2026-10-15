@@ -260,3 +260,8 @@ Run the focused tests with:
 ```bash
 pytest -q tests/test_agentic_runtime.py
 ```
+
+
+### Roleplay and conversation personas
+
+Settings → Conversation style now includes **Roleplay**. It maintains fictional character and scene continuity while keeping fictional events distinct from real-world facts. It does not claim the assistant is a real person, and it does not change tool permissions.
