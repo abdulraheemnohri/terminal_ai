@@ -166,3 +166,6 @@ Recovery proposals are stored separately from task records. They require a linke
 
 
 Approved recovery continuation is a one-shot state transition: `approved_for_replanning → queueing → operation_queued`. The API queues a separate pending Command Control operation with the supplied exact tool and arguments, records its ID on the proposal, and never dispatches it. A failed queue request releases the reservation; duplicate queue attempts are rejected. The new operation must be reviewed and approved independently.
+
+
+After the fresh operation is separately approved and executed through the existing dispatch workflow, the recovery verification route accepts one bounded operator attestation and only when Command Control reports `executed`. The proposal records `verified` or `verification_failed`; verification never dispatches tools and never automatically retries a failed recovery.
