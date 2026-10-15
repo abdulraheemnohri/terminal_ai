@@ -96,6 +96,7 @@ def _read_settings() -> dict[str, Any]:
         "last_update_check": 0,
         "last_update_result": "Not checked yet",
     }
+    base_defaults = dict(defaults)
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
         if isinstance(saved, dict):
@@ -115,7 +116,7 @@ def _read_settings() -> dict[str, Any]:
     )
     for key in bool_keys:
         if not isinstance(defaults.get(key), bool):
-            defaults[key] = bool(defaults.get(key, False)) if key not in {"tool_approval_required"} else True
+            defaults[key] = base_defaults[key]
 
     int_ranges = {
         "max_ctx_chars": (2000, 50000),
@@ -128,7 +129,7 @@ def _read_settings() -> dict[str, Any]:
     for key, (minimum, maximum) in int_ranges.items():
         value = defaults.get(key)
         if isinstance(value, bool) or not isinstance(value, int):
-            value = 12000 if key == "max_ctx_chars" else (10 if key == "self_checkpoint_retention" else (3 if key == "self_max_goals_per_cycle" else (6 if key == "update_check_interval_hours" else 24)))
+            value = base_defaults[key]
         defaults[key] = max(minimum, min(maximum, value))
 
     for key, fallback, limit in (
@@ -137,7 +138,7 @@ def _read_settings() -> dict[str, Any]:
         ("last_update_result", "Not checked yet", 300),
     ):
         value = defaults.get(key)
-        defaults[key] = value.strip()[:limit] if isinstance(value, str) else fallback
+        defaults[key] = value.strip()[:limit] if isinstance(value, str) else base_defaults.get(key, fallback)
 
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
