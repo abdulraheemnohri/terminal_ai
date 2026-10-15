@@ -197,3 +197,21 @@ chmod 700 ~/.termux/boot/com.terminal-ai.start.sh
 ```
 
 Edit the copied script's `PROJECT_DIR` if the repository is not at `$HOME/terminal_ai`. The script starts Uvicorn bound to `127.0.0.1:8000` and writes logs to `~/.terminal_ai/logs/termux-server.log`. Open Termux after a reboot if Android battery/background restrictions delay startup. Check the log if the server did not start. No OS update or unattended source update is performed by this boot helper.
+
+
+## 8. Automatic server startup
+
+First finish the normal install, then explicitly install the service for your platform:
+
+- **Linux:** `sh scripts/install-service.sh`. Check `systemctl --user status terminal-ai.service`; logs: `journalctl --user -u terminal-ai.service -f`. By default it starts at login. For boot-before-login, set `TERMINAL_AI_ENABLE_LINGER=1` when running the installer; this may require system administrator approval.
+- **macOS:** `sh scripts/install-service.sh`. The LaunchAgent starts at login. See `~/Library/Logs/terminal-ai.log`.
+- **Windows PowerShell:** `.\\scripts\\install-service.ps1`. Inspect with `Get-ScheduledTask -TaskName 'Terminal AI Web Server'`.
+- **Termux:** follow the Termux:Boot steps in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Android may still stop background services.
+
+All service installers default to localhost. They do not configure public network access or authentication for you.
+
+## 9. Updating safely
+
+The dashboard's update checker is advisory. On Linux/macOS, run `sh scripts/update.sh` during a maintenance window. It refuses uncommitted changes and non-fast-forward updates, saves a Git bundle, installs dependencies, compiles modules, runs tests, and restarts a detected service. It does not silently apply updates in the background. For Windows, review/pull the update, run tests, then restart the scheduled task manually.
+
+For full service management, logs, security checklist, and platform limitations, see [Production deployment](docs/DEPLOYMENT.md).
