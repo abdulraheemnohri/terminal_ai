@@ -30,8 +30,10 @@ from selfx_engine import SelfXEngine
 from memory_store import MemoryStore
 from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
+from agentic_runtime import AgenticRuntime
 
 logger = logging.getLogger("terminal_ai.web")
+_AGENTIC_RUNTIME = AgenticRuntime()
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -109,6 +111,10 @@ def _read_settings() -> dict[str, Any]:
         "update_check_interval_hours": 24,
         "last_update_check": 0,
         "last_update_result": "Not checked yet",
+        "agentic_planning_enabled": True,
+        "agent_self_correction_enabled": True,
+        "agent_response_style": "balanced",
+        "agent_tool_calling_enabled": False,
     }
     base_defaults = dict(defaults)
     try:
@@ -127,6 +133,7 @@ def _read_settings() -> dict[str, Any]:
         "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
         "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_goal_generation_enabled", "updates_enabled",
+        "agentic_planning_enabled", "agent_self_correction_enabled", "agent_tool_calling_enabled",
     )
     for key in bool_keys:
         if not isinstance(defaults.get(key), bool):
@@ -154,6 +161,8 @@ def _read_settings() -> dict[str, Any]:
         value = defaults.get(key)
         defaults[key] = value.strip()[:limit] if isinstance(value, str) else base_defaults.get(key, fallback)
 
+    if defaults.get("agent_response_style") not in AgenticRuntime.STYLES:
+        defaults["agent_response_style"] = "balanced"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
     if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
@@ -469,12 +478,35 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
             backend_label = getattr(agent.backend, "label", "unknown")
             stage("backend_resolved", "completed", resolve_started, backend_label)
 
+            settings = _read_settings()
+            plan = _AGENTIC_RUNTIME.plan(message)
+            if settings.get("agentic_planning_enabled", True):
+                stage("task_planning", "completed", time.monotonic(),
+                      f"{plan.task_type} task; {plan.complexity} complexity; {len(plan.steps)} checklist steps.")
+            else:
+                stage("task_planning", "skipped", time.monotonic(), "Agent planning is disabled in Settings.")
+
             inference_started = time.monotonic()
+            original_system = agent.base_system
+            original_critique = agent.self_critique
+            original_critic_enabled = agent.critic.enabled
             try:
+                if settings.get("agentic_planning_enabled", True):
+                    agent.base_system = original_system + "\\n\\n" + _AGENTIC_RUNTIME.system_guidance(
+                        plan, settings.get("agent_response_style", "balanced"))
+                # Critique only complex tasks by default to avoid unnecessary latency.
+                if (plan.complexity == "complex"
+                        and settings.get("agent_self_correction_enabled", True)):
+                    agent.self_critique = True
+                    agent.critic.enabled = True
                 answer = await asyncio.to_thread(agent.turn, message)
             except Exception as exc:
                 stage("inference", "failed", inference_started, type(exc).__name__)
                 raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
+            finally:
+                agent.base_system = original_system
+                agent.self_critique = original_critique
+                agent.critic.enabled = original_critic_enabled
             stage("inference", "completed", inference_started, "Model turn returned.")
 
             archive_started = time.monotonic()
@@ -511,6 +543,13 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
                 "elapsed_seconds": round(time.monotonic() - request_started, 2),
                 "execution": trace,
                 "persistence": "saved" if persisted else ("not_configured" if not agent.session_mgr else "warning"),
+                "plan": plan.to_dict(),
+                "agent_capabilities": {
+                    "planning": bool(settings.get("agentic_planning_enabled", True)),
+                    "complex_task_critique": bool(plan.complexity == "complex" and settings.get("agent_self_correction_enabled", True)),
+                    "response_style": settings.get("agent_response_style", "balanced"),
+                    "structured_tool_calling": False,
+                },
             }
             _remember_chat_run({
                 "request_id": request_id,
