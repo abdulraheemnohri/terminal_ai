@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agent.memory import MemoryStore
+from application.learning import LearningStore
 from command_control import CommandControl
 from task_scheduler import TaskScheduler
 from workspace_tools import WorkspaceTools
@@ -22,6 +23,7 @@ class RuntimeServices:
     workspace: WorkspaceTools
     scheduler: TaskScheduler
     command_control: CommandControl
+    learning: LearningStore
 
     @classmethod
     def create(cls, *, state_dir: Path, workspace_root: Path) -> "RuntimeServices":
@@ -34,4 +36,5 @@ class RuntimeServices:
             workspace=WorkspaceTools(workspace_root),
             scheduler=TaskScheduler(state_dir / "scheduled_tasks.sqlite3"),
             command_control=CommandControl(state_dir / "command_control.sqlite3"),
+            learning=LearningStore(state_dir / "learning.sqlite3"),
         )
