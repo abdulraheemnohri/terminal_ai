@@ -88,6 +88,7 @@ async function sendMessage(prompt,{displayUser=true}={}){
   const data=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});
   clearInterval(phaseTimer);pending.classList.remove("pending");pending.dataset.requestId=data.request_id||"";
   pendingBody.innerHTML=renderAnswer(data.answer||"The selected model returned an empty answer. Check Diagnostics and the active backend.");
+  pending.querySelector(".message-actions")?.remove();
   addMeta(pending,data);
   const actions=document.createElement("div");actions.className="message-actions";
   for(const [label,action,title] of [["Copy","copy","Copy answer"],["↻ Regenerate","regenerate","Send the same prompt again"],["👍","up","Helpful"],["👎","down","Not helpful"]]){
@@ -98,6 +99,7 @@ async function sendMessage(prompt,{displayUser=true}={}){
   if(typeof loadStatus==="function")await loadStatus();
  }catch(err){
   clearInterval(phaseTimer);pending.classList.remove("pending");pendingBody.textContent="Request failed: "+err.message;
+  pending.querySelector(".message-actions")?.remove();
   const actions=document.createElement("div");actions.className="message-actions";
   const retry=document.createElement("button");retry.type="button";retry.className="message-action";retry.dataset.chatAction="regenerate";retry.dataset.prompt=message;retry.textContent="Retry request";actions.append(retry);pending.append(actions);
   notify("Chat request failed. Your message remains visible; use Retry request to try again.");
