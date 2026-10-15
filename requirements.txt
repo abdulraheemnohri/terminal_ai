@@ -7,3 +7,6 @@ huggingface_hub
 # testing
 pytest
 httpx
+
+# Safe YAML skill package import/export
+PyYAML>=6.0
