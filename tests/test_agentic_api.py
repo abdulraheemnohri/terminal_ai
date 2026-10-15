@@ -301,12 +301,12 @@ def test_recovery_api_requires_failed_linked_operation():
     assert response.json()["detail"].startswith("Recovery proposals require a linked operation")
 
 
-def test_approved_recovery_proposal_creates_new_pending_operation_only(tmp_path):
+
+def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
     from litestar import Litestar
     from litestar.testing import TestClient
     from command_control import CommandControl
     from routers.agentic import create_agentic_router
-    from application.recovery_proposals import RecoveryProposalStore
 
     control = CommandControl(tmp_path / "control.sqlite3")
     app = Litestar(route_handlers=[create_agentic_router(control, tmp_path)])
@@ -318,14 +318,29 @@ def test_approved_recovery_proposal_creates_new_pending_operation_only(tmp_path)
         assert created.status_code == 201
         task_id = created.json()["task"]["id"]
 
-        recovery = RecoveryProposalStore(tmp_path / "recovery_proposals.sqlite3")
-        proposal = recovery.propose(task_id=task_id, failure_category="timeout",
-                                    error_summary="Recorded operation timed out")
-        recovery.review(task_id=task_id, proposal_id=proposal["id"],
-                        decision="approve", reviewer="operator")
+        failed = control.queue("workspace", "workspace", {"path": "README.md"})
+        control.review(failed["id"], True, reviewer="test")
+        control.claim_approved(failed["id"], "workspace", "workspace", failed["arguments"])
+        control.finish_operation(failed["id"], success=False, note="simulated timeout")
+        linked = client.post(f"/api/agentic/tasks/{task_id}/operation",
+                             json={"operation_id": failed["id"]})
+        assert linked.status_code == 201
+
+        proposed = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals",
+            json={"failure_category": "timeout", "error_summary": "Recorded request timeout"},
+        )
+        assert proposed.status_code == 201
+        proposal_id = proposed.json()["proposal"]["id"]
+        reviewed = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review",
+            json={"decision": "approve", "reviewer": "operator", "note": "Reviewed"},
+        )
+        assert reviewed.status_code == 201
+        assert reviewed.json()["proposal"]["status"] == "approved_for_replanning"
 
         response = client.post(
-            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal['id']}/operation",
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/operation",
             json={"tool": "workspace", "operation": "workspace",
                   "arguments": {"path": "README.md"}},
         )
@@ -335,9 +350,11 @@ def test_approved_recovery_proposal_creates_new_pending_operation_only(tmp_path)
         assert body["approval_required"] is True
         assert body["execution_started"] is False
         assert body["proposal"]["new_operation_id"] == body["operation"]["id"]
+        assert body["operation"]["id"] != failed["id"]
+        assert control.get_operation(failed["id"])["status"] == "failed"
 
         duplicate = client.post(
-            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal['id']}/operation",
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/operation",
             json={"tool": "workspace", "operation": "workspace",
                   "arguments": {"path": "README.md"}},
         )
