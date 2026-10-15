@@ -269,12 +269,12 @@ Settings → Conversation style now includes **Roleplay**. It maintains fictiona
 
 ## Command Control Center, audit, and background queue
 
-Open **Command Control** in the web UI or visit `/command-control`.
+Open **Command Control** in the web UI or visit `/command-control`. The endpoints are grouped in `routers/control.py`; bounded Pydantic v2 request contracts are in `api_schemas.py`.
 
 - Policy settings store executable-name allowlists, blocklists, and per-tool rule metadata. The web runtime keeps global auto-execution disabled; the UI cannot turn it on.
 - Pending operations support explicit approve/reject decisions. Approval is a recorded decision, not a command launcher; execution remains a separate, bounded operation.
 - The local `command_control.sqlite3` database uses SQLite WAL, a busy timeout, and a SHA-256 hash-chained append-only audit table. The UI verifies the chain and displays operational events.
-- `/ws/events` streams operational action summaries and chat-stage metadata. It deliberately excludes hidden chain-of-thought, prompt bodies, and model answers.
+- `/api/control/events` streams operational action summaries and chat-stage metadata. It deliberately excludes hidden chain-of-thought, prompt bodies, and model answers.
 - Skill packages use versioned JSON (`terminal-ai-skills`, schema version 1). Imported procedures are unverified text and are not executed automatically.
 
 ### Optional ARQ worker for Self-X
@@ -285,7 +285,7 @@ The default install remains local-first and does not require Redis. For installa
 pip install -r requirements-queue.txt
 export REDIS_URL=redis://127.0.0.1:6379/0
 export TERMINAL_AI_ARQ_ENABLED=1
-arq maintenance_worker.WorkerSettings
+arq arq_worker.WorkerSettings
 ```
 
 Start the web application with the same environment variables. The manual Self-X maintenance and checkpoint endpoints enqueue ARQ jobs when queue mode is enabled; otherwise they retain the local fallback. Keep Redis private and use authentication/TLS if it is hosted remotely. The interval scheduler dispatches the three documented safe job types to ARQ when queue mode is enabled; otherwise it runs them in the web process as a local fallback.
