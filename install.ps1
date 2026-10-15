@@ -38,7 +38,7 @@ if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
     Write-Host "Keeping existing .env."
 }
 
-& $Python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py
+& $Python -m py_compile app.py terminal_ai.py litert_api_backend.py api_provider_backend.py terminal_ai_runtime.py
 if ($LASTEXITCODE -ne 0) { throw "Python syntax check failed." }
 
 Write-Host ""
