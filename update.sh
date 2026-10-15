@@ -4,6 +4,12 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$ROOT"
 if ! command -v git >/dev/null 2>&1; then echo "Git is required." >&2; exit 1; fi
 if [ ! -d .git ]; then echo "This directory is not a Git checkout." >&2; exit 1; fi
+ORIGIN=$(git remote get-url origin)
+ORIGIN=${ORIGIN%.git}
+case "$ORIGIN" in
+  https://github.com/abdulraheemnohri/terminal_ai|git@github.com:abdulraheemnohri/terminal_ai) ;;
+  *) echo "Update blocked: origin is not the official Terminal AI repository." >&2; exit 1 ;;
+esac
 if [ -n "$(git status --porcelain)" ]; then echo "Working tree has changes. Commit/stash them before updating; no files changed." >&2; exit 1; fi
 PYTHON="$ROOT/.venv/bin/python"
 if [ ! -x "$PYTHON" ]; then echo "Run sh install.sh first." >&2; exit 1; fi
