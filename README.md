@@ -394,6 +394,12 @@ These integrations run the web server as the current user and bind to loopback b
 Run `sh update.sh` on Linux/macOS/WSL or `./update.ps1` on Windows. Opt-in weekly project updates are available through the platform-specific `install-auto-update*` scripts. They update Terminal AI source and Python dependencies, not operating-system packages. Review the Git remote and maintain backups before enabling unattended code updates. The updater requires a clean worktree and validates dependencies/source/tests before restarting a configured service.
 
 
+
+
+## Adaptive planning API
+
+The Litestar API now exposes bounded adaptive planning and a persistent evidence world model at `/api/agentic`. See [the API guide](docs/AGENTIC_API.md). Plan requests return a strategy and verification steps but never execute the plan; evidence observations retain source, confidence, and optional expiry. Skill validation is read-only. All side effects remain subject to the Command Control Center approval boundary.
+
 ## Adaptive agent runtime and world model
 
 The new framework-neutral runtime module provides reusable foundations for dynamic planning, evidence-based world-state tracking, approval gating, declarative skills, action event fan-out, SQLite WAL initialization, and a hash-chained audit ledger.
