@@ -105,3 +105,75 @@ def test_checkpoint_retention_removes_stale_manifests_and_directories(tmp_path):
     assert result["retained"] == 2
     assert len(checkpoint_dirs) == 2
     assert len(state["checkpoints"]) == 2
+
+
+def test_settings_api_rejects_wrong_boolean_types_and_unknown_keys(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "settings.json")
+    with TestClient(app=web_app.app) as client:
+        wrong_type = client.patch("/api/settings", json={"self_autonomous_enabled": "false"})
+        unknown = client.patch("/api/settings", json={"run_any_command": True})
+    assert wrong_type.status_code == 400
+    assert unknown.status_code == 400
+
+
+def test_settings_api_persists_bounded_autonomy_profile(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "settings.json")
+    with TestClient(app=web_app.app) as client:
+        response = client.patch("/api/settings", json={
+            "self_autonomy_profile": "goal-driven",
+            "self_autonomous_enabled": True,
+            "self_goal_generation_enabled": True,
+            "self_max_goals_per_cycle": 99,
+            "self_checkpoint_interval_hours": 8,
+            "self_auto_checkpoint": False,
+            "tool_approval_required": True,
+        })
+    assert response.status_code == 200
+    settings = response.json()
+    assert settings["self_autonomy_profile"] == "goal-driven"
+    assert settings["self_max_goals_per_cycle"] == 20
+    assert settings["self_checkpoint_interval_hours"] == 8
+    assert settings["tool_approval_required"] is True
+
+
+def test_settings_ui_has_autonomy_profiles_and_safe_reset():
+    with TestClient(app=web_app.app) as client:
+        html = client.get("/")
+        js = client.get("/static/app.js")
+        css = client.get("/static/app.css")
+    assert html.status_code == 200
+    assert 'id="setting-autonomy-profile"' in html.text
+    assert 'id="setting-goal-generation"' in html.text
+    assert 'id="reset-autonomy-settings"' in html.text
+    assert "settings-section" in css.text
+    assert "Reset autonomy to safe defaults" in js.text
+
+
+def test_manual_maintenance_respects_disabled_maintenance(monkeypatch):
+    monkeypatch.setattr(web_app, "_read_settings", lambda: {"self_maintenance_enabled": False})
+    with TestClient(app=web_app.app) as client:
+        response = client.post("/api/selfx/maintenance/run")
+    assert response.status_code == 400
+
+
+def test_manual_maintenance_is_exposed_in_settings_ui():
+    with TestClient(app=web_app.app) as client:
+        html = client.get("/")
+        js = client.get("/static/app.js")
+    assert 'id="run-maintenance-now"' in html.text
+    assert "/api/selfx/maintenance/run" in js.text
+
+
+def test_settings_loader_recovers_from_malformed_persisted_values(monkeypatch, tmp_path):
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text(
+        '{"self_autonomous_enabled":"false","self_checkpoint_interval_hours":9999,'
+        '"self_autonomy_profile":"unrestricted","tool_approval_required":null}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", settings_path)
+    settings = web_app._read_settings()
+    assert settings["self_autonomous_enabled"] is False
+    assert settings["self_checkpoint_interval_hours"] == 168
+    assert settings["self_autonomy_profile"] == "maintain"
+    assert settings["tool_approval_required"] is True

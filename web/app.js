@@ -81,6 +81,10 @@ async function loadSettings(){
   $("setting-self-checkpoint").checked=data.self_auto_checkpoint!==false;
   $("setting-checkpoint-retention").value=data.self_checkpoint_retention||10;
   $("setting-evaluation-interval").value=data.self_evaluation_interval_hours||24;
+  $("setting-autonomy-profile").value=data.self_autonomy_profile||"maintain";
+  $("setting-checkpoint-interval").value=data.self_checkpoint_interval_hours||24;
+  $("setting-goal-generation").checked=data.self_goal_generation_enabled!==false;
+  $("setting-max-goals").value=data.self_max_goals_per_cycle||3;
   $("setting-tool-approval").checked=data.tool_approval_required!==false;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
@@ -125,6 +129,36 @@ $("apply-update").addEventListener("click",async()=>{
  finally{b.disabled=true;b.textContent="Apply available update";}
 });
 
+$("run-maintenance-now").addEventListener("click",async()=>{
+ const button=$("run-maintenance-now"),result=$("maintenance-run-result");
+ if(!confirm("Run one local Self-X maintenance cycle now? It may create a checkpoint and diagnostic goals according to your current profile."))return;
+ button.disabled=true;button.textContent="Running local checks…";result.textContent="Working…";$("settings-error").textContent="";
+ try{
+  const data=await api("/api/selfx/maintenance/run",{method:"POST"});
+  result.textContent=data.summary+(data.checkpoint_id?" · checkpoint "+data.checkpoint_id:"")+
+   ((data.created_goals||[]).length?" · goals: "+data.created_goals.join(", "):"");
+  await loadSelfX();await loadStatus();await loadSettings();
+ }catch(err){result.textContent="Maintenance failed."; $("settings-error").textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Run safe maintenance cycle now";}
+});
+
+$("reset-autonomy-settings").addEventListener("click",async()=>{
+ if(!confirm("Reset autonomy to safe defaults? This disables autonomous maintenance and goal generation. Other model and provider settings will remain unchanged."))return;
+ const button=$("reset-autonomy-settings");button.disabled=true;$("settings-error").textContent="";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify({
+   self_autonomous_enabled:false,self_autonomy_profile:"observe",
+   self_maintenance_enabled:true,self_diagnostics_enabled:true,self_evaluation_enabled:true,
+   self_recovery_enabled:true,self_auto_checkpoint:true,self_goal_generation_enabled:false,
+   self_max_goals_per_cycle:3,self_evaluation_interval_hours:24,
+   self_checkpoint_interval_hours:24,self_checkpoint_retention:10,
+   tool_approval_required:true
+  })});
+  $("settings-saved").textContent="Autonomy reset to safe defaults";await loadSettings();await loadStatus();
+ }catch(err){$("settings-error").textContent=err.message;}
+ finally{button.disabled=false;}
+});
+
 $("settings-form").addEventListener("submit",async e=>{
  e.preventDefault();$("settings-error").textContent="";$("settings-saved").textContent="Saving…";
  try{
@@ -151,6 +185,10 @@ $("settings-form").addEventListener("submit",async e=>{
    self_auto_checkpoint:$("setting-self-checkpoint").checked,
    self_checkpoint_retention:Number($("setting-checkpoint-retention").value),
    self_evaluation_interval_hours:Number($("setting-evaluation-interval").value),
+   self_autonomy_profile:$("setting-autonomy-profile").value,
+   self_checkpoint_interval_hours:Number($("setting-checkpoint-interval").value),
+   self_goal_generation_enabled:$("setting-goal-generation").checked,
+   self_max_goals_per_cycle:Number($("setting-max-goals").value),
    tool_approval_required:$("setting-tool-approval").checked
   })});
   $("setting-hf-token").value="";

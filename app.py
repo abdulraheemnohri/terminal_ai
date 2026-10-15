@@ -81,6 +81,10 @@ def _read_settings() -> dict[str, Any]:
         "self_auto_checkpoint": True,
         "self_checkpoint_retention": 10,
         "self_evaluation_interval_hours": 24,
+        "self_checkpoint_interval_hours": 24,
+        "self_autonomy_profile": "maintain",
+        "self_goal_generation_enabled": True,
+        "self_max_goals_per_cycle": 3,
         "learning_enabled": True,
         "self_improvement_enabled": True,
         "auto_extract_skills": False,
@@ -92,22 +96,80 @@ def _read_settings() -> dict[str, Any]:
         "last_update_check": 0,
         "last_update_result": "Not checked yet",
     }
+    base_defaults = dict(defaults)
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
         if isinstance(saved, dict):
-            defaults.update(saved)
+            defaults.update({key: value for key, value in saved.items() if key in defaults})
     except (OSError, json.JSONDecodeError):
         pass
-    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
+
+    # Treat the on-disk file as untrusted input too: recover safely from manual edits
+    # or interrupted writes rather than allowing malformed values to break workers.
+    bool_keys = (
+        "self_critique", "proactive", "self_reflection_enabled", "learning_enabled",
+        "self_improvement_enabled", "auto_extract_skills", "tool_approval_required",
+        "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled",
+        "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
+        "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
+        "self_auto_checkpoint", "self_goal_generation_enabled", "updates_enabled",
+    )
+    for key in bool_keys:
+        if not isinstance(defaults.get(key), bool):
+            defaults[key] = base_defaults[key]
+
+    int_ranges = {
+        "max_ctx_chars": (2000, 50000),
+        "self_checkpoint_retention": (1, 30),
+        "self_evaluation_interval_hours": (1, 168),
+        "self_checkpoint_interval_hours": (1, 168),
+        "self_max_goals_per_cycle": (1, 20),
+        "update_check_interval_hours": (6, 168),
+    }
+    for key, (minimum, maximum) in int_ranges.items():
+        value = defaults.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            value = base_defaults[key]
+        defaults[key] = max(minimum, min(maximum, value))
+
+    for key, fallback, limit in (
+        ("provider_model", "", 200), ("custom_base_url", "", 500),
+        ("self_identity", "Terminal AI", 120), ("self_mission", "", 1000),
+        ("last_update_result", "Not checked yet", 300),
+    ):
+        value = defaults.get(key)
+        defaults[key] = value.strip()[:limit] if isinstance(value, str) else base_defaults.get(key, fallback)
+
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
-    defaults["autonomy"] = 0  # Web default stays tool-disabled until explicitly enabled in a future guarded UI.
+    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+        defaults["active_provider"] = "gemini"
+    if defaults.get("update_channel") != "main":
+        defaults["update_channel"] = "main"
+    if defaults.get("custom_base_url") and not defaults["custom_base_url"].startswith(("https://", "http://127.0.0.1", "http://localhost")):
+        defaults["custom_base_url"] = ""
+    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
+    defaults["autonomy"] = 0  # Arbitrary tool execution stays disabled in the web agent.
+    if defaults.get("self_autonomy_profile") not in {"observe", "maintain", "goal-driven"}:
+        defaults["self_autonomy_profile"] = "maintain"
     return defaults
 
 
 def _write_settings(settings: dict[str, Any]) -> None:
     WEB_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    WEB_SETTINGS.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    temporary = WEB_SETTINGS.with_name(WEB_SETTINGS.name + f".{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        try:
+            temporary.chmod(0o600)
+        except OSError:
+            pass
+        os.replace(temporary, WEB_SETTINGS)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _build_agent() -> core.Agent:
@@ -940,12 +1002,14 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+        "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
+        "self_max_goals_per_cycle",
     }
     current = _read_settings()
     prompt = (
         "Translate a user's request into a minimal JSON settings proposal. Return ONLY JSON with keys "
         "'changes' (object) and 'explanation' (string). Allowed keys are: " + ", ".join(sorted(allowed)) + ". "
-        "Use only these keys. Values must match their types. mode is auto/cloud/local/hybrid. active_provider may be "
+        "Use only these keys. Values must match their types. self_autonomy_profile is observe (checks only), maintain (checks and scheduled checkpoints), or goal-driven (maintain plus bounded diagnostic goal creation). Goal creation is separately gated and limited by self_max_goals_per_cycle. mode is auto/cloud/local/hybrid. active_provider may be "
         "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai. "
         "Never propose API keys, credentials, URLs, code, commands, permission changes, or disabling tool approval. "
         "If the request cannot be expressed safely, return empty changes and explain why. The proposal is not applied.\n"
@@ -979,7 +1043,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
                     "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-                    "self_autonomous_enabled", "self_auto_checkpoint"):
+                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
         # Validate AI output as untrusted input; bool is a subclass of int in Python.
@@ -992,6 +1056,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key, minimum, maximum in (
             ("self_checkpoint_retention", 1, 30),
             ("self_evaluation_interval_hours", 1, 168),
+            ("self_checkpoint_interval_hours", 1, 168),
+            ("self_max_goals_per_cycle", 1, 20),
         ):
             if key in changes:
                 value = changes[key]
@@ -999,6 +1065,11 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                     changes.pop(key)
                 else:
                     changes[key] = max(minimum, min(maximum, value))
+        if "self_autonomy_profile" in changes and (
+            not isinstance(changes["self_autonomy_profile"], str)
+            or changes["self_autonomy_profile"] not in {"observe", "maintain", "goal-driven"}
+        ):
+            changes.pop("self_autonomy_profile")
         if "provider_model" in changes:
             value = changes["provider_model"]
             if not isinstance(value, str):
@@ -1031,6 +1102,22 @@ async def get_settings() -> dict[str, Any]:
 
 @patch("/api/settings")
 async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
+    allowed_settings = {
+        "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
+        "provider_model", "custom_base_url", "self_identity", "self_mission",
+        "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
+        "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
+        "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
+        "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
+        "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_goal_generation_enabled", "self_checkpoint_retention",
+        "self_evaluation_interval_hours", "self_checkpoint_interval_hours",
+        "self_max_goals_per_cycle", "self_autonomy_profile", "updates_enabled",
+        "update_channel", "update_check_interval_hours", "hf_token", "api_key",
+    }
+    unknown = sorted(set(data) - allowed_settings)
+    if unknown:
+        raise HTTPException(status_code=400, detail="Unknown setting(s): " + ", ".join(unknown[:10]))
     current = _read_settings()
     previous = dict(current)
     if "mode" in data:
@@ -1043,10 +1130,10 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     if "proactive" in data:
         current["proactive"] = bool(data["proactive"])
     if "max_ctx_chars" in data:
-        try:
-            current["max_ctx_chars"] = max(2000, min(50000, int(data["max_ctx_chars"])))
-        except (TypeError, ValueError):
+        value = data["max_ctx_chars"]
+        if isinstance(value, bool) or not isinstance(value, int):
             raise HTTPException(status_code=400, detail="max_ctx_chars must be an integer.")
+        current["max_ctx_chars"] = max(2000, min(50000, value))
     if "active_provider" in data:
         from api_provider_backend import PROVIDERS
         provider_id = str(data["active_provider"]).strip().lower()
@@ -1054,36 +1141,55 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="Unknown AI provider.")
         current["active_provider"] = provider_id
     if "provider_model" in data:
-        current["provider_model"] = str(data["provider_model"]).strip()[:200]
+        if not isinstance(data["provider_model"], str):
+            raise HTTPException(status_code=400, detail="provider_model must be text.")
+        current["provider_model"] = data["provider_model"].strip()[:200]
     if "custom_base_url" in data:
-        base_url = str(data["custom_base_url"]).strip()
+        if not isinstance(data["custom_base_url"], str):
+            raise HTTPException(status_code=400, detail="custom_base_url must be text.")
+        base_url = data["custom_base_url"].strip()
         if base_url and not base_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
             raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
         current["custom_base_url"] = base_url[:500]
     if "self_identity" in data:
-        current["self_identity"] = str(data["self_identity"]).strip()[:120] or "Terminal AI"
+        if not isinstance(data["self_identity"], str):
+            raise HTTPException(status_code=400, detail="self_identity must be text.")
+        current["self_identity"] = data["self_identity"].strip()[:120] or "Terminal AI"
     if "self_mission" in data:
-        current["self_mission"] = str(data["self_mission"]).strip()[:1000]
+        if not isinstance(data["self_mission"], str):
+            raise HTTPException(status_code=400, detail="self_mission must be text.")
+        current["self_mission"] = data["self_mission"].strip()[:1000]
     if "self_reflection_enabled" in data:
         current["self_reflection_enabled"] = bool(data["self_reflection_enabled"])
     for setting_key in (
-        "learning_enabled", "self_improvement_enabled", "auto_extract_skills",
-        "tool_approval_required", "self_diagnostics_enabled", "self_repair_enabled",
-        "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
-        "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-        "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_critique", "proactive", "learning_enabled", "self_improvement_enabled",
+        "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
+        "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
+        "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
+        "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_goal_generation_enabled", "self_reflection_enabled", "updates_enabled",
     ):
         if setting_key in data:
-            current[setting_key] = bool(data[setting_key])
+            if not isinstance(data[setting_key], bool):
+                raise HTTPException(status_code=400, detail=f"{setting_key} must be a boolean.")
+            current[setting_key] = data[setting_key]
     for setting_key, minimum, maximum in (
         ("self_checkpoint_retention", 1, 30),
         ("self_evaluation_interval_hours", 1, 168),
+        ("self_checkpoint_interval_hours", 1, 168),
+        ("self_max_goals_per_cycle", 1, 20),
+        ("update_check_interval_hours", 6, 168),
     ):
         if setting_key in data:
-            try:
-                current[setting_key] = max(minimum, min(maximum, int(data[setting_key])))
-            except (TypeError, ValueError):
+            value = data[setting_key]
+            if isinstance(value, bool) or not isinstance(value, int):
                 raise HTTPException(status_code=400, detail=f"{setting_key} must be an integer from {minimum} to {maximum}.")
+            current[setting_key] = max(minimum, min(maximum, value))
+    if "self_autonomy_profile" in data:
+        profile = data["self_autonomy_profile"]
+        if not isinstance(profile, str) or profile not in {"observe", "maintain", "goal-driven"}:
+            raise HTTPException(status_code=400, detail="self_autonomy_profile must be observe, maintain, or goal-driven.")
+        current["self_autonomy_profile"] = profile
     if "updates_enabled" in data:
         current["updates_enabled"] = bool(data["updates_enabled"])
     if "update_channel" in data:
@@ -1091,11 +1197,10 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if channel != "main":
             raise HTTPException(status_code=400, detail="Only the main update channel is currently supported.")
         current["update_channel"] = channel
-    if "update_check_interval_hours" in data:
-        try:
-            current["update_check_interval_hours"] = max(6, min(168, int(data["update_check_interval_hours"])))
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="Update interval must be 6–168 hours.")
+    if "hf_token" in data and data["hf_token"] is not None and not isinstance(data["hf_token"], str):
+        raise HTTPException(status_code=400, detail="hf_token must be text.")
+    if "api_key" in data and data["api_key"] is not None and not isinstance(data["api_key"], str):
+        raise HTTPException(status_code=400, detail="api_key must be text.")
     if "hf_token" in data and str(data["hf_token"]).strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
@@ -1200,8 +1305,70 @@ async def selfx_status() -> dict[str, Any]:
         "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
         "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+        "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
+        "self_max_goals_per_cycle",
     )}
     return data
+
+
+@post("/api/selfx/maintenance/run")
+async def selfx_run_maintenance() -> dict[str, Any]:
+    """Run one bounded local maintenance cycle on explicit user request."""
+    settings = _read_settings()
+    if not settings.get("self_maintenance_enabled", True):
+        raise HTTPException(status_code=400, detail="Self-maintenance is disabled in Settings.")
+    if not settings.get("self_evaluation_enabled", True) and not settings.get("self_diagnostics_enabled", True):
+        raise HTTPException(status_code=400, detail="Enable diagnostics or evaluation before running maintenance.")
+    engine = _selfx_engine()
+    try:
+        if settings.get("self_evaluation_enabled", True):
+            evaluation = await asyncio.to_thread(engine.evaluate)
+            diagnostic = engine.status().get("latest_diagnostic")
+        else:
+            diagnostic = await asyncio.to_thread(engine.diagnose)
+            evaluation = None
+        checkpoint_id = None
+        profile = settings.get("self_autonomy_profile", "maintain")
+        if (
+            profile != "observe"
+            and settings.get("self_recovery_enabled", True)
+            and settings.get("self_auto_checkpoint", True)
+        ):
+            manifest = await asyncio.to_thread(engine.create_checkpoint)
+            checkpoint_id = manifest.get("id")
+            retention = max(1, min(30, int(settings.get("self_checkpoint_retention", 10))))
+            await asyncio.to_thread(engine.prune_checkpoints, retention)
+        created_goals = []
+        if (
+            profile == "goal-driven"
+            and settings.get("self_goal_generation_enabled", True)
+            and settings.get("self_goals_enabled", True)
+            and settings.get("self_diagnostics_enabled", True)
+        ):
+            planner = core.GoalPlanner.load()
+            active_texts = [str(getattr(goal, "text", "")).casefold() for goal in planner.active()]
+            limit = max(1, min(20, int(settings.get("self_max_goals_per_cycle", 3))))
+            for check in (diagnostic or {}).get("checks", []):
+                if len(created_goals) >= limit:
+                    break
+                if check.get("ok") is False:
+                    goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
+                    if goal_text.casefold() not in active_texts:
+                        planner.add(goal_text)
+                        active_texts.append(goal_text.casefold())
+                        created_goals.append(goal_text)
+        summary = f"Manual maintenance completed; profile={profile}; goals_created={len(created_goals)}"
+        engine.record_event("manual-maintenance", summary)
+        return {
+            "status": "completed", "profile": profile, "diagnostic": diagnostic,
+            "evaluation": evaluation, "checkpoint_id": checkpoint_id,
+            "created_goals": created_goals, "summary": summary,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Manual Self-X maintenance cycle failed", exc_info=True)
+        raise HTTPException(status_code=500, detail="Maintenance cycle failed. Check the local server logs.") from exc
 
 
 @post("/api/selfx/diagnose")
@@ -1420,16 +1587,18 @@ async def _automatic_selfx_maintenance() -> None:
             settings = _read_settings()
             if settings.get("self_autonomous_enabled", False) and settings.get("self_maintenance_enabled", True):
                 interval_hours = max(1, min(168, int(settings.get("self_evaluation_interval_hours", 24))))
-                interval = interval_hours * 3600
+                checkpoint_interval_hours = max(1, min(168, int(settings.get("self_checkpoint_interval_hours", 24))))
+                profile = settings.get("self_autonomy_profile", "maintain")
                 state = engine.status()
                 latest_eval = state.get("latest_evaluation") or {}
                 latest_checkpoint = (state.get("checkpoints") or [{}])[0]
                 now = time.time()
-                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval
+                eval_due = now - float(latest_eval.get("created_at", 0) or 0) >= interval_hours * 3600
                 checkpoint_due = (
-                    settings.get("self_recovery_enabled", True)
+                    profile != "observe"
+                    and settings.get("self_recovery_enabled", True)
                     and settings.get("self_auto_checkpoint", True)
-                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= interval
+                    and now - float(latest_checkpoint.get("created_at", 0) or 0) >= checkpoint_interval_hours * 3600
                 )
                 if eval_due:
                     if settings.get("self_evaluation_enabled", True):
@@ -1443,18 +1612,28 @@ async def _automatic_selfx_maintenance() -> None:
                     engine.record_event("autonomous-checkpoint", f"Scheduled checkpoint created: {manifest['id']}")
 
                 # Turn failed local diagnostics into deduplicated, measurable goals.
-                if settings.get("self_goals_enabled", True) and settings.get("self_diagnostics_enabled", True):
+                if (
+                    profile == "goal-driven"
+                    and settings.get("self_goal_generation_enabled", True)
+                    and settings.get("self_goals_enabled", True)
+                    and settings.get("self_diagnostics_enabled", True)
+                ):
                     latest = engine.status().get("latest_diagnostic") or {}
                     planner = core.GoalPlanner.load()
                     active_goals = planner.active()
                     active_texts = [str(getattr(g, "text", "")).casefold() for g in active_goals]
+                    created = 0
+                    max_goals = max(1, min(20, int(settings.get("self_max_goals_per_cycle", 3))))
                     for check in latest.get("checks", []):
+                        if created >= max_goals:
+                            break
                         if check.get("ok") is False:
                             goal_text = f"Resolve Self-X diagnostic: {str(check.get('name', 'unknown'))[:100]}"
                             if goal_text.casefold() not in active_texts:
                                 planner.add(goal_text)
                                 active_texts.append(goal_text.casefold())
                                 engine.record_event("autonomous-goal", goal_text)
+                                created += 1
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1525,7 +1704,7 @@ app = Litestar(
         skills_page, tools_page, learning_page, improvements_page, selfx_page,
         status, chat, clear_chat, memory, remember, forget_memory,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
+        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
