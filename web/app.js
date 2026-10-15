@@ -132,6 +132,10 @@ async function loadSettings(){
   $("setting-conversation-archive").checked=data.conversation_archive_enabled!==false;
   $("setting-workspace-tools").checked=data.workspace_tools_enabled!==false;
   $("setting-scheduler").checked=data.scheduled_tasks_enabled!==false;
+  $("setting-agent-planning").checked=data.agentic_planning_enabled!==false;
+  $("setting-agent-style").value=data.agent_response_style||"balanced";
+  $("setting-agent-correction").checked=data.agent_self_correction_enabled!==false;
+  $("setting-agent-tools").checked=!!data.agent_tool_calling_enabled;
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
   $("update-interval").value=data.update_check_interval_hours||24;
@@ -239,7 +243,11 @@ $("settings-form").addEventListener("submit",async e=>{
    long_term_memory_enabled:$("setting-long-memory").checked,
    conversation_archive_enabled:$("setting-conversation-archive").checked,
    workspace_tools_enabled:$("setting-workspace-tools").checked,
-   scheduled_tasks_enabled:$("setting-scheduler").checked
+   scheduled_tasks_enabled:$("setting-scheduler").checked,
+   agentic_planning_enabled:$("setting-agent-planning").checked,
+   agent_response_style:$("setting-agent-style").value,
+   agent_self_correction_enabled:$("setting-agent-correction").checked,
+   agent_tool_calling_enabled:$("setting-agent-tools").checked
   })});
   $("setting-hf-token").value="";
   $("settings-saved").textContent="Saved";$("setting-api-key").value="";
