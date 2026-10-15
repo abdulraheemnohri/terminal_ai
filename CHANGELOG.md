@@ -1,3 +1,9 @@
+## Unreleased — browser allowlist settings
+
+- Add Settings UI for a configurable browser DNS allowlist with strict server-side normalization and rejection of wildcard, URL-shaped, port-bearing, malformed, and IP-literal entries.
+- Add a status-only browser endpoint that reports configuration and optional Playwright availability without launching a browser or enabling remote actions.
+- Add regression tests for accepted normalization, invalid entries, persistence, and the disabled execution boundary.
+
 ## Unreleased — browser URL and allowlist hardening
 
 - Normalize internationalized DNS names and reject wildcard, URL-shaped, IP-literal, and malformed allowlist entries.
