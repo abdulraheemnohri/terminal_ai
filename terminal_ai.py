@@ -2073,17 +2073,26 @@ class ToolRegistry:
 
 
 def parse_tool_calls(text: str) -> list[dict]:
+    """Parse tagged JSON tool calls, including nested objects and arrays."""
     out = []
-    for m in re.finditer(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", text, re.S):
+    for match in re.finditer(r"<tool_call>\\s*(.*?)\\s*</tool_call>", text, re.S):
+        payload = match.group(1).strip()
         try:
-            obj = json.loads(m.group(1))
-            if isinstance(obj, dict) and "name" in obj:
-                obj.setdefault("args", {})
-                out.append(obj)
-        except Exception:
-            nm = re.search(r'"name"\s*:\s*"([^"]+)"', m.group(1))
-            if nm:
-                out.append({"name": nm.group(1), "args": {}})
+            obj, _end = json.JSONDecoder().raw_decode(payload)
+            if isinstance(obj, dict) and isinstance(obj.get("name"), str):
+                args = obj.get("args", {})
+                if isinstance(args, dict):
+                    out.append({"name": obj["name"], "args": args})
+                else:
+                    out.append({"name": obj["name"], "args": args})
+                continue
+        except (json.JSONDecodeError, TypeError):
+            pass
+        # Preserve the historical malformed-call fallback for diagnostics;
+        # the validator will reject any unsafe or unknown tool before dispatch.
+        name_match = re.search(r'"name"\\s*:\\s*"([^"]+)"', payload)
+        if name_match:
+            out.append({"name": name_match.group(1), "args": {}})
     return out
 
 
