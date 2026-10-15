@@ -194,6 +194,7 @@ On Windows, replace `.venv/bin/python` with `.venv\Scripts\python.exe`. Tests is
 ## Documentation
 
 - Installation and troubleshooting: [INSTALL.md](INSTALL.md)
+- Architecture, API map, storage and offline guarantees: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Release history: [CHANGELOG.md](CHANGELOG.md)
 - Litestar docs: https://docs.litestar.dev/2/
 - LiteRT-LM upstream: https://github.com/google-ai-edge/LiteRT-LM
