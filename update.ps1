@@ -38,7 +38,7 @@ $BackupFile = $null
 if (Test-Path $StateDir) {
     New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
     $BackupFile = Join-Path $BackupRoot ("pre-update-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".zip")
-    $Items = Get-ChildItem -LiteralPath $StateDir -Force | Where-Object { $_.FullName -ne $BackupRoot }
+    $Items = Get-ChildItem -LiteralPath $StateDir -Force | Where-Object { $_.Name -ne "backups" }
     if ($Items) {
         Compress-Archive -Path $Items.FullName -DestinationPath $BackupFile -CompressionLevel Optimal
     } else {
@@ -53,6 +53,10 @@ if ($LASTEXITCODE -ne 0 -or -not $RemoteCommit) { throw "Could not resolve origi
 if ($RemoteCommit -eq $PreviousCommit) {
     Write-Host "Terminal AI is already up to date."
     exit 0
+}
+git merge-base --is-ancestor $PreviousCommit $RemoteCommit
+if ($LASTEXITCODE -ne 0) {
+    throw "Update blocked: local HEAD is not an ancestor of origin/main. Review local history before updating."
 }
 
 $Updated = $false
