@@ -49,7 +49,7 @@ The dashboard source has been statically checked for navigation/view parity, mis
 
 ## What it includes
 
-- Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Goals, Self-awareness, and Settings.
+- Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Knowledge Base, Workspace Tools, Command Control Center, Task Scheduler, Goals, Self-awareness, Skills, Tools, Learning, Self-improvement, Self-X, and Settings.
 - Local-first state and model storage; no Firebase or mandatory hosted database.
 - Cloud providers: Google Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
 - Local inference through the LiteRT-LM **Python API** when a compatible `.litertlm` model and runtime are available. The app does not use a CLI subprocess for inference.
@@ -374,3 +374,21 @@ Update checking is advisory. Review changes before applying them. On Linux/macOS
 ## Production scope and compatibility
 
 Terminal AI implements selected ChatGPT-like UX patterns (multi-turn sessions, provider/model selection, memory, settings, tool-mediated workflows) and Hermes/OpenClaw-inspired agent patterns (structured tool calls, bounded planning/recovery, skills, scheduled work, workspace controls and event/audit visibility). It is **not** a feature-complete clone of ChatGPT, Hermes, or OpenClaw. Availability depends on the configured provider/model and platform. The local-first runtime intentionally avoids unrestricted autonomous shell execution and does not expose private chain-of-thought; the live feed reports operational plans/stages, tool activity, errors and outcomes. See [architecture](docs/ARCHITECTURE.md) and [refactor plan](docs/ARCHITECTURE_REFACTOR.md).
+
+
+## Production operations
+
+See [Production Readiness and Agent Capability Matrix](docs/PRODUCTION_READINESS.md) for current capabilities, security invariants, known gaps, and deployment guidance.
+
+### Start automatically at login or boot
+
+- Linux/systemd: `sh install-service.sh`
+- Windows PowerShell: `./install-startup.ps1`
+- macOS: `sh install-launchagent.sh`
+- Termux/Android: install the Termux:Boot add-on and copy `termux-boot/com.terminal-ai.start.sh` into `~/.termux/boot/`
+
+These integrations run the web server as the current user and bind to loopback by default. They do not enable autonomous command execution.
+
+### Update the project
+
+Run `sh update.sh` on Linux/macOS/WSL or `./update.ps1` on Windows. Opt-in weekly project updates are available through the platform-specific `install-auto-update*` scripts. They update Terminal AI source and Python dependencies, not operating-system packages. Review the Git remote and maintain backups before enabling unattended code updates. The updater requires a clean worktree and validates dependencies/source/tests before restarting a configured service.
