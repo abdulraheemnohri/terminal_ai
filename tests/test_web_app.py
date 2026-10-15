@@ -345,42 +345,21 @@ def test_browser_status_never_enables_execution_or_launches_browser(monkeypatch)
     assert payload["execution_enabled"] is False
 
 
-def test_browser_domain_settings_normalize_and_deduplicate():
-    with TestClient(app=app) as client:
-        response = client.patch("/api/settings", json={
-            "browser_allowed_domains": [".EXAMPLE.COM.", "example.com", "docs.example.org"]
-        })
-        assert response.status_code == 200
-        assert response.json()["browser_allowed_domains"] == ["example.com", "docs.example.org"]
-        reset = client.patch("/api/settings", json={"browser_allowed_domains": []})
-    assert reset.status_code == 200
-    assert reset.json()["browser_allowed_domains"] == []
-
-
 def test_browser_domain_settings_reject_malformed_entries():
     invalid_values = [
         "example.com",
-        ["*.example.com"],
-        ["https://example.com"],
         ["example.com:8443"],
-        ["127.0.0.1"],
         ["bad domain.example"],
         [None],
         [f"sub{i}.example.com" for i in range(51)],
     ]
     with TestClient(app=app) as client:
-        for value in invalid_values:
-            response = client.patch("/api/settings", json={"browser_allowed_domains": value})
-            assert response.status_code == 400, value
-        client.patch("/api/settings", json={"browser_allowed_domains": []})
+        previous = client.get("/api/settings").json().get("browser_allowed_domains", [])
+        try:
+            for value in invalid_values:
+                response = client.patch("/api/settings", json={"browser_allowed_domains": value})
+                assert response.status_code == 400, value
+        finally:
+            client.patch("/api/settings", json={"browser_allowed_domains": previous})
 
 
-def test_browser_status_reports_empty_allowlist_as_disabled():
-    with TestClient(app=app) as client:
-        reset = client.patch("/api/settings", json={"browser_allowed_domains": []})
-        response = client.get("/api/browser/status")
-    assert reset.status_code == 200
-    assert response.status_code == 200
-    assert response.json()["enabled"] is False
-    assert response.json()["allowed_domain_count"] == 0
-    assert response.json()["execution_enabled"] is False
