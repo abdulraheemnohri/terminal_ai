@@ -283,7 +283,12 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         task = task_lifecycle.get(task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="Task run not found.")
-        return {"proposals": recovery_store.list_for_task(task_id), "execution_started": False}
+        proposals = recovery_store.list_for_task(task_id)
+        for proposal in proposals:
+            operation_id = proposal.get("new_operation_id")
+            operation = control.get_operation(operation_id) if operation_id else None
+            proposal["new_operation_status"] = operation.get("status") if operation else None
+        return {"proposals": proposals, "execution_started": False}
 
     @post("/tasks/{task_id:str}/recovery-proposals")
     async def create_recovery_proposal(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -349,6 +354,35 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             "execution_started": False, "approval_required": True,
             "notice": "A new pending operation was created. It must be reviewed and separately approved in Command Control; this route never executes it.",
         }
+
+    @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/verify")
+    async def verify_recovery_operation(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        if task_lifecycle.get(task_id) is None:
+            raise HTTPException(status_code=404, detail="Task run not found.")
+        proposal = next((item for item in recovery_store.list_for_task(task_id)
+                         if item["id"] == proposal_id), None)
+        if proposal is None:
+            raise HTTPException(status_code=404, detail="Recovery proposal not found.")
+        operation_id = proposal.get("new_operation_id")
+        operation = control.get_operation(operation_id) if operation_id else None
+        if operation is None:
+            raise HTTPException(status_code=409, detail="Recovery proposal has no new Command Control operation.")
+        if operation.get("status") != "executed":
+            raise HTTPException(status_code=409, detail="Recovery operation must be recorded as executed before verification.")
+        try:
+            verified = recovery_store.record_verification(
+                task_id=task_id, proposal_id=proposal_id, passed=data.get("passed"),
+                evidence=data.get("evidence"), verifier=data.get("verifier", "operator"),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        control.audit("agentic", "task.recovery_operation_verified", task_id, {
+            "proposal_id": proposal_id, "new_operation_id": operation_id,
+            "passed": verified["verification"]["passed"],
+            "verifier": verified["verification"]["verifier"],
+        })
+        return {"proposal": verified, "execution_started": False,
+                "notice": "Verification evidence was recorded as an operator attestation; it is not cryptographic proof."}
 
     @post("/tasks/{task_id:str}/recovery-proposals/{proposal_id:str}/review")
     async def review_recovery_proposal(task_id: str, proposal_id: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -591,5 +625,5 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
         approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
         list_recovery_proposals, create_recovery_proposal, queue_recovery_operation,
-        review_recovery_proposal,
+        verify_recovery_operation, review_recovery_proposal,
     ])
