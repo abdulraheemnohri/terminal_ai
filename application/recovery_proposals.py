@@ -31,11 +31,13 @@ class RecoveryProposalStore:
                 failure_category TEXT NOT NULL, error_summary TEXT NOT NULL,
                 recovery_json TEXT NOT NULL, retry_policy TEXT NOT NULL,
                 status TEXT NOT NULL, reviewer TEXT, review_note TEXT,
-                new_operation_id TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
+                new_operation_id TEXT, verification_json TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
             )""")
             columns = {row[1] for row in db.execute("PRAGMA table_info(recovery_proposals)").fetchall()}
             if "new_operation_id" not in columns:
                 db.execute("ALTER TABLE recovery_proposals ADD COLUMN new_operation_id TEXT")
+            if "verification_json" not in columns:
+                db.execute("ALTER TABLE recovery_proposals ADD COLUMN verification_json TEXT")
             db.execute("CREATE INDEX IF NOT EXISTS idx_recovery_task_created ON recovery_proposals(task_id, created_at DESC)")
             db.commit()
 
@@ -49,6 +51,7 @@ class RecoveryProposalStore:
     def _decode(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
         result["recovery_steps"] = json.loads(result.pop("recovery_json"))
+        result["verification"] = json.loads(result.pop("verification_json")) if result.get("verification_json") else None
         result["may_retry_after_review"] = result["retry_policy"] == "retryable_after_human_review"
         result["execution_started"] = False
         return result
@@ -155,6 +158,35 @@ class RecoveryProposalStore:
                 raise ValueError("proposal is not awaiting a new operation link")
             db.execute("UPDATE recovery_proposals SET status='operation_queued', new_operation_id=?, updated_at=? WHERE id=?",
                        (operation_id, time.time(), proposal_id))
+            db.commit()
+            updated = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
+        assert updated is not None
+        return self._decode(updated)
+
+    def record_verification(self, *, task_id: str, proposal_id: str, passed: bool,
+                            evidence: str, verifier: str) -> dict[str, Any]:
+        if not isinstance(passed, bool):
+            raise ValueError("passed must be a boolean")
+        if not isinstance(evidence, str) or not evidence.strip() or len(evidence) > 4000:
+            raise ValueError("evidence must be 1-4000 characters")
+        if not isinstance(verifier, str) or not verifier.strip() or len(verifier) > 100:
+            raise ValueError("verifier must be 1-100 characters")
+        now = time.time()
+        verification = {"passed": passed, "evidence": evidence.strip(),
+                        "verifier": verifier.strip(), "verified_at": now}
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM recovery_proposals WHERE id=? AND task_id=?",
+                             (proposal_id, task_id)).fetchone()
+            if row is None:
+                db.rollback()
+                raise KeyError("recovery proposal not found")
+            if row["status"] != "operation_queued" or not row["new_operation_id"]:
+                db.rollback()
+                raise ValueError("proposal must have a queued recovery operation that has not yet been verified")
+            db.execute("UPDATE recovery_proposals SET status=?, verification_json=?, updated_at=? WHERE id=?",
+                       ("verified" if passed else "verification_failed",
+                        json.dumps(verification), now, proposal_id))
             db.commit()
             updated = db.execute("SELECT * FROM recovery_proposals WHERE id=?", (proposal_id,)).fetchone()
         assert updated is not None
