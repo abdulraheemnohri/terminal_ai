@@ -486,11 +486,13 @@ let controlSocketRetry=null;
 function controlApi(path,options={}){return api(path,options);}
 function controlList(text){return [...new Set(String(text||"").split(",").map(x=>x.trim()).filter(Boolean))];}
 async function loadControlPolicy(){
- const data=await controlApi("/api/control/policy");const p=data.policy||{};
+ const [data,toolData]=await Promise.all([controlApi("/api/control/policy"),controlApi("/api/tools")]);const p=data.policy||{};
  $("control-global-auto").checked=false;
  $("control-allowlist").value=(p.allowlist||[]).join(", ");
  $("control-blocklist").value=(p.blocklist||[]).join(", ");
- $("control-tool-rules").value=JSON.stringify(p.tool_auto_execute||{},null,2);
+ const rules=p.tool_auto_execute||{};$("control-tool-rules").value=JSON.stringify(rules,null,2);
+ const names=[...new Set((toolData.tools||[]).map(t=>t.name).filter(Boolean))].sort();
+ $("control-tool-toggles").innerHTML=names.map(name=>'<label class="list-item"><input type="checkbox" data-tool-rule="'+escapeHtml(name)+'" '+(rules[name]===true?'checked':'')+' style="width:auto;margin-right:8px"> '+escapeHtml(name)+' <span class="muted">— metadata only</span></label>').join("")||'<div class="empty">No tool metadata available.</div>';
 }
 async function saveControlPolicy(){
  $("control-policy-error").textContent="";
@@ -545,6 +547,12 @@ async function loadCommandControl(){
  catch(e){$("control-policy-error").textContent=e.message;}
 }
 if($("control-refresh"))$("control-refresh").addEventListener("click",loadCommandControl);
+if($("control-tool-toggles"))$("control-tool-toggles").addEventListener("change",e=>{
+ const input=e.target.closest("[data-tool-rule]");if(!input)return;
+ try{const rules=JSON.parse($("control-tool-rules").value||"{}");rules[input.dataset.toolRule]=input.checked;$("control-tool-rules").value=JSON.stringify(rules,null,2);}
+ catch(err){$("control-policy-error").textContent="Fix the per-tool JSON before changing toggles.";}
+});
+
 if($("control-save-policy"))$("control-save-policy").addEventListener("click",saveControlPolicy);
 if($("control-refresh-pending"))$("control-refresh-pending").addEventListener("click",loadControlPending);
 if($("control-audit-refresh"))$("control-audit-refresh").addEventListener("click",loadControlAudit);
