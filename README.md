@@ -43,6 +43,10 @@ Terminal AI includes a dependency-free agentic runtime inspired by common agent-
 
 These features improve orchestration, not the underlying model weights. Actual reasoning quality and tool-call reliability still depend on the selected model/backend.
 
+## UI audit and responsive layouts
+
+The dashboard source has been statically checked for navigation/view parity, missing static JavaScript element references, and duplicate IDs. Responsive layout rules cover compact phones through wide desktop screens, including scrollable mobile navigation, safe-area insets, keyboard focus, and reduced-motion preferences. See [the UI responsive audit and manual regression checklist](docs/UI_RESPONSIVE_AUDIT.md). Static checks do not replace browser-based visual regression testing.
+
 ## What it includes
 
 - Responsive dashboard pages: Overview, Chat, Sessions, Models, Diagnostics, Memory, Goals, Self-awareness, and Settings.
