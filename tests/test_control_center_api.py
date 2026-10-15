@@ -43,6 +43,7 @@ def test_skill_marketplace_rejects_invalid_package_and_exports_schema():
 
 def test_workspace_execution_obeys_control_center_blocklist():
     with TestClient(app=app) as client:
+        client.patch("/api/settings", json={"workspace_tools_enabled": True})
         response = client.post("/api/workspace/execute", json={
             "argv": ["rm", "-rf", "/"], "approved": True, "timeout": 2
         })
