@@ -946,6 +946,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
         "self_auto_checkpoint", "self_checkpoint_retention", "self_evaluation_interval_hours",
+        "self_checkpoint_interval_hours", "self_autonomy_profile", "self_goal_generation_enabled",
+        "self_max_goals_per_cycle",
     }
     current = _read_settings()
     prompt = (
@@ -985,7 +987,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
                     "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
                     "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled",
-                    "self_autonomous_enabled", "self_auto_checkpoint"):
+                    "self_autonomous_enabled", "self_auto_checkpoint", "self_goal_generation_enabled"):
             if key in changes and not isinstance(changes[key], bool):
                 changes.pop(key)
         # Validate AI output as untrusted input; bool is a subclass of int in Python.
@@ -998,6 +1000,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         for key, minimum, maximum in (
             ("self_checkpoint_retention", 1, 30),
             ("self_evaluation_interval_hours", 1, 168),
+            ("self_checkpoint_interval_hours", 1, 168),
+            ("self_max_goals_per_cycle", 1, 20),
         ):
             if key in changes:
                 value = changes[key]
@@ -1005,6 +1009,11 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                     changes.pop(key)
                 else:
                     changes[key] = max(minimum, min(maximum, value))
+        if "self_autonomy_profile" in changes and (
+            not isinstance(changes["self_autonomy_profile"], str)
+            or changes["self_autonomy_profile"] not in {"observe", "maintain", "goal-driven"}
+        ):
+            changes.pop("self_autonomy_profile")
         if "provider_model" in changes:
             value = changes["provider_model"]
             if not isinstance(value, str):
@@ -1037,6 +1046,22 @@ async def get_settings() -> dict[str, Any]:
 
 @patch("/api/settings")
 async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
+    allowed_settings = {
+        "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
+        "provider_model", "custom_base_url", "self_identity", "self_mission",
+        "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
+        "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
+        "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
+        "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
+        "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
+        "self_goal_generation_enabled", "self_checkpoint_retention",
+        "self_evaluation_interval_hours", "self_checkpoint_interval_hours",
+        "self_max_goals_per_cycle", "self_autonomy_profile", "updates_enabled",
+        "update_channel", "update_check_interval_hours", "hf_token", "api_key",
+    }
+    unknown = sorted(set(data) - allowed_settings)
+    if unknown:
+        raise HTTPException(status_code=400, detail="Unknown setting(s): " + ", ".join(unknown[:10]))
     current = _read_settings()
     previous = dict(current)
     if "mode" in data:
@@ -1078,7 +1103,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
         "self_goals_enabled", "self_skills_enabled", "self_recovery_enabled",
         "self_maintenance_enabled", "self_autonomous_enabled", "self_auto_checkpoint",
-        "self_goal_generation_enabled", "updates_enabled",
+        "self_goal_generation_enabled", "self_reflection_enabled", "updates_enabled",
     ):
         if setting_key in data:
             if not isinstance(data[setting_key], bool):
