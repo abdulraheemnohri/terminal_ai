@@ -54,7 +54,7 @@ class SkillEvolutionStore:
         errors: list[str] = []
         if not isinstance(name, str) or not _WORD.fullmatch(name.strip()):
             errors.append("name must be 2-80 safe letters, digits, spaces, dots, underscores, or hyphens")
-        if task_type not in {"debugging", "software_change", "research", "browser_work", "planning", "writing", "general"}:
+        if not isinstance(task_type, str) or task_type not in {"debugging", "software_change", "research", "browser_work", "planning", "writing", "general"}:
             errors.append("unsupported task_type")
         for field, value in (("rationale", rationale), ("evidence_summary", evidence_summary)):
             if not isinstance(value, str) or not value.strip() or len(value) > _MAX_TEXT:
@@ -67,7 +67,7 @@ class SkillEvolutionStore:
             errors.append("combined step text exceeds 8000 characters")
         # This is a deliberately small structural check, not a sandbox/security scanner.
         if isinstance(steps, list) and any(
-            isinstance(step, str) and re.search(r"(^|\\s)(exec|eval|subprocess|os\\.system)\\s*\\(", step, re.I)
+            isinstance(step, str) and re.search(r"(^|\s)(exec|eval|subprocess|os\.system)\s*\(", step, re.I)
             for step in steps
         ):
             errors.append("executable-code patterns are not allowed in skill procedure text")
