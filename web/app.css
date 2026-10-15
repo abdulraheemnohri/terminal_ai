@@ -334,3 +334,10 @@ body.command-open{overflow:hidden}
 .api-legend{background:var(--cyan)}
 .backend-legend{background:var(--violet)}
 .theme-light .health-api-line-point,.theme-light .health-ready-line-point{stroke:#fff}
+
+.collection-search{display:flex;align-items:center;gap:10px;margin:12px 0}
+.collection-search input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);font-size:12px}
+.collection-search input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.collection-search-count{flex:0 0 auto;min-width:88px;text-align:right;color:var(--muted);font-size:10px}
+[hidden]{display:none!important}
+@media(max-width:560px){.collection-search{align-items:stretch;flex-direction:column;gap:5px}.collection-search-count{text-align:left}}
