@@ -106,6 +106,16 @@ This section documents the remaining refactor work accurately; the large legacy 
 
 
 
+## Approval-aware task lifecycle
+
+- `application/task_lifecycle.py` persists bounded task records in `task_lifecycle.sqlite3`, including the goal, plan steps, task category, selected algorithm, risk, linked Command Control operation, execution status, verification evidence, and reviewed outcome.
+- `POST /api/agentic/tasks` creates a plan record only. It does not dispatch tools. A task may link exactly one existing operation from Command Control Center; linking does not approve or execute it.
+- The task status is synchronized from the authoritative operation record: pending, approved, executing, executed, failed, rejected, or expired. This ledger does not provide a new tool-execution endpoint.
+- Independent verification is rejected until the linked operation is recorded as executed. A passing verification stores the operator's evidence summary and identity; a failed verification remains failed and cannot be sent to learning review.
+- Only a passing verified task can be reviewed. The review records an explicit outcome and 1–5 rating in the bounded verified-outcome learning store, and adds an audit event. Learning changes recommendations only; it does not grant permissions.
+- The task ledger is capped at 2,000 recent records. The operator must still ensure that the verifier is genuinely independent; text evidence entered by a user is an attestation, not cryptographic proof.
+- The task lifecycle and Command Control APIs require authentication and authorization before deployment on an untrusted network. The UI does not bypass the existing human approval boundary.
+
 ## Self-X adaptive planning and evidence dashboard
 
 - The Self-X page exposes the agentic status, aggregate verified-outcome learning summary, pending approval count, and bounded world-model facts in one operational console.
