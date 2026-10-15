@@ -106,6 +106,15 @@ This section documents the remaining refactor work accurately; the large legacy 
 
 
 
+## Self-X adaptive planning and evidence dashboard
+
+- The Self-X page exposes the agentic status, aggregate verified-outcome learning summary, pending approval count, and bounded world-model facts in one operational console.
+- Plan preview calls `POST /api/agentic/plan`; it returns a strategy and steps but explicitly reports `execution_started=false`. The UI does not dispatch plan steps or start browser/tool actions.
+- World-model observations are stored as bounded evidence records with subject, predicate, value, source, confidence, and optional TTL. Values are data only; they are not instructions. Expired facts retain their original absolute expiry across restarts.
+- The console reads pending items from the Command Control Center. Reviewing or approving a queue item is separate from executing it. Global auto-execution remains disabled.
+- Learning cards display aggregate task-family/algorithm sample counts, success scores, and reviewer ratings. The values are coarse heuristic signals, not calibrated probabilities or proof of correctness. Only explicitly verified outcomes are eligible for adaptation.
+- This UI improves observability and operator review; it does not make the agent sentient, self-modify source code, train model weights, or autonomously grant permissions.
+
 ## Human-reviewed skill evolution
 
 - \`application/skill_evolution.py\` stores bounded plain-text skill proposals in \`skill_proposals.sqlite3\`; it stores no task prompts or credentials by design.
