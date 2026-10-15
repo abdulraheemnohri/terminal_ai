@@ -209,3 +209,35 @@ def test_recurring_reviewed_failures_generate_recovery_draft_not_execution():
     assert payload["execution_started"] is False
     assert payload["permissions_changed"] is False
 
+
+
+def test_agentic_console_status_and_world_observation_api():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        status = client.get("/api/agentic/status")
+        assert status.status_code == 200
+        payload = status.json()
+        assert payload["global_auto_execution"] is False
+        assert payload["self_consciousness"].startswith("operational introspection")
+        summary = client.get("/api/agentic/learning/summary")
+        assert summary.status_code == 200
+        assert "groups" in summary.json()
+        observed = client.post("/api/agentic/world-model/observe", json={
+            "subject": "console-test-service",
+            "predicate": "health",
+            "value": {"state": "test-only"},
+            "source": "automated-test",
+            "confidence": 0.75,
+            "ttl_seconds": 60,
+        })
+        assert observed.status_code == 201
+        assert observed.json()["stored"] is True
+        facts = client.get("/api/agentic/world-model?subject=console-test-service")
+        assert facts.status_code == 200
+        assert facts.json()["count"] >= 1
+        assert any(f["predicate"] == "health" for f in facts.json()["facts"])
+        pending = client.get("/api/control/pending?status=pending&limit=100")
+        assert pending.status_code == 200
+        assert isinstance(pending.json()["operations"], list)
