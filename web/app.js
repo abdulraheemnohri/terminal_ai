@@ -271,6 +271,59 @@ async function loadSelfX(){
   $("selfx-recovery-error").textContent="";
  }catch(e){$("selfx-recovery-error").textContent=e.message;}
 }
+async function loadTaskLifecycle(){
+ const host=$("task-lifecycle-list"),err=$("task-lifecycle-error");
+ try{
+  const data=await api("/api/agentic/tasks?limit=50");
+  const tasks=data.tasks||[];
+  host.innerHTML=tasks.length?tasks.map(t=>{
+   const status=escapeHtml(t.status),id=escapeHtml(t.id);
+   let actions='<button class="btn" data-task-refresh="'+id+'">Sync status</button>';
+   if(t.status==="planned")actions+='<button class="btn primary" data-task-link="'+id+'">Link Command Control operation</button>';
+   if(t.status==="executed")actions+='<button class="btn primary" data-task-verify="'+id+'">Verify result</button>';
+   if(t.status==="verified")actions+='<button class="btn primary" data-task-review="'+id+'">Review outcome</button>';
+   const steps=(t.steps||[]).map(s=>'<li>'+escapeHtml(s)+'</li>').join("");
+   const verify=t.verification?'<p><b>Verification:</b> '+(t.verification.passed?"Passed":"Failed")+' · '+escapeHtml(t.verification.evidence)+'</p>':"";
+   const review=t.review?'<p><b>Reviewed:</b> '+escapeHtml(t.review.outcome)+' · rating '+escapeHtml(t.review.rating)+'/5</p>':"";
+   return '<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+id.slice(0,12)+' · '+escapeHtml(t.goal)+'</b><span class="badge">'+status+'</span></div><p class="muted">Risk: '+escapeHtml(t.risk)+' · Type: '+escapeHtml(t.task_type)+' · Algorithm: '+escapeHtml(t.algorithm)+' · Updated: '+escapeHtml(new Date(t.updated_at*1000).toLocaleString())+'</p>'+(t.operation_id?'<p>Linked operation: <code>'+escapeHtml(t.operation_id)+'</code> · status: '+escapeHtml(t.execution_status||"unknown")+'</p>':'<p class="muted">No Command Control operation linked.</p>')+'<details><summary>Planned steps</summary><ol>'+steps+'</ol></details>'+verify+review+'<div class="row" style="margin-top:10px">'+actions+'</div></div>';
+  }).join(""):'<div class="empty">No tracked tasks yet. Create a plan to start a lifecycle record.</div>';
+ }catch(e){err.textContent=e.message;}
+}
+$("task-lifecycle-refresh").addEventListener("click",loadTaskLifecycle);
+$("task-lifecycle-form").addEventListener("submit",async e=>{
+ e.preventDefault();const b=$("task-lifecycle-create");b.disabled=true;b.textContent="Creating…";$("task-lifecycle-error").textContent="";
+ try{
+  const result=await api("/api/agentic/tasks",{method:"POST",body:JSON.stringify({goal:$("task-lifecycle-goal").value,risk:$("task-lifecycle-risk").value,complexity:Number($("task-lifecycle-complexity").value),has_external_side_effects:false,evidence_available:false})});
+  $("task-lifecycle-goal").value="";
+  $("task-lifecycle-error").textContent="Tracked plan created. No tools were executed.";
+  await loadTaskLifecycle();
+ }catch(err){$("task-lifecycle-error").textContent=err.message;}
+ finally{b.disabled=false;b.textContent="Create tracked plan";}
+});
+$("task-lifecycle-list").addEventListener("click",async e=>{
+ const b=e.target.closest("button");if(!b)return;
+ const run=async(path,body)=>api(path,{method:"POST",body:JSON.stringify(body)});
+ try{
+  if(b.dataset.taskRefresh){b.disabled=true;await api("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskRefresh));await loadTaskLifecycle();return;}
+  if(b.dataset.taskLink){
+   const id=prompt("Paste the existing Command Control operation ID. This only links it; it does not approve or execute it.");
+   if(!id)return;
+   await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskLink)+"/operation",{operation_id:id.trim()});
+  }else if(b.dataset.taskVerify){
+   const evidence=prompt("Describe the independent verification evidence (do not include secrets):");
+   if(!evidence||!evidence.trim())return;
+   const passed=confirm("Did the independent check pass? Choose Cancel to stop; OK means passed.");
+   await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskVerify)+"/verify",{passed,evidence:evidence.trim(),verifier:"operator"});
+  }else if(b.dataset.taskReview){
+   const outcome=prompt("Reviewed outcome: success, partial, or failure","success");
+   if(!["success","partial","failure"].includes(outcome))return;
+   const ratingText=prompt("Reviewer rating from 1 to 5","4"),rating=Number(ratingText);
+   if(!Number.isInteger(rating)||rating<1||rating>5)return;
+   await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskReview)+"/review",{outcome,rating,reviewer:"operator"});
+  }else return;
+  await loadTaskLifecycle();await loadAgenticConsole();
+ }catch(err){$("task-lifecycle-error").textContent=err.message;}
+});
 async function loadAgenticConsole(){
  const showError=(id,error)=>{const node=$(id);if(node)node.textContent=error?error.message:"";};
  showError("agentic-console-error",null);
