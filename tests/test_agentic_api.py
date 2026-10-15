@@ -47,3 +47,34 @@ def test_world_model_does_not_extend_expiry_after_restart(tmp_path):
 
     second = PersistentWorldModel(path)
     assert second.model.query("cache") == []
+
+
+
+def test_plan_exposes_adaptive_signals_without_starting_execution():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        response = client.post("/api/agentic/plan", json={
+            "goal": "Research the latest browser automation tools",
+            "risk": "low",
+            "complexity": 3,
+            "evidence_available": False,
+        })
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["execution_started"] is False
+    assert payload["plan"]["adaptive_signals"]["algorithm"] == "evidence-first"
+    assert payload["plan"]["adaptive_signals"]["task_type"] == "research"
+
+
+def test_plan_rejects_non_boolean_evidence_flag():
+    from litestar.testing import TestClient
+    from app import app
+
+    with TestClient(app=app) as client:
+        response = client.post("/api/agentic/plan", json={
+            "goal": "Inspect the project",
+            "evidence_available": "yes",
+        })
+    assert response.status_code == 400
