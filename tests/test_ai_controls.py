@@ -88,3 +88,20 @@ def test_selfx_event_is_persisted(tmp_path):
     event = engine.record_event("test", "bounded maintenance event")
     assert event["kind"] == "test"
     assert engine.status()["events"][0]["summary"] == "bounded maintenance event"
+
+
+def test_checkpoint_retention_removes_stale_manifests_and_directories(tmp_path):
+    from selfx_engine import SelfXEngine
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / "memory.json").write_text("{}", encoding="utf-8")
+    engine = SelfXEngine(state_dir, tmp_path / "models", tmp_path)
+    for _ in range(3):
+        engine.create_checkpoint()
+    result = engine.prune_checkpoints(2)
+    state = engine.status()
+    checkpoint_dirs = [p for p in engine.backup_dir.iterdir() if p.is_dir()]
+    assert result["retained"] == 2
+    assert len(checkpoint_dirs) == 2
+    assert len(state["checkpoints"]) == 2
