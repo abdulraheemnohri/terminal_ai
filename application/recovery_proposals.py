@@ -61,7 +61,7 @@ class RecoveryProposalStore:
     def propose(self, *, task_id: str, failure_category: str, error_summary: str) -> dict[str, Any]:
         if not isinstance(task_id, str) or not task_id or len(task_id) > 100:
             raise ValueError("task_id is invalid")
-        if failure_category not in FAILURE_CATEGORIES:
+        if not isinstance(failure_category, str) or failure_category not in FAILURE_CATEGORIES:
             raise ValueError("failure_category is invalid")
         if not isinstance(error_summary, str) or not error_summary.strip() or len(error_summary) > 500:
             raise ValueError("error_summary must be 1-500 characters and must not contain secrets")
@@ -115,7 +115,7 @@ class RecoveryProposalStore:
 
     def review(self, *, task_id: str, proposal_id: str, decision: str,
                reviewer: str, note: str = "") -> dict[str, Any]:
-        if decision not in {"approve", "reject"}:
+        if not isinstance(decision, str) or decision not in {"approve", "reject"}:
             raise ValueError("decision must be approve or reject")
         if not isinstance(reviewer, str) or not reviewer.strip() or len(reviewer) > 100:
             raise ValueError("reviewer must be 1-100 characters")
