@@ -481,6 +481,11 @@ async def chat(data: dict[str, Any]) -> dict[str, Any]:
         if detail:
             item["detail"] = detail[:240]
         trace.append(item)
+        try:
+            _COMMAND_CONTROL.audit("agent", "chat.stage", request_id,
+                                   {"stage": name, "status": status, "detail": detail[:160]})
+        except Exception:
+            logger.warning("Could not persist action event", exc_info=True)
 
     stage("request_received", "completed", request_started, "Input validated; prompt content is not copied into diagnostics.")
     backend_label: str | None = None
