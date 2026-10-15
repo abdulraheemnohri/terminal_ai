@@ -566,8 +566,18 @@ if($("control-skills-export"))$("control-skills-export").addEventListener("click
  try{const data=await controlApi("/api/control/skills/export");$("control-skills-json").value=JSON.stringify(data,null,2);$("control-skills-result").textContent="Package exported into the editor. Copy/save it as a JSON file if needed.";}
  catch(e){$("control-skills-error").textContent=e.message;}
 });
+if($("control-skills-export-yaml"))$("control-skills-export-yaml").addEventListener("click",async()=>{
+ $("control-skills-error").textContent="";
+ try{const res=await fetch("/api/control/skills/export.yaml");if(!res.ok)throw new Error("YAML export failed ("+res.status+")");$("control-skills-json").value=await res.text();$("control-skills-format").value="yaml";$("control-skills-result").textContent="YAML package exported into the editor.";}
+ catch(e){$("control-skills-error").textContent=e.message;}
+});
 if($("control-skills-import"))$("control-skills-import").addEventListener("click",async()=>{
  $("control-skills-error").textContent="";
- try{const payload=JSON.parse($("control-skills-json").value);const result=await controlApi("/api/control/skills/import",{method:"POST",body:JSON.stringify(payload)});$("control-skills-result").textContent=JSON.stringify(result,null,2);await loadControlAudit();}
- catch(e){$("control-skills-error").textContent=e.message;}
+ try{
+  const format=$("control-skills-format").value;const raw=$("control-skills-json").value;
+  const result=format==="yaml"
+   ? await controlApi("/api/control/skills/import.yaml",{method:"POST",body:JSON.stringify({content:raw})})
+   : await controlApi("/api/control/skills/import",{method:"POST",body:JSON.stringify(JSON.parse(raw))});
+  $("control-skills-result").textContent=JSON.stringify(result,null,2);await loadControlAudit();
+ }catch(e){$("control-skills-error").textContent=e.message;}
 });
