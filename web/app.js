@@ -6,7 +6,7 @@ async function api(path,options={}){const res=await fetch(path,{...options,heade
 function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
-document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.go)));
+document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
 async function loadStatus(){
  try{
   statusData=await api("/api/status");
