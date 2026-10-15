@@ -36,8 +36,8 @@ async function loadStatus(){
   $("overview-inference").innerHTML=[["Selected mode",statusData.mode||"auto"],["Active backend",statusData.backend||"Not loaded"],["Gemini credentials",statusData.gemini_configured?"Present (not displayed)":"Not configured"],["Local models",localModels.length?localModels.join(", "):"None detected"],["Network dependency",statusData.mode==="local"?"Not required for inference":"Depends on selected provider / fallback"]].map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
   const checklist=[
    [ready,"Initialize an inference backend",ready?"Backend is ready":"Check model/provider configuration","settings"],
-   [localModels.length>0,"Verify offline model",localModels.length?"Local model file detected; test it with internet disabled":"Add a compatible .litertlm model in the models directory","models"],
-   [Boolean(statusData.session_count),"Check session persistence",statusData.session_count?"Saved session storage is discoverable":"Create a session and send a test message","sessions"],
+   [false,"Verify offline model",localModels.length?"Model file detected; run a test with network disabled to confirm inference":"Add a compatible .litertlm model in the models directory","models"],
+   [false,"Verify session persistence",statusData.session_count?"Saved session records are discoverable; reopen one to verify messages":"Create a session, send a message, then reopen it to verify persistence","sessions"],
    [!statusData.error,"Review runtime errors",statusData.error||"No current backend initialization error reported","diagnostics"]
   ];
   $("overview-checklist").innerHTML=checklist.map(([ok,title,detail,view])=>'<div class="check-item"><span class="check-mark '+(ok?"done":"pending")+'">'+(ok?"✓":"!")+'</span><div><b>'+escapeHtml(title)+'</b><p>'+escapeHtml(detail)+'</p><button class="btn" data-go="'+view+'">Open</button></div></div>').join("");
