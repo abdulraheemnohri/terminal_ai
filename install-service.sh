@@ -31,4 +31,12 @@ systemctl --user enable --now terminal-ai.service
 echo "Service enabled: systemctl --user status terminal-ai.service"
 echo "Dashboard: http://127.0.0.1:8000"
 echo "Disable: systemctl --user disable --now terminal-ai.service"
-echo "For startup before login, optionally run: loginctl enable-linger $USER"
+if command -v loginctl >/dev/null 2>&1; then
+  if loginctl enable-linger "$USER" 2>/dev/null; then
+    echo "User lingering enabled: service can start at boot before interactive login."
+  else
+    echo "Could not enable lingering automatically. If boot-before-login startup is needed, run: loginctl enable-linger $USER" >&2
+  fi
+else
+  echo "loginctl unavailable; service starts when the user manager starts (usually at login)." >&2
+fi
