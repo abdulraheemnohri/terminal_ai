@@ -34,7 +34,8 @@ def create_health_router(root_dir: Path, state_dir: Path) -> Router:
         except OSError:
             checks["state_writable"] = False
         if not all(checks.values()):
-            raise HTTPException(status_code=503, detail={"status": "not_ready", "checks": checks})
+            failed = ", ".join(name for name, passed in checks.items() if not passed)
+            raise HTTPException(status_code=503, detail=f"Readiness checks failed: {failed}")
         return {"status": "ready", "checks": checks}
 
     return Router(path="", route_handlers=[healthz, readyz])
