@@ -6,6 +6,7 @@ This adapter is intentionally disabled until an explicit domain allowlist is sup
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 import threading
 import uuid
@@ -18,37 +19,81 @@ class BrowserPolicyError(ValueError):
     """Raised when a navigation violates the configured browser boundary."""
 
 
+def _normalize_domain(value: str) -> str:
+    """Normalize a configured DNS name and reject wildcard/URL-shaped entries."""
+    if not isinstance(value, str):
+        raise BrowserPolicyError("Allowed domains must be DNS names.")
+    domain = value.strip().lower().lstrip(".").rstrip(".")
+    if not domain or any(char in domain for char in "*/:@\\\\") or "%" in domain:
+        raise BrowserPolicyError("Allowed domains must be plain DNS names without wildcards or URLs.")
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise BrowserPolicyError("Allowed domain is not a valid internationalized DNS name.") from exc
+    if len(domain) > 253:
+        raise BrowserPolicyError("Allowed domain is too long.")
+    labels = domain.split(".")
+    if any(
+        not label or len(label) > 63
+        or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", label)
+        for label in labels
+    ):
+        raise BrowserPolicyError("Allowed domain contains an invalid DNS label.")
+    try:
+        ipaddress.ip_address(domain)
+    except ValueError:
+        return domain
+    raise BrowserPolicyError("Configure DNS names, not IP addresses, in the domain allowlist.")
+
+
 def validate_public_url(url: str, allowed_domains: Iterable[str]) -> str:
-    """Accept HTTP(S) URLs on an explicit allowlist and reject local/private targets."""
+    """Accept HTTP(S) URLs on an explicit DNS allowlist and reject local/private targets."""
     if not isinstance(url, str) or len(url) > 3000:
         raise BrowserPolicyError("URL must be a string no longer than 3000 characters.")
-    parsed = urlsplit(url.strip())
-    if parsed.scheme.lower() not in {"http", "https"}:
+    try:
+        parsed = urlsplit(url.strip())
+        port = parsed.port
+    except ValueError as exc:
+        raise BrowserPolicyError("URL has an invalid host or port.") from exc
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
         raise BrowserPolicyError("Only http and https URLs are allowed.")
     if not parsed.hostname or parsed.username or parsed.password:
         raise BrowserPolicyError("URL must include a host and cannot contain embedded credentials.")
-    host = parsed.hostname.rstrip(".").lower()
-    if host == "localhost" or host.endswith(".localhost") or host.endswith(".local"):
+    raw_host = parsed.hostname.rstrip(".").lower()
+    if raw_host == "localhost" or raw_host.endswith(".localhost") or raw_host.endswith(".local"):
         raise BrowserPolicyError("Local hostnames are blocked.")
     try:
-        address = ipaddress.ip_address(host)
+        address = ipaddress.ip_address(raw_host)
+        host = raw_host
     except ValueError:
+        host = _normalize_domain(raw_host)
         address = None
     if address is not None and (not address.is_global or address.is_multicast or address.is_reserved):
         raise BrowserPolicyError("Private, loopback, link-local, and reserved IP addresses are blocked.")
 
-    allow = {str(item).strip().lower().lstrip(".").rstrip(".") for item in allowed_domains if str(item).strip()}
+    if isinstance(allowed_domains, (str, bytes)):
+        raise BrowserPolicyError("allowed_domains must be a collection of DNS names, not a string.")
+    try:
+        allow = {_normalize_domain(item) for item in allowed_domains}
+    except TypeError as exc:
+        raise BrowserPolicyError("allowed_domains must be a collection of DNS names.") from exc
     if not allow:
         raise BrowserPolicyError("Browser access is disabled until allowed_domains is configured.")
     if not any(host == domain or host.endswith("." + domain) for domain in allow):
         raise BrowserPolicyError("Host is not in the configured browser domain allowlist.")
 
     # Resolve hostnames before navigation and reject any non-public answer.
-    try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80),
-                                                                type=socket.SOCK_STREAM)}
-    except OSError as exc:
-        raise BrowserPolicyError("Host could not be resolved safely.") from exc
+    # Network-level egress restrictions are still needed to defend against DNS rebinding.
+    if address is None:
+        try:
+            addresses = {item[4][0] for item in socket.getaddrinfo(
+                host, port or (443 if scheme == "https" else 80), type=socket.SOCK_STREAM
+            )}
+        except OSError as exc:
+            raise BrowserPolicyError("Host could not be resolved safely.") from exc
+    else:
+        addresses = {str(address)}
     if not addresses:
         raise BrowserPolicyError("Host did not resolve to an address.")
     for raw in addresses:
