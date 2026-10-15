@@ -1557,9 +1557,38 @@ async def selfx_status() -> dict[str, Any]:
 
 
 @post("/api/selfx/maintenance/run")
+async def _enqueue_arq_job(function_name: str, *args: Any) -> str | None:
+    """Enqueue a background job only when explicitly configured; otherwise use local workers."""
+    if os.environ.get("TERMINAL_AI_ARQ_ENABLED", "").strip() != "1":
+        return None
+    try:
+        from arq import create_pool
+        from arq.connections import RedisSettings
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="ARQ mode is enabled but arq is not installed. Install requirements-queue.txt.") from exc
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    try:
+        pool = await create_pool(RedisSettings.from_dsn(redis_url))
+        try:
+            job = await pool.enqueue_job(function_name, *args)
+            if job is None:
+                return "already-enqueued"
+            return job.job_id
+        finally:
+            await pool.aclose()
+    except Exception as exc:
+        logger.warning("Could not enqueue ARQ job: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Could not reach the configured Redis/ARQ queue.") from exc
+
+
 async def selfx_run_maintenance() -> dict[str, Any]:
     """Run one bounded local maintenance cycle on explicit user request."""
     settings = _read_settings()
+    job_id = await _enqueue_arq_job("run_selfx_maintenance", True)
+    if job_id is not None:
+        _COMMAND_CONTROL.audit("user", "selfx.maintenance.queued", job_id, {"worker": "arq"})
+        return {"status": "queued", "job_id": job_id, "worker": "arq",
+                "notice": "Maintenance was queued. Inspect the ARQ worker logs for completion."}
     if not settings.get("self_maintenance_enabled", True):
         raise HTTPException(status_code=400, detail="Self-maintenance is disabled in Settings.")
     if not settings.get("self_evaluation_enabled", True) and not settings.get("self_diagnostics_enabled", True):
@@ -1645,6 +1674,10 @@ async def selfx_research(data: dict[str, Any]) -> dict[str, Any]:
 async def selfx_checkpoint() -> dict[str, Any]:
     if not _read_settings().get("self_recovery_enabled", True):
         raise HTTPException(status_code=400, detail="Self-recovery is disabled in Settings.")
+    job_id = await _enqueue_arq_job("create_selfx_checkpoint", int(_read_settings().get("self_checkpoint_retention", 10)))
+    if job_id is not None:
+        _COMMAND_CONTROL.audit("user", "selfx.checkpoint.queued", job_id, {"worker": "arq"})
+        return {"status": "queued", "job_id": job_id, "worker": "arq"}
     try:
         manifest = await asyncio.to_thread(_selfx_engine().create_checkpoint)
         retention = max(1, min(30, int(_read_settings().get("self_checkpoint_retention", 10))))
