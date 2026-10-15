@@ -411,6 +411,13 @@ async def status() -> dict[str, Any]:
         "uptime_seconds": int(time.time() - _STARTED_AT),
         "error": _ENGINE_ERROR,
         "state_dir": str(core.STATE_DIR),
+        "session_count": len(core.SessionManager().list_sessions()),
+        "active_session": _ACTIVE_SESSION,
+        "selfx_enabled": bool(settings.get("self_autonomous_enabled", False)),
+        "local_model_details": [
+            {"name": p.name, "size_bytes": p.stat().st_size}
+            for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()
+        ],
     }
 
 
