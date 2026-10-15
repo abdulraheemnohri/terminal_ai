@@ -435,7 +435,7 @@ async def status() -> dict[str, Any]:
     }
 
 
-@post("/api/chat")
+@post("/api/chat", status_code=200)
 async def chat(data: dict[str, Any]) -> dict[str, Any]:
     """Run one serialized chat turn and return an inspectable execution trace."""
     message = str(data.get("message", "")).strip()
