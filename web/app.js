@@ -946,7 +946,7 @@ function readHealthHistory(){
 }
 function recordHealthSnapshot(api,ready){
  const now=Date.now(),samples=readHealthHistory();
- if(samples.length&&now-samples[samples.length-1].t<20000){renderHealthTimeline(samples);return;}
+ if(samples.length&&now-samples[samples.length-1].t<20000&&samples[samples.length-1].api===!!api&&samples[samples.length-1].ready===!!ready){renderHealthTimeline(samples);return;}
  samples.push({t:now,api:!!api,ready:!!ready});
  const bounded=samples.slice(-48);
  try{localStorage.setItem(healthHistoryKey,JSON.stringify(bounded));}catch(_){}
