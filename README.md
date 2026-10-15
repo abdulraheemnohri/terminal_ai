@@ -343,4 +343,7 @@ After installation, run `sh install-launchagent.sh` to start the server at login
 
 ### Optional weekly automatic project updates (Linux/systemd)
 
-After reviewing the update policy, run `sh install-auto-update.sh`. The user timer runs the existing guarded `update.sh` every Sunday around 04:30 local system time; it refuses a dirty working tree and runs dependency, syntax, and test checks. Disable it with `sh uninstall-auto-update.sh`. This updates Terminal AI, **not Linux or other operating-system packages**. For the timer to run before login, systemd user lingering may be needed; use it only if you understand its lifecycle implications. Windows and macOS updates remain manual in this release.
+After reviewing the update policy, run `sh install-auto-update.sh`. The user timer runs the existing guarded `update.sh` every Sunday around 04:30 local system time; it refuses a dirty working tree and runs dependency, syntax, and test checks. Disable it with `sh uninstall-auto-update.sh`. This updates Terminal AI, **not Linux or other operating-system packages**. For the timer to run before login, systemd user lingering may be needed; use it only if you understand its lifecycle implications. On Windows, opt in with `./install-auto-update.ps1` and remove the task with `./uninstall-auto-update.ps1`; the current user must be signed in for the scheduled task to run. macOS updates remain manual in this release.
+
+
+On Windows, the equivalent opt-in weekly task is installed from PowerShell with `./install-auto-update.ps1` and removed with `./uninstall-auto-update.ps1`. It runs only while the current user is signed in. macOS automatic project updates are not configured by these scripts.
