@@ -99,12 +99,55 @@ def _read_settings() -> dict[str, Any]:
     try:
         saved = json.loads(WEB_SETTINGS.read_text(encoding="utf-8"))
         if isinstance(saved, dict):
-            defaults.update(saved)
+            defaults.update({key: value for key, value in saved.items() if key in defaults})
     except (OSError, json.JSONDecodeError):
         pass
-    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
+
+    # Treat the on-disk file as untrusted input too: recover safely from manual edits
+    # or interrupted writes rather than allowing malformed values to break workers.
+    bool_keys = (
+        "self_critique", "proactive", "self_reflection_enabled", "learning_enabled",
+        "self_improvement_enabled", "auto_extract_skills", "tool_approval_required",
+        "self_diagnostics_enabled", "self_repair_enabled", "self_research_enabled",
+        "self_evaluation_enabled", "self_goals_enabled", "self_skills_enabled",
+        "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
+        "self_auto_checkpoint", "self_goal_generation_enabled", "updates_enabled",
+    )
+    for key in bool_keys:
+        if not isinstance(defaults.get(key), bool):
+            defaults[key] = bool(defaults.get(key, False)) if key not in {"tool_approval_required"} else True
+
+    int_ranges = {
+        "max_ctx_chars": (2000, 50000),
+        "self_checkpoint_retention": (1, 30),
+        "self_evaluation_interval_hours": (1, 168),
+        "self_checkpoint_interval_hours": (1, 168),
+        "self_max_goals_per_cycle": (1, 20),
+        "update_check_interval_hours": (6, 168),
+    }
+    for key, (minimum, maximum) in int_ranges.items():
+        value = defaults.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            value = 12000 if key == "max_ctx_chars" else (10 if key == "self_checkpoint_retention" else (3 if key == "self_max_goals_per_cycle" else (6 if key == "update_check_interval_hours" else 24)))
+        defaults[key] = max(minimum, min(maximum, value))
+
+    for key, fallback, limit in (
+        ("provider_model", "", 200), ("custom_base_url", "", 500),
+        ("self_identity", "Terminal AI", 120), ("self_mission", "", 1000),
+        ("last_update_result", "Not checked yet", 300),
+    ):
+        value = defaults.get(key)
+        defaults[key] = value.strip()[:limit] if isinstance(value, str) else fallback
+
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
+    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+        defaults["active_provider"] = "gemini"
+    if defaults.get("update_channel") != "main":
+        defaults["update_channel"] = "main"
+    if defaults.get("custom_base_url") and not defaults["custom_base_url"].startswith(("https://", "http://127.0.0.1", "http://localhost")):
+        defaults["custom_base_url"] = ""
+    defaults["hf_token_configured"] = bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())
     defaults["autonomy"] = 0  # Arbitrary tool execution stays disabled in the web agent.
     if defaults.get("self_autonomy_profile") not in {"observe", "maintain", "goal-driven"}:
         defaults["self_autonomy_profile"] = "maintain"
@@ -113,7 +156,19 @@ def _read_settings() -> dict[str, Any]:
 
 def _write_settings(settings: dict[str, Any]) -> None:
     WEB_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    WEB_SETTINGS.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    temporary = WEB_SETTINGS.with_name(WEB_SETTINGS.name + f".{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+        try:
+            temporary.chmod(0o600)
+        except OSError:
+            pass
+        os.replace(temporary, WEB_SETTINGS)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _build_agent() -> core.Agent:
