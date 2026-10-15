@@ -382,4 +382,39 @@ def test_failed_task_recovery_queues_a_separate_pending_operation(tmp_path):
             f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/verify",
             json={"passed": True, "evidence": "Repeated verification", "verifier": "operator"},
         )
+
         assert duplicate_verification.status_code == 409
+
+        premature = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
+            json={"outcome": "success", "rating": 5, "reviewer": "operator"},
+        )
+        assert premature.status_code == 409
+
+        reviewed_outcome = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
+            json={"outcome": "success", "rating": 4, "reviewer": "operator",
+                  "note": "Recovery health check passed"},
+        )
+        assert reviewed_outcome.status_code == 201
+        learned = reviewed_outcome.json()
+        assert learned["proposal"]["status"] == "reviewed"
+        assert learned["proposal"]["outcome_review"]["outcome"] == "success"
+        assert learned["learning_record"]["verified"] is True
+        assert learned["execution_started"] is False
+        assert learned["permissions_changed"] is False
+
+        replay = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
+            json={"outcome": "success", "rating": 4, "reviewer": "operator",
+                  "note": "Recovery health check passed"},
+        )
+        assert replay.status_code == 201
+        assert replay.json()["learning_record"]["id"] == learned["learning_record"]["id"]
+        assert replay.json()["learning_record"]["idempotent_replay"] is True
+
+        conflicting_replay = client.post(
+            f"/api/agentic/tasks/{task_id}/recovery-proposals/{proposal_id}/review-outcome",
+            json={"outcome": "failure", "rating": 1, "reviewer": "operator"},
+        )
+        assert conflicting_replay.status_code == 409
