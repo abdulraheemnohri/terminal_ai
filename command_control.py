@@ -190,6 +190,64 @@ class CommandControl:
                         {"tool": row["tool"], "operation": row["operation"], "note": note[:500]})
         return self.get_operation(ident)
 
+    def claim_approved(self, ident: str, tool: str, operation: str,
+                       arguments: dict[str, Any], *, max_age_seconds: int = 600):
+        """Atomically consume a recent approval bound to the exact tool and arguments."""
+        if not isinstance(arguments, dict):
+            raise ValueError("Arguments must be an object")
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                row = db.execute("SELECT * FROM pending_operations WHERE id=?", (ident,)).fetchone()
+                if not row:
+                    db.rollback()
+                    return None
+                if row["status"] != "approved":
+                    db.rollback()
+                    raise ValueError("Operation has no unused approval")
+                if row["tool"] != tool or row["operation"] != operation:
+                    db.rollback()
+                    raise ValueError("Approval is bound to a different tool or operation")
+                stored = json.loads(row["arguments_json"])
+                canonical_stored = json.dumps(stored, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                canonical_requested = json.dumps(arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                if canonical_stored != canonical_requested:
+                    db.rollback()
+                    raise ValueError("Approval arguments do not match the requested operation")
+                reviewed_at = row["reviewed_at"] or 0
+                if time.time() - reviewed_at > max(1, min(int(max_age_seconds), 3600)):
+                    db.execute("UPDATE pending_operations SET status='expired' WHERE id=? AND status='approved'", (ident,))
+                    db.commit()
+                    self.audit("system", "operation.expired", ident, {"tool": tool, "operation": operation})
+                    raise ValueError("Approval has expired")
+                updated = db.execute(
+                    "UPDATE pending_operations SET status='executing' WHERE id=? AND status='approved'",
+                    (ident,),
+                )
+                if updated.rowcount != 1:
+                    db.rollback()
+                    raise ValueError("Approval was already consumed")
+                db.commit()
+            except Exception:
+                if db.in_transaction:
+                    db.rollback()
+                raise
+        self.audit("system", "operation.execution_claimed", ident, {"tool": tool, "operation": operation})
+        return self.get_operation(ident)
+
+    def finish_operation(self, ident: str, *, success: bool, note: str = ""):
+        """Close a claimed execution exactly once and record a sanitized outcome."""
+        status = "executed" if success else "failed"
+        with self._connect() as db:
+            updated = db.execute(
+                "UPDATE pending_operations SET status=?, note=? WHERE id=? AND status='executing'",
+                (status, str(note)[:500], ident),
+            )
+            if updated.rowcount != 1:
+                raise ValueError("Operation is not in the executing state")
+        self.audit("system", "operation." + status, ident, {"note": str(note)[:500]})
+        return self.get_operation(ident)
+
     def export_skills(self):
         with self._connect() as db:
             rows = db.execute("SELECT * FROM skill_packages ORDER BY created_at DESC").fetchall()
