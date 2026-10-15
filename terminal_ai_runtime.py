@@ -294,3 +294,119 @@ class ActionEventBus:
 
     def history(self) -> list[dict[str, Any]]:
         with self._lock: return list(self._history)
+
+
+class ToolRegistry:
+    """Allowlisted tool dispatcher. Handlers must be registered by trusted application code."""
+    def __init__(self, gate: ApprovalGate, *, audit: AuditLedger | None = None,
+                 events: ActionEventBus | None = None) -> None:
+        self.gate, self.audit, self.events = gate, audit, events
+        self._tools: dict[str, tuple[ToolSpec, Callable[[dict[str, Any]], Any]]] = {}
+        self._lock = threading.RLock()
+
+    def register(self, spec: ToolSpec, handler: Callable[[dict[str, Any]], Any]) -> None:
+        if not _SAFE_NAME.fullmatch(spec.name):
+            raise ValueError("Invalid tool name")
+        with self._lock:
+            if spec.name in self._tools:
+                raise ValueError(f"Tool already registered: {spec.name}")
+            self._tools[spec.name] = (spec, handler)
+
+    def describe(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [{"name": spec.name, "description": spec.description, "risk": spec.risk,
+                     "requires_approval": spec.requires_approval, "auto_allowed": spec.auto_allowed,
+                     "input_schema": spec.input_schema}
+                    for spec, _ in self._tools.values()]
+
+    @staticmethod
+    def _validate_arguments(spec: ToolSpec, arguments: dict[str, Any]) -> None:
+        if not isinstance(arguments, dict):
+            raise ValueError("Tool arguments must be an object")
+        schema = spec.input_schema or {}
+        allowed = schema.get("properties", {})
+        required = schema.get("required", [])
+        if schema.get("additionalProperties") is False and set(arguments) - set(allowed):
+            raise ValueError("Unexpected tool argument")
+        missing = set(required) - set(arguments)
+        if missing:
+            raise ValueError("Missing required tool argument: " + ", ".join(sorted(missing)))
+        type_map = {"string": str, "integer": int, "number": (int, float),
+                    "boolean": bool, "object": dict, "array": list}
+        for key, value in arguments.items():
+            rule = allowed.get(key, {})
+            expected = type_map.get(rule.get("type"))
+            if expected and (not isinstance(value, expected) or
+                             (rule.get("type") == "integer" and isinstance(value, bool)) or
+                             (rule.get("type") == "number" and isinstance(value, bool))):
+                raise ValueError(f"Invalid type for argument: {key}")
+            if isinstance(value, str) and len(value) > int(rule.get("maxLength", 10000)):
+                raise ValueError(f"Argument too long: {key}")
+
+    def request(self, name: str, arguments: dict[str, Any], *, reason: str,
+                actor: str = "agent") -> ApprovalRequest:
+        with self._lock:
+            entry = self._tools.get(name)
+        if entry is None:
+            raise PolicyDenied(f"Unknown tool: {name}")
+        spec, _ = entry
+        self._validate_arguments(spec, arguments)
+        request = self.gate.request(spec, arguments, reason)
+        if self.audit:
+            self.audit.append("tool.approval_requested", actor, {
+                "request_id": request.request_id, "tool": name, "risk": spec.risk,
+                "status": request.status, "arguments": {"keys": sorted(arguments.keys())}})
+        if self.events:
+            self.events.publish("approval.requested" if request.status == "pending" else "tool.authorized",
+                                f"{name}: " + ("waiting for approval" if request.status == "pending" else "authorized"),
+                                status=request.status, tool_name=name,
+                                details={"request_id": request.request_id, "risk": spec.risk})
+        return request
+
+    def decide(self, request_id: str, approve: bool, *, actor: str) -> ApprovalRequest:
+        request = self.gate.decide(request_id, approve, actor=actor)
+        if self.audit:
+            self.audit.append("tool.approval_decided", actor, {
+                "request_id": request_id, "tool": request.tool_name, "decision": request.status})
+        if self.events:
+            self.events.publish("approval.decided", f"{request.tool_name}: {request.status}",
+                                status=request.status, tool_name=request.tool_name,
+                                details={"request_id": request_id})
+        return request
+
+    def execute_approved(self, request_id: str, *, actor: str = "agent") -> Any:
+        request = self.gate.get(request_id)
+        if request is None:
+            raise KeyError("Unknown approval request")
+        if request.status != "approved":
+            raise PolicyDenied("Tool execution requires an approved request")
+        with self._lock:
+            entry = self._tools.get(request.tool_name)
+        if entry is None:
+            raise PolicyDenied("Tool is no longer registered")
+        spec, handler = entry
+        self._validate_arguments(spec, request.arguments)
+        if self.audit:
+            self.audit.append("tool.execution_started", actor, {
+                "request_id": request_id, "tool": spec.name, "argument_keys": sorted(request.arguments)})
+        if self.events:
+            self.events.publish("tool.started", f"Running {spec.name}", status="running",
+                                tool_name=spec.name, details={"request_id": request_id})
+        try:
+            result = handler(dict(request.arguments))
+        except Exception as exc:
+            if self.audit:
+                self.audit.append("tool.execution_failed", actor, {
+                    "request_id": request_id, "tool": spec.name, "error_type": type(exc).__name__})
+            if self.events:
+                self.events.publish("tool.failed", f"{spec.name} failed: {type(exc).__name__}",
+                                    status="error", tool_name=spec.name)
+            raise
+        if self.audit:
+            self.audit.append("tool.execution_succeeded", actor, {
+                "request_id": request_id, "tool": spec.name, "result_type": type(result).__name__})
+        if self.events:
+            self.events.publish("tool.completed", f"{spec.name} completed", status="success",
+                                tool_name=spec.name,
+                                details={"request_id": request_id, "result_type": type(result).__name__})
+        return result
