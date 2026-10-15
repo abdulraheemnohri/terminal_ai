@@ -3,7 +3,7 @@ let statusData=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements")loadImprovements();if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx")loadSelfX();if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -410,6 +410,47 @@ $("improvement-list").addEventListener("click",async e=>{
  const b=e.target.closest("[data-improvement-goal]");if(!b)return;
  try{await api("/api/goals",{method:"POST",body:JSON.stringify({text:b.dataset.improvementGoal})});b.textContent="Added to goals";b.disabled=true;await loadStatus();}
  catch(err){$("improvements-error").textContent=err.message;}
+});
+
+async function loadSkillEvolution(){
+ const list=$("skill-evolution-list");if(!list)return;
+ list.innerHTML='<div class="empty">Loading reviewed proposals…</div>';
+ try{
+  const data=await api("/api/agentic/skills/proposals?limit=100");
+  const items=data.proposals||[];
+  list.innerHTML=items.length?items.map(p=>{
+   const actions=[];
+   if(p.status==="proposed")actions.push('<button class="btn" data-evolution-action="validate" data-id="'+escapeHtml(p.id)+'">Static validate</button>','<button class="btn danger" data-evolution-action="reject" data-id="'+escapeHtml(p.id)+'">Reject</button>');
+   if(p.status==="validated")actions.push('<button class="btn primary" data-evolution-action="approve" data-id="'+escapeHtml(p.id)+'">Human approve</button>','<button class="btn danger" data-evolution-action="reject" data-id="'+escapeHtml(p.id)+'">Reject</button>');
+   if(p.status==="approved")actions.push('<button class="btn primary" data-evolution-action="promote" data-id="'+escapeHtml(p.id)+'">Promote to reviewed catalog</button>','<button class="btn danger" data-evolution-action="reject" data-id="'+escapeHtml(p.id)+'">Revoke / reject</button>');
+   return '<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(p.name)+'</b><span class="badge">'+escapeHtml(p.status)+'</span></div><p class="muted">Family: '+escapeHtml(p.task_type)+' · '+escapeHtml(new Date(p.updated_at*1000).toLocaleString())+'</p><p>'+escapeHtml(p.rationale)+'</p><p><b>Evidence:</b> '+escapeHtml(p.evidence_summary)+'</p><ol>'+p.steps.map(step=>'<li>'+escapeHtml(step)+'</li>').join('')+'</ol>'+(p.review_note?'<p class="muted">Review note: '+escapeHtml(p.review_note)+'</p>':'')+'<p class="muted">Executable: no · Permissions changed: no</p><div class="row">'+actions.join(' ')+'</div></div>';
+  }).join(""):'<div class="empty">No skill proposals yet. Submit a draft above or create one after reviewing repeated task outcomes.</div>';
+ }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
+}
+if($("skill-evolution-refresh"))$("skill-evolution-refresh").addEventListener("click",loadSkillEvolution);
+if($("skill-evolution-form"))$("skill-evolution-form").addEventListener("submit",async e=>{
+ e.preventDefault();$("skill-evolution-error").textContent="";
+ const steps=$("evolution-steps").value.split("\n").map(x=>x.trim()).filter(Boolean);
+ try{
+  const result=await api("/api/agentic/skills/proposals",{method:"POST",body:JSON.stringify({
+   name:$("evolution-name").value.trim(),task_type:$("evolution-task-type").value,
+   rationale:$("evolution-rationale").value.trim(),steps,evidence_summary:$("evolution-evidence").value.trim()
+  })});
+  if(!confirm("Proposal created. Review it in the queue; it is not approved or executable. Clear the form?")){await loadSkillEvolution();return;}
+  e.target.reset();$("skill-evolution-error").textContent="Proposal created as proposed; it has not been approved or executed.";
+  await loadSkillEvolution();await loadControlAudit();
+ }catch(err){$("skill-evolution-error").textContent=err.message;}
+});
+if($("skill-evolution-list"))$("skill-evolution-list").addEventListener("click",async e=>{
+ const b=e.target.closest("[data-evolution-action]");if(!b)return;
+ const action=b.dataset.evolutionAction,id=b.dataset.id,note=($("skill-evolution-note").value||"").trim();
+ const labels={validate:"Run static validation",approve:"Approve this skill proposal",reject:"Reject this skill proposal",promote:"Promote this approved proposal to the reviewed catalog"};
+ if(!confirm(labels[action]+"?\nThis action will not execute code or change permissions."))return;
+ try{
+  const body=action==="validate"?undefined:{note};
+  await api("/api/agentic/skills/proposals/"+encodeURIComponent(id)+"/"+action,{method:"POST",...(body?{body:JSON.stringify(body)}:{})});
+  await loadSkillEvolution();await loadControlAudit();
+ }catch(err){$("skill-evolution-error").textContent=err.message;}
 });
 
 $("ai-settings-form").addEventListener("submit",async e=>{
