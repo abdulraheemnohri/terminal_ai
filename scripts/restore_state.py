@@ -32,7 +32,10 @@ def main() -> int:
             manifest = json.loads(archive.read("manifest.json"))
             if manifest.get("format") != 1 or not isinstance(manifest.get("files"), dict):
                 raise ValueError("Unsupported backup manifest.")
+            if len(manifest["files"]) > 10000:
+                raise ValueError("Backup contains too many files.")
             entries: list[tuple[str, bytes]] = []
+            total_bytes = 0
             for relative, expected in manifest["files"].items():
                 part = PurePosixPath(relative)
                 if part.is_absolute() or not part.parts or any(p in ("", ".", "..") for p in part.parts) or "\\\\" in relative:
@@ -40,6 +43,12 @@ def main() -> int:
                 member = "state/" + part.as_posix()
                 if member not in names:
                     raise ValueError(f"Missing backup member: {relative}")
+                info = archive.getinfo(member)
+                if info.file_size > 100 * 1024 * 1024:
+                    raise ValueError(f"Backup member is too large: {relative}")
+                total_bytes += info.file_size
+                if total_bytes > 1024 * 1024 * 1024:
+                    raise ValueError("Backup exceeds the 1 GiB restore safety limit.")
                 data = archive.read(member)
                 if sha256(data) != expected:
                     raise ValueError(f"Checksum mismatch: {relative}")
