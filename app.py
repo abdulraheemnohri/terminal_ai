@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from litestar import Litestar, get, post, patch
+from litestar import Litestar, WebSocket, get, post, patch, websocket
 from litestar.exceptions import HTTPException
 from litestar.response import Response
 from litestar.static_files import create_static_files_router
@@ -30,6 +30,7 @@ from selfx_engine import SelfXEngine
 from memory_store import MemoryStore
 from workspace_tools import WorkspaceTools
 from task_scheduler import TaskScheduler
+from command_control import CommandControl
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -56,6 +57,7 @@ AGENTIC_SAFE_TOOLS = {
 _LONG_MEMORY = MemoryStore(core.STATE_DIR / "long_term_memory.sqlite3")
 _WORKSPACE_TOOLS = WorkspaceTools(ROOT)
 _TASK_SCHEDULER = TaskScheduler(core.STATE_DIR / "scheduled_tasks.sqlite3")
+_COMMAND_CONTROL = CommandControl(core.STATE_DIR / "command_control.sqlite3")
 _SCHEDULER_TASK: asyncio.Task | None = None
 
 
@@ -390,6 +392,11 @@ async def goals_page() -> Response:
 
 @get("/settings")
 async def settings_page() -> Response:
+    return await _index_response()
+
+
+@get("/command-control")
+async def command_control_page() -> Response:
     return await _index_response()
 
 
@@ -815,6 +822,95 @@ async def list_tools() -> dict[str, Any]:
               for name in forge.list_tools()]
     return {"tools": builtins + forged, "built_in_count": len(builtins), "forged_count": len(forged),
             "execution_enabled_in_web": False, "approval_required": bool(_read_settings().get("tool_approval_required", True))}
+
+
+@get("/api/control/policy")
+async def control_policy() -> dict[str, Any]:
+    return {"policy": _COMMAND_CONTROL.get_policy(), "execution_enabled": False,
+            "notice": "Global auto-execution is deliberately disabled. Approval records never execute commands by themselves."}
+
+
+@patch("/api/control/policy")
+async def update_control_policy(data: dict[str, Any]) -> dict[str, Any]:
+    try:
+        policy = _COMMAND_CONTROL.update_policy(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"policy": policy, "execution_enabled": False}
+
+
+@get("/api/control/pending")
+async def control_pending(status: str = "pending", limit: int = 100) -> dict[str, Any]:
+    if status not in {"pending", "approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="Invalid operation status.")
+    return {"operations": _COMMAND_CONTROL.list_pending(status, limit)}
+
+
+@post("/api/control/pending")
+async def control_queue_operation(data: dict[str, Any]) -> dict[str, Any]:
+    try:
+        item = _COMMAND_CONTROL.queue(str(data.get("tool", "")), str(data.get("operation", "")),
+                                      data.get("arguments") if isinstance(data.get("arguments"), dict) else {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"operation": item, "notice": "Queued for human review; queueing does not execute it."}
+
+
+@post("/api/control/pending/{operation_id:str}/review")
+async def control_review_operation(operation_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(data.get("approve"), bool):
+        raise HTTPException(status_code=400, detail="Provide approve as a boolean.")
+    try:
+        item = _COMMAND_CONTROL.review(operation_id, data["approve"], "user", str(data.get("note", "")))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if item is None:
+        raise HTTPException(status_code=404, detail="Pending operation not found.")
+    return {"operation": item, "executed": False,
+            "notice": "Review decision recorded. This endpoint never executes the operation."}
+
+
+@get("/api/control/audit")
+async def control_audit(limit: int = 100) -> dict[str, Any]:
+    return {"entries": _COMMAND_CONTROL.list_audit(limit), "integrity": _COMMAND_CONTROL.verify_audit(),
+            "append_only": True, "storage": "sqlite-wal-hash-chain"}
+
+
+@get("/api/control/skills/export")
+async def control_skills_export() -> dict[str, Any]:
+    return _COMMAND_CONTROL.export_skills()
+
+
+@post("/api/control/skills/import")
+async def control_skills_import(data: dict[str, Any]) -> dict[str, Any]:
+    try:
+        result = _COMMAND_CONTROL.import_skills(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return result
+
+
+@websocket("/ws/events")
+async def control_events(socket: WebSocket) -> None:
+    """Stream audit/action summaries. Never streams hidden reasoning or prompt contents."""
+    await socket.accept()
+    last_seq = 0
+    try:
+        await socket.send_json({"type": "connected", "message": "Operational events connected."})
+        while True:
+            entries = _COMMAND_CONTROL.list_audit(30)
+            for entry in reversed(entries):
+                seq = int(entry["seq"])
+                if seq > last_seq:
+                    await socket.send_json({
+                        "type": "action_event", "seq": seq, "timestamp": entry["timestamp"],
+                        "actor": entry["actor"], "action": entry["action"], "target": entry["target"],
+                        "details": entry["details"], "entry_hash": entry["entry_hash"],
+                    })
+                    last_seq = seq
+            await asyncio.sleep(1)
+    except Exception:
+        return
 
 
 @get("/api/learning")
@@ -1969,9 +2065,10 @@ async def _stop_scheduler() -> None:
 app = Litestar(
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
-        skills_page, tools_page, learning_page, improvements_page, selfx_page,
+        skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
         status, chat, chat_runs, clear_chat, memory, remember, forget_memory,
         list_knowledge, add_knowledge, search_knowledge, delete_knowledge, workspace_list, workspace_read, workspace_write, workspace_execute,
+        control_policy, update_control_policy, control_pending, control_queue_operation, control_review_operation, control_audit, control_skills_export, control_skills_import, control_events,
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
