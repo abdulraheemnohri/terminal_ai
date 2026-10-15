@@ -224,7 +224,7 @@
 
   <section class="view" id="view-improvements">
     <div class="grid">
-      <article class="card span-12"><div class="card-head"><div><h2>Skill evolution review queue</h2><p class="muted">Create, statically validate, approve, reject, and promote non-executable skill procedure drafts.</p></div><button class="btn" id="skill-evolution-refresh">Refresh queue</button></div>
+      <article class="card span-12"><div class="card-head"><div><h2>Skill evolution review queue</h2><p class="muted">Create, statically validate, approve, reject, and promote non-executable skill procedure drafts.</p></div><div class="row"><button class="btn" id="skill-evolution-from-learning">Draft from reviewed learning</button><button class="btn" id="skill-evolution-refresh">Refresh queue</button></div></div>
         <div class="notice"><b>Human approval required.</b> Static validation checks structure only; it does not prove a procedure is safe. Promotion adds a reviewed procedure proposal to the approved catalog state only. It never executes code, installs tools, changes permissions, or edits source files.</div>
         <form id="skill-evolution-form" class="grid" style="margin-top:12px">
           <div class="field"><label for="evolution-name">Skill name</label><input id="evolution-name" maxlength="80" required placeholder="Debug startup failures"></div>
