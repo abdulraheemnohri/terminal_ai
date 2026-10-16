@@ -41,8 +41,9 @@ class CloudFirstFallbackBackend(core.Backend):
                 raise
             except Exception as exc:
                 if emitted:
+                    candidate_name = getattr(candidate, "label", type(candidate).__name__)
                     raise core.BackendError(
-                        f"{getattr(candidate, \"label\", type(candidate).__name__)} failed after partial output; refusing duplicate fallback output."
+                        f"{candidate_name} failed after partial output; refusing duplicate fallback output."
                     ) from exc
                 name = getattr(candidate, "label", type(candidate).__name__)
                 failures.append(f"{name}: {type(exc).__name__}")
