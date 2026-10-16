@@ -209,6 +209,7 @@ async function loadProviderConfigurationStatus(){
 $("refresh-provider-status")?.addEventListener("click",loadProviderConfigurationStatus);
 
 async function loadSettings(){
+ try{
   const data=await api("/api/settings");
   $("setting-mode").value=data.mode||"auto";
   $("setting-provider").value=data.active_provider||"gemini";
