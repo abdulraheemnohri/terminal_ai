@@ -97,7 +97,12 @@ def create_control_router(control: CommandControl) -> Router:
                             "details": entry["details"], "entry_hash": entry["entry_hash"],
                         })
                         last_seq = seq
-                await asyncio.sleep(0.75)
+                # Receive with a short timeout so client disconnects are observed; a send-only
+                # loop otherwise keeps the WebSocket task alive and can hang TestClient shutdown.
+                try:
+                    await asyncio.wait_for(socket.receive_text(), timeout=0.75)
+                except asyncio.TimeoutError:
+                    pass
         except Exception:
             return
 

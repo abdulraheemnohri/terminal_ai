@@ -79,7 +79,7 @@ def validate_public_url(url: str, allowed_domains: Iterable[str]) -> str:
     except TypeError as exc:
         raise BrowserPolicyError("allowed_domains must be a collection of DNS names.") from exc
     if not allow:
-        raise BrowserPolicyError("Browser access is disabled until allowed_domains is configured.")
+        raise BrowserPolicyError("Browser access is disabled until the domain allowlist (allowed_domains) is configured.")
     if not any(host == domain or host.endswith("." + domain) for domain in allow):
         raise BrowserPolicyError("Host is not in the configured browser domain allowlist.")
 
@@ -113,7 +113,7 @@ class PlaywrightBrowser:
                  timeout_ms: int = 15000, max_pages: int = 5) -> None:
         self.allowed_domains = tuple(allowed_domains)
         if not self.allowed_domains:
-            raise BrowserPolicyError("Configure at least one allowed domain to enable browsing.")
+            raise BrowserPolicyError("Configure at least one allowed domain in allowed_domains (the browser domain allowlist) to enable browsing.")
         self.timeout_ms = max(1000, min(int(timeout_ms), 60000))
         self.max_pages = max(1, min(int(max_pages), 10))
         self._lock = threading.RLock()

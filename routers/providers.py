@@ -49,7 +49,7 @@ def create_provider_router(
         return {"providers": cloud_providers, "active_mode": settings["mode"],
                 "active_provider": settings.get("active_provider", "gemini")}
 
-    @post("/api/providers/models")
+    @post("/api/providers/models", status_code=200)
     async def discover_provider_models(data: dict[str, Any]) -> dict[str, Any]:
         """Fetch available model IDs without running inference."""
         load_env()
