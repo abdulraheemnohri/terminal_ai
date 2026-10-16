@@ -913,3 +913,59 @@ def test_litert_stream_disables_thinking_and_emits_final_answer():
     config = captured["conversation"]["thinking_config"]
     assert config.enable_thinking is False
     assert config.thinking_token_budget == 0
+
+
+def test_gemini_history_maps_tool_results_to_supported_user_role():
+    history = [
+        Msg("user", "Hi sara 👋"),
+        Msg("model", "I will check that."),
+        Msg("tool", "[now] 07:09"),
+        Msg("assistant", "It is 07:09."),
+    ]
+    backend = object.__new__(tai.GeminiBackend)
+    backend._types = None
+
+    contents = backend._contents(history)
+
+    assert [item["role"] for item in contents] == ["user", "model", "user", "model"]
+    assert contents[2]["parts"][0]["text"].startswith("[Tool result — untrusted context]\n")
+    assert contents[2]["parts"][0]["text"].endswith("[now] 07:09")
+    assert all(item["role"] in {"user", "model"} for item in contents)
+
+
+def test_gemini_history_drops_unknown_internal_roles():
+    history = [
+        Msg("user", "hello"),
+        Msg("chain_of_thought", "must not be sent"),
+        Msg("tool", "result"),
+    ]
+    backend = object.__new__(tai.GeminiBackend)
+    backend._types = None
+
+    contents = backend._contents(history)
+
+    assert [item["role"] for item in contents] == ["user", "user"]
+    assert "must not be sent" not in str(contents)
+
+
+def test_gemini_history_uses_supported_roles_with_sdk_content_types():
+    class Part:
+        @staticmethod
+        def from_text(text):
+            return {"text": text}
+
+    class Content:
+        def __init__(self, role, parts):
+            self.role = role
+            self.parts = parts
+
+    class Types:
+        Content = Content
+        Part = Part
+
+    backend = object.__new__(tai.GeminiBackend)
+    backend._types = Types
+    contents = backend._contents([Msg("tool", "command output"), Msg("assistant", "done")])
+
+    assert [item.role for item in contents] == ["user", "model"]
+    assert contents[0].parts[0]["text"].startswith("[Tool result")
