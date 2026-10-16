@@ -1,5 +1,6 @@
 from litestar.testing import TestClient
 
+import app as web_app
 from app import app
 
 
@@ -494,3 +495,28 @@ def test_settings_rejects_oversized_api_key_without_persisting():
         after = client.get("/api/settings").json()
     assert response.status_code == 400
     assert before["active_provider"] == after["active_provider"]
+
+
+def test_null_secret_settings_are_ignored_not_stringified(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "settings.json")
+    monkeypatch.setattr(web_app.core, "HF_TOKEN_FILE", tmp_path / "hf-token")
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    env_writes = []
+
+    class FakeEnvManager:
+        def __init__(self, **kwargs):
+            pass
+
+        def load(self, *, apply=False):
+            return {}
+
+        def set(self, name, value, *, persist=False):
+            env_writes.append((name, value))
+            return True
+
+    monkeypatch.setattr(web_app.core, "EnvManager", FakeEnvManager)
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"api_key": None, "hf_token": None})
+    assert response.status_code == 200
+    assert env_writes == []
+    assert not (tmp_path / "hf-token").exists()
