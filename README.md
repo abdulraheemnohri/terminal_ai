@@ -78,6 +78,13 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 - Autonomous runs automatically create plans for general work; file changes, commands, external side effects, and elevated-risk tasks are deferred to the existing approval boundary.
 - Action summaries and audit events without exposing private chain-of-thought or secrets.
 
+### Messaging integrations
+
+- **WhatsApp Agent Platform (text-only v1):** connect an agent created in WhatsApp using its Agent API key; background long polling, creator verification through Meta's read-receipt API, automatic AI replies, manual creator-only send, local status counters, and explicit disconnect/key removal.
+- The WhatsApp agent API key is stored in the private local state directory with restrictive permissions and is never returned by the status API. Only the verified creator is eligible for replies; the connector does not read other WhatsApp chats.
+- Media, voice notes, attachments, reactions, and proactive delivery are not implemented in this version. WhatsApp third-party agent conversations are **not end-to-end encrypted** and messages are processed by Meta and the configured AI backend. Review the [official developer manual](https://www.whatsapp.com/developer/WhatsApp-Agent-Platform-Developer-Manual.pdf), [third-party agent terms](https://www.whatsapp.com/legal/third-party-agents-terms), and [Help Center](https://faq.whatsapp.com/1050934623978152).
+- See [WhatsApp Agent Platform setup and API notes](docs/WHATSAPP_AGENT_PLATFORM.md).
+
 ### Human control and operations
 
 - Command Control Center for pending operations, approvals, policy visibility, and audit history.
