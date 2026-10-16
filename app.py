@@ -40,6 +40,7 @@ from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
+from application.backend_factory import build_cloud_backends
 from application.security import BasicAuthMiddleware
 from application.settings_validation import SettingsValidationError, validate_custom_base_url
 
@@ -237,59 +238,12 @@ def _build_agent() -> core.Agent:
     local: core.Backend | None = None
     mode = settings_data["mode"]
 
-    provider_id = str(settings_data.get("active_provider", "gemini"))
-    provider_model = str(settings_data.get("provider_model", "")).strip() or None
-
-    cloud_backends: list[core.Backend] = []
-    local: core.Backend | None = None
-    mode = settings_data["mode"]
-
-    # Build a deterministic cloud order: selected provider first, then every
-    # other configured provider. Missing credentials are skipped, never logged.
-    if mode in {"auto", "cloud", "hybrid"}:
-        from api_provider_backend import APIProviderBackend, PROVIDERS
-
-        provider_order = [provider_id]
-        provider_order.extend(
-            name for name in ["gemini", *PROVIDERS.keys()]
-            if name not in provider_order
-        )
-        for candidate_id in provider_order:
-            try:
-                if candidate_id == "gemini":
-                    candidate_key = _gemini_key()
-                    if not candidate_key:
-                        continue
-                    candidate = core.GeminiBackend(
-                        model=(
-                            provider_model if candidate_id == provider_id and provider_model
-                            else os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash")
-                        ),
-                        api_key=candidate_key,
-                    )
-                else:
-                    provider = PROVIDERS.get(candidate_id)
-                    if provider is None:
-                        continue
-                    candidate_key = os.environ.get(provider["env"], "").strip()
-                    if not candidate_key:
-                        continue
-                    candidate = APIProviderBackend(
-                        provider_id=candidate_id,
-                        api_key=candidate_key,
-                        model=(
-                            provider_model if candidate_id == provider_id and provider_model
-                            else None
-                        ),
-                        base_url=(
-                            (settings_data.get("custom_base_url") or None)
-                            if candidate_id == "custom-openai" else None
-                        ),
-                    )
-                cloud_backends.append(candidate)
-            except Exception as exc:
-                # Do not expose credentials or raw request data in diagnostics.
-                logger.warning("Cloud provider %s could not initialize (%s)", candidate_id, type(exc).__name__)
+    cloud_backends = build_cloud_backends(
+        settings_data,
+        gemini_key=_gemini_key,
+        environ=os.environ,
+        logger=logger,
+    )
 
     if local_path and mode in {"auto", "local", "hybrid"}:
         try:
