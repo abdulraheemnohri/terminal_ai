@@ -145,7 +145,7 @@ def fetch_provider_models(
         headers = (
             {"x-api-key": key, "anthropic-version": "2023-06-01"}
             if info["protocol"] == "anthropic"
-            else {"Authorization": f"Bearer {key}"}
+            else ({"Authorization": f"Bearer {key}"} if key else {})
         )
         protocol = info["protocol"]
         default_model = environment.get(info["model_env"], info["default_model"])
