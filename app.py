@@ -1192,7 +1192,7 @@ async def start_model_download(data: dict[str, Any]) -> dict[str, Any]:
     asyncio.create_task(_run_model_download(job_id, model.hf_repo, model.hf_file))
     return {"job_id": job_id, "status": "queued", "message": "Download queued. Poll GET /api/downloads for progress."}
 
-@post("/api/models/remove")
+@post("/api/models/remove", status_code=200)
 async def remove_model(data: dict[str, Any]) -> dict[str, Any]:
     """Remove one explicitly confirmed local model artifact inside MODELS_DIR."""
     if set(data) - {"filename", "confirm"}:
