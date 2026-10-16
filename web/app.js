@@ -452,6 +452,74 @@ $("settings-form").addEventListener("submit",async e=>{
   await loadSettings();await loadProviderConfigurationStatus();await loadStatus();
  }catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}
 });
+const SETTINGS_BACKUP_KEYS=[
+ "mode","self_critique","proactive","max_ctx_chars","active_provider",
+ "agentic_planning_enabled","agentic_recovery_enabled","agentic_persona",
+ "provider_model","provider_temperature","provider_top_p","provider_max_tokens",
+ "provider_timeout_seconds","custom_base_url","provider_profiles","browser_allowed_domains",
+ "self_identity","self_mission","self_reflection_enabled","learning_enabled",
+ "self_improvement_enabled","auto_extract_skills","tool_approval_required",
+ "self_diagnostics_enabled","self_repair_enabled","self_research_enabled",
+ "self_evaluation_enabled","self_goals_enabled","self_skills_enabled",
+ "self_recovery_enabled","self_maintenance_enabled","self_autonomous_enabled",
+ "self_auto_checkpoint","self_goal_generation_enabled","self_checkpoint_retention",
+ "self_evaluation_interval_hours","self_checkpoint_interval_hours","self_max_goals_per_cycle",
+ "self_autonomy_profile","updates_enabled","update_channel","update_check_interval_hours",
+ "long_term_memory_enabled","conversation_archive_enabled","workspace_tools_enabled",
+ "scheduled_tasks_enabled"
+];
+let pendingSettingsImport=null;
+$("settings-export-backup")?.addEventListener("click",async()=>{
+ const button=$("settings-export-backup");button.disabled=true;
+ $("settings-import-error").textContent="";$("settings-import-status").textContent="Preparing a credential-free backup…";
+ try{
+  const data=await api("/api/settings");
+  const settings={};
+  for(const key of SETTINGS_BACKUP_KEYS)if(Object.prototype.hasOwnProperty.call(data,key))settings[key]=data[key];
+  // Approval is a fixed security invariant, never a portable opt-out.
+  settings.tool_approval_required=true;
+  const backup={format:"terminal-ai-settings",version:1,exported_at:new Date().toISOString(),settings};
+  const blob=new Blob([JSON.stringify(backup,null,2)+"\n"],{type:"application/json"});
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download="terminal-ai-settings-backup.json";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  $("settings-import-status").textContent="Exported "+Object.keys(settings).length+" non-secret settings. Credentials were excluded.";
+ }catch(err){$("settings-import-error").textContent=err.message;$("settings-import-status").textContent="Export failed.";}
+ finally{button.disabled=false;}
+});
+$("settings-validate-import")?.addEventListener("click",()=>{
+ pendingSettingsImport=null;$("settings-apply-import").disabled=true;
+ $("settings-import-error").textContent="";$("settings-import-status").textContent="";
+ try{
+  const backup=JSON.parse($("settings-import-json").value);
+  if(!backup||typeof backup!=="object"||Array.isArray(backup)||backup.format!=="terminal-ai-settings"||backup.version!==1)throw new Error("Expected a Terminal AI settings backup with format terminal-ai-settings and version 1.");
+  if(!backup.settings||typeof backup.settings!=="object"||Array.isArray(backup.settings))throw new Error("Backup settings must be a JSON object.");
+  const keys=Object.keys(backup.settings);
+  if(!keys.length)throw new Error("Backup contains no settings.");
+  if(keys.length>SETTINGS_BACKUP_KEYS.length)throw new Error("Backup contains too many settings.");
+  const unknown=keys.filter(key=>!SETTINGS_BACKUP_KEYS.includes(key));
+  if(unknown.length)throw new Error("Unsupported setting(s): "+unknown.slice(0,8).join(", "));
+  if(Object.prototype.hasOwnProperty.call(backup.settings,"tool_approval_required")&&backup.settings.tool_approval_required!==true)throw new Error("The mandatory human-approval setting cannot be disabled.");
+  pendingSettingsImport={...backup.settings,tool_approval_required:true};
+  $("settings-import-preview").textContent=JSON.stringify({version:backup.version,exported_at:backup.exported_at||"unknown",setting_count:Object.keys(pendingSettingsImport).length,settings:pendingSettingsImport,credentials:"Not imported; configure secrets separately on this machine."},null,2);
+  $("settings-apply-import").disabled=false;
+  $("settings-import-status").textContent="Backup format is valid. Server-side validation will run when applied.";
+ }catch(err){$("settings-import-preview").textContent="No valid import preview."; $("settings-import-error").textContent=err.message;}
+});
+$("settings-apply-import")?.addEventListener("click",async()=>{
+ if(!pendingSettingsImport)return;
+ if(!confirm("Apply these "+Object.keys(pendingSettingsImport).length+" reviewed settings? Credentials are excluded and human approval remains mandatory."))return;
+ const button=$("settings-apply-import");button.disabled=true;$("settings-import-error").textContent="";$("settings-import-status").textContent="Applying settings…";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify(pendingSettingsImport)});
+  pendingSettingsImport=null;$("settings-import-preview").textContent="Settings imported successfully. Review the current settings below.";
+  $("settings-import-status").textContent="Import complete. API keys and tokens were not changed.";
+  await loadSettings();await loadProviderConfigurationStatus();await loadStatus();
+ }catch(err){$("settings-import-error").textContent=err.message;$("settings-import-status").textContent="Import rejected; review the error and backup values.";button.disabled=false;}
+});
+$("settings-import-json")?.addEventListener("input",()=>{
+ pendingSettingsImport=null;$("settings-apply-import").disabled=true;
+ $("settings-import-status").textContent="Backup changed; validate it again before applying.";
+});
 async function loadSelfX(){
  try{
   const data=await api("/api/selfx/status");
