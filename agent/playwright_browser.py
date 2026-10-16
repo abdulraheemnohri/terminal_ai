@@ -79,7 +79,7 @@ def validate_public_url(url: str, allowed_domains: Iterable[str]) -> str:
     except TypeError as exc:
         raise BrowserPolicyError("allowed_domains must be a collection of DNS names.") from exc
     if not allow:
-        raise BrowserPolicyError("Browser access is disabled until allowed_domains is configured.")
+        raise BrowserPolicyError("Browser access is disabled until the domain allowlist (allowed_domains) is configured.")
     if not any(host == domain or host.endswith("." + domain) for domain in allow):
         raise BrowserPolicyError("Host is not in the configured browser domain allowlist.")
 
