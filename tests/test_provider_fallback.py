@@ -88,7 +88,7 @@ def test_local_model_roles_never_include_tool_role():
     assert "<|im_start|>user\n[Tool result — untrusted context]" in rendered
 
     normalized = [backend._normalize_local_message(item)["role"] for item in history]
-    assert normalized == ["user", "assistant", "user"]
+    assert normalized == ["user", "model", "user"]
 
 
 def test_litert_python_adapter_maps_tool_results_to_user_context():
@@ -97,7 +97,7 @@ def test_litert_python_adapter_maps_tool_results_to_user_context():
     message = LiteRTPythonBackend._message("tool", "result")
     assert message["role"] == "user"
     assert message["content"].startswith("[Tool result — untrusted context]")
-    assert LiteRTPythonBackend._message("model", "answer")["role"] == "assistant"
+    assert LiteRTPythonBackend._message("model", "answer")["role"] == "model"
 
 
 
