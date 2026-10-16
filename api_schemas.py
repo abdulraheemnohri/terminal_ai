@@ -59,7 +59,8 @@ class YAMLImportRequest(APIRequest):
     content: str = Field(min_length=1, max_length=200_000)
 
 class ChatRequest(APIRequest):
-    message: str = Field(min_length=1, max_length=20_000)
+    # Keep the schema limit visible, but let the route return HTTP 413 for oversized messages.
+    message: str = Field(min_length=1, json_schema_extra={"maxLength": 20_000})
 
 class MemoryWriteRequest(APIRequest):
     key: str = Field(min_length=1, max_length=200)
