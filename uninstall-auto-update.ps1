@@ -1,9 +1,6 @@
 $ErrorActionPreference = "Stop"
-$TaskName = "TerminalAI-AutoUpdate"
-$Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($Task) {
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-    Write-Host "Weekly automatic project updates disabled."
-} else {
-    Write-Host "No TerminalAI-AutoUpdate task was registered."
-}
+# Backwards-compatible wrapper; implementation lives in scripts/uninstall-auto-update.ps1.
+$Target = Join-Path $PSScriptRoot "scripts\uninstall-auto-update.ps1"
+if (-not (Test-Path -LiteralPath $Target)) { throw "Missing script: $Target" }
+& $Target @args
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
