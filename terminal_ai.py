@@ -2143,14 +2143,38 @@ class GeminiBackend(Backend):
                 kw.pop(list(kw)[-1], None)
         return None
 
+    @staticmethod
+    def _normalize_history_message(message: Msg) -> tuple[str, str] | None:
+        """Map internal chat roles to Gemini's supported user/model roles.
+
+        Tool outputs are retained as clearly labelled user context because the
+        text-only chat adapter does not send native function-response parts.
+        """
+        role = str(getattr(message, "role", "")).strip().lower()
+        text = str(getattr(message, "text", "") or "")
+        if not text:
+            return None
+        if role in {"assistant", "model"}:
+            return "model", text
+        if role == "tool":
+            return "user", "[Tool result — untrusted context]\n" + text
+        if role == "user":
+            return "user", text
+        # System instructions are sent separately via system_instruction.
+        # Do not leak private/unknown internal roles into the provider API.
+        return None
+
     def _contents(self, history: list[Msg]):
         T, out = self._types, []
-        for m in history:
-            role = "model" if m.role == "assistant" else m.role
+        for message in history:
+            normalized = self._normalize_history_message(message)
+            if normalized is None:
+                continue
+            role, text = normalized
             try:
-                out.append(T.Content(role=role, parts=[T.Part.from_text(text=m.text)]))
+                out.append(T.Content(role=role, parts=[T.Part.from_text(text=text)]))
             except Exception:
-                out.append({"role": role, "parts": [{"text": m.text}]})
+                out.append({"role": role, "parts": [{"text": text}]})
         return out
 
     def stream(self, system: str, history: list[Msg],
@@ -2188,8 +2212,12 @@ class GeminiBackend(Backend):
                     yield txt
         else:
             gm = self._client.GenerativeModel(self.model, system_instruction=system or None)
-            hist = [{"role": m.role if m.role != "assistant" else "model",
-                     "parts": [m.text]} for m in history]
+            hist = [
+                {"role": role, "parts": [text]}
+                for m in history
+                if (normalized := self._normalize_history_message(m)) is not None
+                for role, text in [normalized]
+            ]
             for chunk in gm.generate_content(hist, stream=True):
                 txt = getattr(chunk, "text", "") or ""
                 if txt:
