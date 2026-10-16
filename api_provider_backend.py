@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import terminal_ai as core
+from application.settings_validation import SettingsValidationError, validate_custom_base_url
 
 
 PROVIDERS: dict[str, dict[str, str]] = {
@@ -43,7 +44,13 @@ class APIProviderBackend(core.Backend):
         if not self.api_key:
             raise core.BackendError(f"Missing API key for {self.config['label']}; configure it in Settings.")
         self.model = (model or os.environ.get(self.config["model_env"]) or self.config["default_model"]).strip()
-        self.base_url = (base_url or os.environ.get("TERMINAL_AI_CUSTOM_BASE_URL") or self.config["base_url"]).rstrip("/")
+        configured_base_url = base_url or os.environ.get("TERMINAL_AI_CUSTOM_BASE_URL") or self.config["base_url"]
+        if provider_id == "custom-openai":
+            try:
+                configured_base_url = validate_custom_base_url(configured_base_url)
+            except SettingsValidationError as exc:
+                raise core.BackendError(str(exc)) from exc
+        self.base_url = configured_base_url.rstrip("/")
         if not self.base_url or not self.model:
             raise core.BackendError("Custom API provider requires both a base URL and model ID.")
         self.timeout = max(10, min(int(timeout), 300))

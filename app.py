@@ -24,6 +24,7 @@ from litestar import Litestar, get, post, patch
 from litestar.exceptions import HTTPException
 from litestar.response import Response
 from litestar.static_files import create_static_files_router
+from litestar.middleware import DefineMiddleware
 
 import terminal_ai as core
 from selfx_engine import SelfXEngine
@@ -39,6 +40,8 @@ from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
+from application.security import BasicAuthMiddleware
+from application.settings_validation import SettingsValidationError, validate_custom_base_url
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -1035,9 +1038,18 @@ async def providers() -> dict[str, Any]:
 @post("/api/providers/test")
 async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
     _load_env()
-    provider_id = str(data.get("provider_id", "gemini")).strip().lower()
-    model = str(data.get("model", "")).strip() or None
-    api_key = str(data.get("api_key", "")).strip()
+    provider_value = data.get("provider_id", "gemini")
+    model_value = data.get("model", "")
+    api_key_value = data.get("api_key", "")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    if not isinstance(model_value, str) or len(model_value) > 200:
+        raise HTTPException(status_code=400, detail="model must be text of at most 200 characters.")
+    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
+    provider_id = provider_value.strip().lower()
+    model = model_value.strip() or None
+    api_key = api_key_value.strip()
     started = time.time()
     try:
         if provider_id == "gemini":
@@ -1049,9 +1061,20 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
             if info is None:
                 raise HTTPException(status_code=400, detail="Unknown provider.")
             key = api_key or os.environ.get(info["env"], "")
-            endpoint = str(data.get("base_url", "")).strip() or None
-            if provider_id == "custom-openai" and endpoint and not endpoint.startswith(("https://", "http://127.0.0.1", "http://localhost")):
-                raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
+            endpoint_value = data.get("base_url", "")
+            if provider_id == "custom-openai":
+                if not isinstance(endpoint_value, str):
+                    raise HTTPException(status_code=400, detail="base_url must be text.")
+                if len(endpoint_value) > 500:
+                    raise HTTPException(status_code=400, detail="Custom endpoint URL is too long.")
+                endpoint = endpoint_value.strip() or None
+                if endpoint:
+                    try:
+                        endpoint = validate_custom_base_url(endpoint)
+                    except SettingsValidationError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+            else:
+                endpoint = None
             backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
         answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
         backend.close()
@@ -1373,12 +1396,10 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail=f"Invalid browser domain allowlist: {exc}") from exc
         current["browser_allowed_domains"] = normalized
     if "custom_base_url" in data:
-        if not isinstance(data["custom_base_url"], str):
-            raise HTTPException(status_code=400, detail="custom_base_url must be text.")
-        base_url = data["custom_base_url"].strip()
-        if base_url and not base_url.startswith(("https://", "http://127.0.0.1", "http://localhost")):
-            raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
-        current["custom_base_url"] = base_url[:500]
+        try:
+            current["custom_base_url"] = validate_custom_base_url(data["custom_base_url"])
+        except SettingsValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     if "agentic_persona" in data:
         persona = data["agentic_persona"]
         if not isinstance(persona, str) or persona not in {"helpful", "technical", "coach", "concise", "creative", "roleplay"}:
@@ -1486,9 +1507,6 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         _AGENT.persona = str(current.get("agentic_persona", "helpful"))
         _AGENT.agentic_planning = bool(current.get("agentic_planning_enabled", True))
         _AGENT.agentic_recovery = bool(current.get("agentic_recovery_enabled", True))
-        _AGENT.agentic_planning = bool(current.get("agentic_planning_enabled", True))
-        _AGENT.agentic_recovery = bool(current.get("agentic_recovery_enabled", True))
-        _AGENT.persona = str(current.get("agentic_persona", "helpful"))
     from api_provider_backend import PROVIDERS
     provider_status = {pid: bool(os.environ.get(info["env"])) for pid, info in PROVIDERS.items()}
     provider_status["gemini"] = _gemini_key() is not None
@@ -2047,6 +2065,7 @@ async def _stop_scheduler() -> None:
         _SCHEDULER_TASK = None
 
 app = Litestar(
+    middleware=[DefineMiddleware(BasicAuthMiddleware, root=ROOT)],
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
