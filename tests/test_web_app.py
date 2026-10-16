@@ -139,6 +139,26 @@ def test_dashboard_assets_are_served_separately():
     assert "overview-health" in js.text
 
 
+def test_settings_backup_controls_are_visible_and_credentials_are_excluded():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    for control_id in (
+        "settings-export-backup", "settings-import-json",
+        "settings-validate-import", "settings-apply-import",
+        "settings-import-preview", "settings-import-error",
+    ):
+        assert f'id="{control_id}"' in html
+    assert "SETTINGS_BACKUP_KEYS" in js
+    assert "terminal-ai-settings-backup.json" in js
+    assert "Credentials were excluded" in js
+    assert "mandatory human-approval setting cannot be disabled" in js
+    # Credentials must never be part of the export allowlist.
+    allowlist = js.split("const SETTINGS_BACKUP_KEYS=[", 1)[1].split("];", 1)[0]
+    assert '"api_key"' not in allowlist
+    assert '"hf_token"' not in allowlist
+
+
 def test_self_status_exposes_operational_model_without_claiming_sentience():
     with TestClient(app=app) as client:
         response = client.get("/api/self/status")
@@ -148,6 +168,41 @@ def test_self_status_exposes_operational_model_without_claiming_sentience():
     assert "mission" in payload
     assert "notice" in payload
     assert "sentience" in payload["notice"]
+
+
+def test_self_identity_mission_and_reflection_settings_are_editable_from_api():
+    with TestClient(app=app) as client:
+        original = client.get("/api/settings").json()
+        updated = client.patch("/api/settings", json={
+            "self_identity": "Local Operations Agent",
+            "self_mission": "Inspect, explain, and verify changes without bypassing approvals.",
+            "self_reflection_enabled": False,
+        })
+        status = client.get("/api/self/status")
+        reflection = client.post("/api/self/reflect", json={})
+        restored = client.patch("/api/settings", json={
+            "self_identity": original.get("self_identity", "Terminal AI"),
+            "self_mission": original.get("self_mission", ""),
+            "self_reflection_enabled": original.get("self_reflection_enabled", True),
+        })
+    assert updated.status_code == 200
+    assert status.status_code == 200
+    assert status.json()["identity"] == "Local Operations Agent"
+    assert status.json()["mission"] == "Inspect, explain, and verify changes without bypassing approvals."
+    assert reflection.status_code == 400
+    assert restored.status_code == 200
+
+
+def test_settings_page_exposes_and_wires_self_identity_controls():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    for control_id in ("setting-self-identity", "setting-self-mission", "setting-self-reflection"):
+        assert f'id="{control_id}"' in html
+        assert f'$("{control_id}")' in js
+    assert "self_identity:" in js
+    assert "self_mission:" in js
+    assert "self_reflection_enabled:" in js
 
 
 def test_self_reflection_can_be_disabled():
