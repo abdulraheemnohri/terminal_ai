@@ -302,7 +302,7 @@
 <div class="field"><label for="profile-provider">Provider profile</label><select id="profile-provider"></select></div>
 <div class="field"><label for="profile-model">Model ID</label><input id="profile-model" maxlength="300" placeholder="e.g. provider model ID"></div>
 <div class="field"><label for="profile-base-url">Custom endpoint URL (optional)</label><input id="profile-base-url" type="url" maxlength="1000" placeholder="https://host.example/v1"><p>Used only by providers that support a configurable endpoint. Do not include credentials in this URL.</p></div>
-<div class="settings-grid"><div class="field"><label for="profile-temperature">Temperature (0–2)</label><input id="profile-temperature" type="number" min="0" max="2" step="0.05" value="0.7"></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px"><div class="field"><label for="profile-temperature">Temperature (0–2)</label><input id="profile-temperature" type="number" min="0" max="2" step="0.05" value="0.7"></div>
 <div class="field"><label for="profile-top-p">Top-p (0–1)</label><input id="profile-top-p" type="number" min="0" max="1" step="0.05" value="0.95"></div>
 <div class="field"><label for="profile-max-tokens">Maximum output tokens (64–32768)</label><input id="profile-max-tokens" type="number" min="64" max="32768" step="1" value="2048"></div>
 <div class="field"><label for="profile-timeout">Timeout seconds (5–180)</label><input id="profile-timeout" type="number" min="5" max="180" step="1" value="60"></div>
