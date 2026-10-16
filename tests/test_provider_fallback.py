@@ -54,14 +54,14 @@ def test_cloud_fallback_skips_empty_cloud_responses():
     assert primary.calls == secondary.calls == 1
 
 
-def test_cloud_fallback_does_not_switch_after_partial_output():
+def test_cloud_fallback_discards_partial_response_before_trying_next_provider():
     primary = FakeBackend("primary", chunks=["partial"], error=RuntimeError("stream broke"))
-    secondary = FakeBackend("secondary", chunks=["duplicate"])
+    secondary = FakeBackend("secondary", chunks=["complete answer"])
     backend = CloudFirstFallbackBackend([primary, secondary], None)
 
-    with pytest.raises(core.BackendError, match="partial output"):
-        list(backend.stream("", [core.Msg("user", "hello")]))
-    assert secondary.calls == 0
+    assert list(backend.stream("", [core.Msg("user", "hello")])) == ["complete answer"]
+    assert primary.calls == secondary.calls == 1
+    assert backend.label == "secondary"
 
 
 def test_cloud_fallback_reports_when_every_backend_fails():
