@@ -4,6 +4,7 @@
 - app.py delegates Command Control Center HTTP/WebSocket endpoints to routers/control.py.
 - Chat run observability (`GET /api/chat/runs`) is extracted to `routers/chat.py` with an injected metadata provider; the primary chat execution handler remains in `app.py`.
 - api_schemas.py defines bounded Pydantic v2 request contracts for policy updates, operation approvals, skill packages, chat, and memory writes.
+- Cloud provider construction is extracted to `application/backend_factory.py`; selected-provider ordering, credential skipping, and redacted initialization failures are covered by focused tests.
 - Command-control routes remain approval-only: approving a record does not execute it.
 - The action stream exposes operational event summaries and status metadata, not private chain-of-thought or raw prompts.
 - SQLite stores use WAL, busy timeouts, and append-only hash-chained audit records.
