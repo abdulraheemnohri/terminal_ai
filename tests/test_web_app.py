@@ -483,9 +483,19 @@ def test_provider_connection_test_rejects_oversized_or_mistyped_inputs():
             "/api/providers/test",
             json={"provider_id": "custom-openai", "api_key": "test-only-key", "model": "m", "base_url": {"host": "provider.example"}},
         )
+        wrong_provider_type = client.post(
+            "/api/providers/test",
+            json={"provider_id": 123},
+        )
+        oversized_provider_id = client.post(
+            "/api/providers/test",
+            json={"provider_id": "p" * 81},
+        )
     assert oversized_key.status_code == 400
     assert oversized_model.status_code == 400
     assert wrong_endpoint_type.status_code == 400
+    assert wrong_provider_type.status_code == 400
+    assert oversized_provider_id.status_code == 400
 
 
 def test_settings_rejects_oversized_api_key_without_persisting():
