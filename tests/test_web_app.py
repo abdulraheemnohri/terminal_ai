@@ -582,3 +582,62 @@ def test_selected_default_model_is_saved_and_returned(monkeypatch, tmp_path):
     assert saved.status_code == 200
     assert loaded.status_code == 200
     assert loaded.json()["provider_model"] == "gpt-test-model"
+
+
+
+def test_provider_generation_settings_save_and_apply():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "provider_temperature": 0.4,
+            "provider_top_p": 0.85,
+            "provider_max_tokens": 4096,
+            "provider_timeout_seconds": 45,
+        })
+        settings = client.get("/api/settings")
+        client.patch("/api/settings", json={
+            "provider_temperature": 0.7,
+            "provider_top_p": 0.95,
+            "provider_max_tokens": 2048,
+            "provider_timeout_seconds": 60,
+        })
+    assert response.status_code == 200
+    assert response.json()["provider_temperature"] == 0.4
+    assert response.json()["provider_top_p"] == 0.85
+    assert response.json()["provider_max_tokens"] == 4096
+    assert response.json()["provider_timeout_seconds"] == 45
+    assert settings.status_code == 200
+    assert settings.json()["provider_max_tokens"] == 4096
+
+
+def test_provider_generation_settings_are_bounded_and_type_checked():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "provider_temperature": 5,
+            "provider_top_p": -2,
+            "provider_max_tokens": 999999,
+            "provider_timeout_seconds": 999,
+        })
+        invalid_float = client.patch("/api/settings", json={"provider_temperature": True})
+        invalid_int = client.patch("/api/settings", json={"provider_max_tokens": True})
+        client.patch("/api/settings", json={
+            "provider_temperature": 0.7,
+            "provider_top_p": 0.95,
+            "provider_max_tokens": 2048,
+            "provider_timeout_seconds": 60,
+        })
+    assert response.status_code == 200
+    assert response.json()["provider_temperature"] == 2.0
+    assert response.json()["provider_top_p"] == 0.0
+    assert response.json()["provider_max_tokens"] == 32768
+    assert response.json()["provider_timeout_seconds"] == 180
+    assert invalid_float.status_code == 400
+    assert invalid_int.status_code == 400
+
+
+def test_all_registered_local_providers_can_be_selected():
+    with TestClient(app=app) as client:
+        for provider_id in ("ollama", "lm-studio", "vllm"):
+            response = client.patch("/api/settings", json={"active_provider": provider_id})
+            assert response.status_code == 200, provider_id
+            assert response.json()["active_provider"] == provider_id
+        client.patch("/api/settings", json={"active_provider": "gemini"})

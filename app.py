@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -107,6 +108,10 @@ def _read_settings() -> dict[str, Any]:
         "scheduled_tasks_enabled": True,
         "active_provider": "gemini",
         "provider_model": "",
+        "provider_temperature": 0.7,
+        "provider_top_p": 0.95,
+        "provider_max_tokens": 2048,
+        "provider_timeout_seconds": 60,
         "custom_base_url": "",
         "browser_allowed_domains": [],
         "self_identity": "Terminal AI",
@@ -173,11 +178,21 @@ def _read_settings() -> dict[str, Any]:
         "self_max_goals_per_cycle": (1, 20),
         "update_check_interval_hours": (6, 168),
     }
+    int_ranges.update({
+        "provider_max_tokens": (64, 32768),
+        "provider_timeout_seconds": (5, 180),
+    })
     for key, (minimum, maximum) in int_ranges.items():
         value = defaults.get(key)
         if isinstance(value, bool) or not isinstance(value, int):
             value = base_defaults[key]
         defaults[key] = max(minimum, min(maximum, value))
+
+    for key, minimum, maximum in (("provider_temperature", 0.0, 2.0), ("provider_top_p", 0.0, 1.0)):
+        value = defaults.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            value = base_defaults[key]
+        defaults[key] = max(minimum, min(maximum, float(value)))
 
     for key, fallback, limit in (
         ("provider_model", "", 200), ("custom_base_url", "", 500),
@@ -1216,7 +1231,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Describe the settings change in 1–3000 characters.")
     agent = _get_agent()
     allowed = {
-        "mode", "active_provider", "provider_model", "max_ctx_chars", "self_critique", "proactive",
+        "mode", "active_provider", "provider_model", "provider_temperature", "provider_top_p",
+        "provider_max_tokens", "provider_timeout_seconds", "max_ctx_chars", "self_critique", "proactive",
         "learning_enabled", "auto_extract_skills", "self_improvement_enabled", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
@@ -1230,7 +1246,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "Translate a user's request into a minimal JSON settings proposal. Return ONLY JSON with keys "
         "'changes' (object) and 'explanation' (string). Allowed keys are: " + ", ".join(sorted(allowed)) + ". "
         "Use only these keys. Values must match their types. self_autonomy_profile is observe (checks only), maintain (checks and scheduled checkpoints), or goal-driven (maintain plus bounded diagnostic goal creation). Goal creation is separately gated and limited by self_max_goals_per_cycle. mode is auto/cloud/local/hybrid. active_provider may be "
-        "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai. "
+        "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai, ollama, lm-studio, vllm. "
         "Never propose API keys, credentials, URLs, code, commands, permission changes, or disabling tool approval. "
         "If the request cannot be expressed safely, return empty changes and explain why. The proposal is not applied.\n"
         + json.dumps({"request": request_text, "current_settings": {k: current.get(k) for k in sorted(allowed)}}, ensure_ascii=False)
@@ -1257,7 +1273,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
             changes.pop("mode")
         if "active_provider" in changes and (
             not isinstance(changes["active_provider"], str)
-            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}
+            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai", "ollama", "lm-studio", "vllm"}
         ):
             changes.pop("active_provider")
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
@@ -1297,6 +1313,20 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                 changes.pop("provider_model")
             else:
                 changes["provider_model"] = value.strip()[:200]
+        for key, minimum, maximum in (("provider_temperature", 0.0, 2.0), ("provider_top_p", 0.0, 1.0)):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, float(value)))
+        for key, minimum, maximum in (("provider_max_tokens", 64, 32768), ("provider_timeout_seconds", 5, 180)):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, int):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, value))
         return {"changes": changes, "explanation": str(parsed.get("explanation", "Review this proposal before applying."))[:1000],
                 "applied": False, "notice": "AI suggestions are untrusted proposals. Review the diff and explicitly apply them; credentials and risky tool permissions are excluded."}
     except Exception as exc:
@@ -1344,7 +1374,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     allowed_settings = {
         "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
         "agentic_planning_enabled", "agentic_recovery_enabled", "agentic_persona",
-        "provider_model", "custom_base_url", "browser_allowed_domains", "self_identity", "self_mission",
+        "provider_model", "provider_temperature", "provider_top_p", "provider_max_tokens",
+        "provider_timeout_seconds", "custom_base_url", "browser_allowed_domains", "self_identity", "self_mission",
         "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
@@ -1391,6 +1422,24 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data["provider_model"], str):
             raise HTTPException(status_code=400, detail="provider_model must be text.")
         current["provider_model"] = data["provider_model"].strip()[:200]
+    for setting_key, minimum, maximum in (
+        ("provider_temperature", 0.0, 2.0),
+        ("provider_top_p", 0.0, 1.0),
+    ):
+        if setting_key in data:
+            value = data[setting_key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise HTTPException(status_code=400, detail=f"{setting_key} must be a finite number from {minimum} to {maximum}.")
+            current[setting_key] = max(minimum, min(maximum, float(value)))
+    for setting_key, minimum, maximum in (
+        ("provider_max_tokens", 64, 32768),
+        ("provider_timeout_seconds", 5, 180),
+    ):
+        if setting_key in data:
+            value = data[setting_key]
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise HTTPException(status_code=400, detail=f"{setting_key} must be an integer from {minimum} to {maximum}.")
+            current[setting_key] = max(minimum, min(maximum, value))
     if "browser_allowed_domains" in data:
         values = data["browser_allowed_domains"]
         if not isinstance(values, list) or len(values) > 50:
@@ -1502,7 +1551,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    backend_changed = bool(isinstance(data.get("api_key"), str) and data["api_key"].strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url", "self_identity", "self_mission"))
+    backend_changed = bool(isinstance(data.get("api_key"), str) and data["api_key"].strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "provider_temperature", "provider_top_p", "provider_max_tokens", "provider_timeout_seconds", "custom_base_url", "self_identity", "self_mission"))
     if backend_changed:
         if _AGENT is not None:
             try:
