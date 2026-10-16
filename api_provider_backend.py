@@ -61,7 +61,7 @@ class APIProviderBackend(core.Backend):
             elif item.role == "model":
                 messages.append({"role": "assistant", "content": item.text})
             elif item.role == "tool":
-                messages.append({"role": "user", "content": "[Tool result — untrusted context]\\n" + item.text})
+                messages.append({"role": "user", "content": "[Tool result — untrusted context]\n" + item.text})
         return messages
     def _request(self, payload: dict[str, Any], system: str,
                  history: list[core.Msg]) -> tuple[str, bytes]:
