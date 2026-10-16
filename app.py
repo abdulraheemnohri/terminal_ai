@@ -24,6 +24,7 @@ from litestar import Litestar, get, post, patch
 from litestar.exceptions import HTTPException
 from litestar.response import Response
 from litestar.static_files import create_static_files_router
+from litestar.middleware import DefineMiddleware
 
 import terminal_ai as core
 from selfx_engine import SelfXEngine
@@ -39,6 +40,7 @@ from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
+from application.security import BasicAuthMiddleware
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -2047,6 +2049,7 @@ async def _stop_scheduler() -> None:
         _SCHEDULER_TASK = None
 
 app = Litestar(
+    middleware=[DefineMiddleware(BasicAuthMiddleware, root=ROOT)],
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
