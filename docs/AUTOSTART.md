@@ -15,7 +15,7 @@ For boot-before-login startup, explicitly opt in by running `TERMINAL_AI_ENABLE_
 
 ### System-wide service (advanced)
 
-The system-wide installer is `sudo sh scripts/install-systemd-service.sh` (hyphens, not underscores). It installs the unit file but expects the checkout, virtual environment, and private `.env` to be prepared at `/opt/terminal_ai`, and expects a dedicated `terminal-ai` account. Review `systemd/terminal-ai.service` and the script before running it. Do not run the agent as root. Verify that the service account can read the application and write only to intended state directories.
+The system-wide installer is `sudo sh scripts/install_systemd_service.sh` (underscores). It expects the checkout, virtual environment, and private `.env` to be prepared at `/opt/terminal_ai`, and expects a dedicated `terminal-ai` account. Review `systemd/terminal-ai.service` and the script before running it. Do not run the agent as root. Verify that the service account can read the application and write only to intended state directories.
 
 ## Windows
 
@@ -25,7 +25,7 @@ The launcher refuses non-loopback binding by default. Do not set `TERMINAL_AI_AL
 
 ## macOS and Termux
 
-- macOS: run `sh scripts/install-service.sh` for the per-user LaunchAgent described in `docs/DEPLOYMENT.md`; systemd is not a macOS service manager.
+- macOS: run `sh install-launchagent.sh` (or `sh scripts/install-launchagent.sh`) for a per-user LaunchAgent. Remove it with `sh uninstall-launchagent.sh`.
 - Termux/Android: Termux:Boot requires the companion add-on and Android background-start permissions. The OS may still stop background processes.
 
 ## Automatic updates
@@ -37,4 +37,5 @@ Update checks and update installation are separate features. Update checks may b
 - Linux user service: `systemctl --user disable --now terminal-ai.service`
 - Linux system service: `sudo systemctl disable --now terminal-ai.service`
 - Windows scheduled task: `Unregister-ScheduledTask -TaskName 'Terminal AI Web Server'`
+- macOS LaunchAgent: `sh uninstall-launchagent.sh`
 - Keep a copy of the previous known-good source and state backup before updates.
