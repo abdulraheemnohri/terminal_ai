@@ -2335,10 +2335,19 @@ class LiteRTBackend(Backend):
             except Exception:
                 return meth()
 
+    @staticmethod
+    def _normalize_local_message(message: Msg) -> dict[str, str]:
+        """Map internal roles to the user/model roles accepted by local engines."""
+        if message.role in {"model", "assistant"}:
+            return {"role": "assistant", "content": message.text}
+        if message.role == "tool":
+            return {"role": "user", "content": "[Tool result — untrusted context]\\n" + message.text}
+        return {"role": "user", "content": message.text}
+
     def stream(self, system: str, history: list[Msg],
                tools: Optional[list[dict]] = None) -> Iterator[str]:
         prompt = self._render(system, history, tools)
-        messages = [{"role": m.role, "content": m.text} for m in history]
+        messages = [self._normalize_local_message(m) for m in history]
         q: "queue.Queue[Any]" = queue.Queue()
         got = [0]
         self._cancel.clear()
