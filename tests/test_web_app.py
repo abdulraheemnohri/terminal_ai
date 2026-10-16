@@ -150,6 +150,41 @@ def test_self_status_exposes_operational_model_without_claiming_sentience():
     assert "sentience" in payload["notice"]
 
 
+def test_self_identity_mission_and_reflection_settings_are_editable_from_api():
+    with TestClient(app=app) as client:
+        original = client.get("/api/settings").json()
+        updated = client.patch("/api/settings", json={
+            "self_identity": "Local Operations Agent",
+            "self_mission": "Inspect, explain, and verify changes without bypassing approvals.",
+            "self_reflection_enabled": False,
+        })
+        status = client.get("/api/self/status")
+        reflection = client.post("/api/self/reflect", json={})
+        restored = client.patch("/api/settings", json={
+            "self_identity": original.get("self_identity", "Terminal AI"),
+            "self_mission": original.get("self_mission", ""),
+            "self_reflection_enabled": original.get("self_reflection_enabled", True),
+        })
+    assert updated.status_code == 200
+    assert status.status_code == 200
+    assert status.json()["identity"] == "Local Operations Agent"
+    assert status.json()["mission"] == "Inspect, explain, and verify changes without bypassing approvals."
+    assert reflection.status_code == 400
+    assert restored.status_code == 200
+
+
+def test_settings_page_exposes_and_wires_self_identity_controls():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    for control_id in ("setting-self-identity", "setting-self-mission", "setting-self-reflection"):
+        assert f'id="{control_id}"' in html
+        assert f'$("{control_id}")' in js
+    assert "self_identity:" in js
+    assert "self_mission:" in js
+    assert "self_reflection_enabled:" in js
+
+
 def test_self_reflection_can_be_disabled():
     with TestClient(app=app) as client:
         response = client.patch("/api/settings", json={"self_reflection_enabled": False})
