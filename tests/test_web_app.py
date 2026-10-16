@@ -711,3 +711,57 @@ def test_security_status_endpoint_never_exposes_credentials():
     assert payload["credentials_exposed"] is False
     assert "TERMINAL_AI_AUTH_PASSWORD" in payload["required_environment_names"]
     assert "password" not in payload
+
+
+def test_settings_can_explicitly_remove_provider_and_hugging_face_credentials(monkeypatch, tmp_path):
+    import os
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("GEMINI_API_KEY=old-gemini-secret\\nOPENAI_API_KEY=keep-this-key\\n", encoding="utf-8")
+    hf_file = tmp_path / "hf-token"
+    hf_file.write_text("old-hf-secret", encoding="utf-8")
+    monkeypatch.setattr(web_app, "ROOT", tmp_path)
+    monkeypatch.setattr(web_app.core, "HF_TOKEN_FILE", hf_file)
+    monkeypatch.setenv("GEMINI_API_KEY", "old-gemini-secret")
+    monkeypatch.setenv("HF_TOKEN", "old-hf-secret")
+
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "clear_provider_api_key": "gemini",
+            "clear_hf_token": True,
+        })
+        settings = client.get("/api/settings")
+
+    assert response.status_code == 200
+    assert settings.status_code == 200
+    assert settings.json()["provider_configured"]["gemini"] is False
+    assert settings.json()["hf_token_configured"] is False
+    assert "GEMINI_API_KEY" not in os.environ
+    assert "HF_TOKEN" not in os.environ
+    assert not hf_file.exists()
+    saved_env = env_file.read_text(encoding="utf-8")
+    assert "GEMINI_API_KEY" not in saved_env
+    assert "OPENAI_API_KEY=keep-this-key" in saved_env
+    assert "old-gemini-secret" not in saved_env
+    assert "old-hf-secret" not in saved_env
+
+
+def test_credential_removal_controls_validate_provider_and_boolean_types():
+    with TestClient(app=app) as client:
+        invalid_provider = client.patch("/api/settings", json={"clear_provider_api_key": "not-a-provider"})
+        invalid_boolean = client.patch("/api/settings", json={"clear_hf_token": "true"})
+        blank_provider = client.patch("/api/settings", json={"clear_provider_api_key": ""})
+    assert invalid_provider.status_code == 400
+    assert invalid_boolean.status_code == 400
+    assert blank_provider.status_code == 400
+
+
+def test_credential_removal_controls_are_visible_and_wired():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    assert 'id="clear-provider-api-key"' in html
+    assert 'id="clear-hf-token"' in html
+    assert "clear_provider_api_key" in js
+    assert "clear_hf_token" in js
+    assert "external environment" not in js.lower()
