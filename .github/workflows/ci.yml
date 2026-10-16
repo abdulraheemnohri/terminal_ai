@@ -13,7 +13,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The complete integration suite can exceed 15 minutes on a cold runner.
+    # Keep a hard upper bound while allowing the full suite to finish.
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -51,4 +53,5 @@ jobs:
           sh -n scripts/validate.sh
 
       - name: Run test suite
-        run: python -m pytest tests/ -v --color=yes
+        # Emit a traceback if an individual test stalls for two minutes.
+        run: python -m pytest tests/ -v --color=yes -o faulthandler_timeout=120
