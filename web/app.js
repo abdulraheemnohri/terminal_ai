@@ -203,7 +203,7 @@ async function loadProviderConfigurationStatus(){
    selector.value=providers.some(item=>item.id===selected)?selected:(data.active_provider||providers[0].id);
    $("custom-endpoint-field").hidden=!providers.find(item=>item.id===selector.value)?.endpoint_configurable;
   }
-  target.innerHTML=providers.map(item=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(item.label||item.id)+'</b><span class="badge '+(item.configured?'success':'')+'">'+(item.configured?'Configured':'Missing key')+'</span></div><p class="muted">'+escapeHtml(item.protocol||"Gemini API")+' · default '+escapeHtml(item.default_model||"provider default")+'</p></div>').join("")||'<div class="empty">No cloud providers are registered.</div>';
+  target.innerHTML=providers.map(item=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(item.label||item.id)+'</b><span class="badge '+(item.configured?'success':'')+'">'+(item.auth_required===false?'No key required':item.configured?'Configured':'Missing key')+'</span></div><p class="muted">'+escapeHtml(item.protocol||"Gemini API")+' · default '+escapeHtml(item.default_model||"fetch installed models")+(item.requires_network===false?' · local endpoint':'')+'</p></div>').join("")||'<div class="empty">No cloud providers are registered.</div>';
  }catch(error){target.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
 }
 $("refresh-provider-status")?.addEventListener("click",loadProviderConfigurationStatus);
