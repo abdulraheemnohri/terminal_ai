@@ -43,17 +43,25 @@ def main() -> int:
         path.name for path in ROOT.iterdir()
         if path.is_file() and path.suffix.lower() in {".sh", ".ps1"}
     ]
-    missing.extend(
-        f"scripts catalog entrypoint: scripts/{name}"
-        for name in legacy_scripts
-        if not (ROOT / "scripts" / name).is_file()
-    )
+    for name in legacy_scripts:
+        root_entry = ROOT / name
+        canonical = ROOT / "scripts" / name
+        if not canonical.is_file():
+            missing.append(f"scripts catalog entrypoint: scripts/{name}")
+            continue
+        wrapper_text = root_entry.read_text(encoding="utf-8", errors="replace")
+        canonical_text = canonical.read_text(encoding="utf-8", errors="replace")
+        target = f"scripts\\\\{name}" if name.lower().endswith(".ps1") else f"scripts/{name}"
+        if "Backwards-compatible wrapper" not in wrapper_text or target not in wrapper_text:
+            missing.append(f"root compatibility wrapper: {name}")
+        if "Compatibility forwarding entrypoint" in canonical_text:
+            missing.append(f"canonical implementation is still a wrapper: scripts/{name}")
     if missing:
         print("Project structure check failed:")
         for item in missing:
             print(f"  - missing {item}")
         return 1
-    print(f"Project structure OK: {len(REQUIRED_FILES)} required files, {len(REQUIRED_DIRS)} required directories, and {len(legacy_scripts)} legacy script entrypoints indexed.")
+    print(f"Project structure OK: {len(REQUIRED_FILES)} required files, {len(REQUIRED_DIRS)} required directories, and {len(legacy_scripts)} compatibility wrappers with canonical script implementations.")
     return 0
 
 
