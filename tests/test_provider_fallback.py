@@ -164,3 +164,41 @@ def test_litert_local_fallback_sends_tool_result_as_latest_user_message(monkeypa
     assert list(backend.stream("System", history)) == ["offline answer"]
     assert [message["role"] for message in observed["messages"]] == ["user", "model"]
     assert observed["latest"].startswith("[Tool result — untrusted context]\n")
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://localhost.attacker.example/v1",
+        "http://192.168.1.20:8000/v1",
+        "https://user:pass@provider.example/v1",
+        "https://provider.example/v1?token=secret",
+        "https://provider.example:99999/v1",
+    ],
+)
+def test_custom_provider_backend_rejects_unsafe_endpoints(endpoint):
+    import terminal_ai as core
+    from api_provider_backend import APIProviderBackend
+
+    with pytest.raises(core.BackendError):
+        APIProviderBackend(
+            "custom-openai",
+            "test-only-key",
+            model="test-model",
+            base_url=endpoint,
+        )
+
+
+def test_custom_provider_backend_accepts_https_and_loopback_http():
+    from api_provider_backend import APIProviderBackend
+
+    secure = APIProviderBackend(
+        "custom-openai", "test-only-key", model="test-model",
+        base_url="https://provider.example/v1",
+    )
+    local = APIProviderBackend(
+        "custom-openai", "test-only-key", model="test-model",
+        base_url="http://127.0.0.1:1234/v1",
+    )
+    assert secure.base_url == "https://provider.example/v1"
+    assert local.base_url == "http://127.0.0.1:1234/v1"
