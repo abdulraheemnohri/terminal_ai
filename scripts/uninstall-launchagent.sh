@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# Compatibility forwarding entrypoint. Canonical legacy implementation remains at repository root.
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TARGET="$ROOT/uninstall-launchagent.sh"
-[ -f "$TARGET" ] || { echo "Missing script: $TARGET" >&2; exit 1; }
-exec sh "$TARGET" "$@"
+PLIST="$HOME/Library/LaunchAgents/com.terminal-ai.server.plist"
+launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
+rm -f "$PLIST"
+echo "Terminal AI login startup removed. Project files and data were kept."
