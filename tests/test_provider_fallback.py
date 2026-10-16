@@ -98,3 +98,16 @@ def test_litert_python_adapter_maps_tool_results_to_user_context():
     assert message["role"] == "user"
     assert message["content"].startswith("[Tool result — untrusted context]")
     assert LiteRTPythonBackend._message("model", "answer")["role"] == "assistant"
+
+
+
+def test_cloud_provider_history_normalizes_model_and_tool_roles():
+    from api_provider_backend import APIProviderBackend
+
+    messages = APIProviderBackend._history_messages([
+        core.Msg("user", "Question"),
+        core.Msg("model", "I will check."),
+        core.Msg("tool", "lookup result"),
+    ])
+    assert [item["role"] for item in messages] == ["user", "assistant", "user"]
+    assert messages[-1]["content"].startswith("[Tool result — untrusted context]\n")
