@@ -85,3 +85,9 @@ These must be completed and verified before describing a deployment as enterpris
 - Optional integrations such as voice, image generation, external messaging channels, browser automation, and multi-agent coordination should be separate adapters with explicit configuration, not silently enabled capabilities.
 
 A feature is production-ready only when the API contract, UI behavior, permission checks, tests, documentation, and failure recovery are all present. A roadmap item or UI placeholder is not proof that a backend capability exists.
+
+## Dashboard control availability audit
+
+The Diagnostics view includes a read-only **Feature & control availability** audit. It probes liveness/readiness and the principal settings, provider/model, memory, goals, sessions, skills, tools, learning, backup, security, update, terminal approval, autonomy, browser, scheduler, knowledge, and WhatsApp Agent endpoints. It displays HTTP status and response latency only; it does not run shell commands, test provider credentials, reveal secrets, approve queued operations, or mutate application state. Treat a failed endpoint as a signal to inspect the route, access policy, and server logs—not as permission to bypass approval controls.
+
+The endpoint catalog is explicit and covered by tests/test_ui_control_integrity.py; when a new user-facing control API is introduced, update the catalog and its regression coverage.
