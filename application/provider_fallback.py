@@ -9,8 +9,9 @@ import terminal_ai as core
 class CloudFirstFallbackBackend(core.Backend):
     """Try each configured cloud backend in order, then local inference.
 
-    Fallback is allowed only before any output has been emitted. Once a stream
-    has produced text, an error is surfaced instead of duplicating partial output.
+    Each candidate response is buffered until it completes. A failed or empty
+    stream is discarded before trying the next provider, so partial text cannot
+    be mixed with the next provider's answer.
     """
 
     def __init__(self, clouds: Sequence[core.Backend], local: core.Backend | None):
@@ -28,23 +29,19 @@ class CloudFirstFallbackBackend(core.Backend):
         failures: list[str] = []
         for candidate in candidates:
             self._active = candidate
-            emitted = False
+            chunks: list[str] = []
             try:
-                for chunk in candidate.stream(system, history, tools):
-                    emitted = True
-                    self.label = getattr(candidate, "label", type(candidate).__name__)
-                    yield chunk
-                if not emitted:
+                chunks.extend(candidate.stream(system, history, tools))
+                if not any(chunk for chunk in chunks):
                     raise core.BackendError("provider returned an empty response")
+                self.label = getattr(candidate, "label", type(candidate).__name__)
+                yield from chunks
                 return
             except (KeyboardInterrupt, GeneratorExit):
                 raise
             except Exception as exc:
-                if emitted:
-                    candidate_name = getattr(candidate, "label", type(candidate).__name__)
-                    raise core.BackendError(
-                        f"{candidate_name} failed after partial output; refusing duplicate fallback output."
-                    ) from exc
+                # Nothing from this candidate has been yielded yet, so it is
+                # safe to discard its partial response and try the next one.
                 name = getattr(candidate, "label", type(candidate).__name__)
                 failures.append(f"{name}: {type(exc).__name__}")
         raise core.BackendError("All cloud providers and local inference failed: " + "; ".join(failures))
