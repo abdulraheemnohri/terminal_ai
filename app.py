@@ -1626,7 +1626,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     if isinstance(data.get("api_key"), str) and len(data["api_key"]) > 4096:
         raise HTTPException(status_code=400, detail="API key is too long.")
     clear_provider = data.get("clear_provider_api_key")
-    if clear_provider is not None and not isinstance(clear_provider, str):
+    if clear_provider is not None and (not isinstance(clear_provider, str) or not clear_provider.strip()):
         raise HTTPException(status_code=400, detail="clear_provider_api_key must be a registered provider ID.")
     if "clear_hf_token" in data and type(data["clear_hf_token"]) is not bool:
         raise HTTPException(status_code=400, detail="clear_hf_token must be a boolean.")
