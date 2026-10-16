@@ -42,7 +42,7 @@ def execute_approved_browser_operation(
     if operation is None:
         raise ValueError("Operation not found.")
     if operation.get("status") != "approved":
-        raise ValueError("Operation must have an unused approval from a human reviewer.")
+        raise ValueError("Operation must have an unused approval; an unused human approval is required.")
     if operation.get("tool") not in BROWSER_TOOL_NAMES:
         raise ValueError("This local dispatcher accepts browser tools only.")
 
