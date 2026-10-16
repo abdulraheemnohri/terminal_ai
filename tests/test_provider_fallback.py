@@ -85,7 +85,7 @@ def test_local_model_roles_never_include_tool_role():
     rendered = backend._render("System", history, None)
     assert "<|im_start|>tool" not in rendered
     assert "<|im_start|>assistant" in rendered
-    assert "<|im_start|>user\\n[Tool result — untrusted context]" in rendered
+    assert "<|im_start|>user\n[Tool result — untrusted context]" in rendered
 
     normalized = [backend._normalize_local_message(item)["role"] for item in history]
     assert normalized == ["user", "assistant", "user"]
