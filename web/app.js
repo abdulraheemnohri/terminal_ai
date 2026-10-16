@@ -187,6 +187,72 @@ loadProviders();loadDownloads();
 async function loadDiagnostics(){const list=$("diagnostic-list");list.innerHTML='<div class="empty">Running local checks…</div>';$("diagnostics-error").textContent="";try{const d=await api("/api/diagnostics");const sections=[["Application",d.application],["Backend",d.backend],["Storage",d.storage],["Runtime",d.runtime]];list.innerHTML=sections.map(([name,values])=>'<div class="list-item"><b>'+escapeHtml(name)+'</b>'+Object.entries(values||{}).map(([k,v])=>'<p><span class="muted">'+escapeHtml(k.replace(/_/g," "))+'</span>: '+escapeHtml(typeof v==="object"&&v!==null?JSON.stringify(v):v)+'</p>').join("")+'</div>').join("");}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
 $("refresh-diagnostics").addEventListener("click",loadDiagnostics);
 
+// Read-only service/control inventory. Keep this list explicit so new backend
+// control surfaces can be added deliberately and covered by regression tests.
+const CONTROL_AUDIT_ENDPOINTS=[
+ {label:"Liveness probe",path:"/healthz"},
+ {label:"Readiness probe",path:"/readyz"},
+ {label:"Runtime status",path:"/api/status"},
+ {label:"Diagnostics",path:"/api/diagnostics"},
+ {label:"Saved settings",path:"/api/settings"},
+ {label:"Provider registry",path:"/api/providers"},
+ {label:"Model inventory",path:"/api/models"},
+ {label:"Memory",path:"/api/memory"},
+ {label:"Goals",path:"/api/goals"},
+ {label:"Sessions",path:"/api/sessions"},
+ {label:"Skills",path:"/api/skills"},
+ {label:"Tool registry",path:"/api/tools"},
+ {label:"Learning records",path:"/api/learning"},
+ {label:"Improvement proposals",path:"/api/self/improvements"},
+ {label:"Backup controls",path:"/api/operations/backups"},
+ {label:"Security posture",path:"/api/security/status"},
+ {label:"Update status",path:"/api/updates/status"},
+ {label:"Terminal control",path:"/api/terminal/status"},
+ {label:"Command approval queue",path:"/api/control/pending?status=pending&limit=1"},
+ {label:"Agentic runtime",path:"/api/agentic/status"},
+ {label:"Autonomy worker",path:"/api/agentic/autonomy/status"},
+ {label:"Autonomy job queue",path:"/api/agentic/autonomy/jobs?limit=1"},
+ {label:"Browser control",path:"/api/browser/status"},
+ {label:"Scheduled tasks",path:"/api/scheduled-tasks"},
+ {label:"Knowledge base",path:"/api/knowledge"},
+ {label:"WhatsApp Agent Platform",path:"/api/whatsapp-agent/status"}
+];
+async function runControlAudit(){
+ const button=$("audit-controls-btn"),list=$("control-audit-list"),updated=$("audit-controls-updated");
+ if(!button||!list||!updated)return;
+ button.disabled=true;button.textContent="Checking…";updated.textContent="Checking "+CONTROL_AUDIT_ENDPOINTS.length+" read-only control endpoints…";
+ list.replaceChildren();
+ const results=await Promise.all(CONTROL_AUDIT_ENDPOINTS.map(async item=>{
+  const started=performance.now();
+  try{
+   const response=await fetch(item.path,{method:"GET",headers:{Accept:"application/json"},cache:"no-store"});
+   let detail="";
+   try{const data=await response.json();if(data&&typeof data.detail==="string")detail=data.detail.slice(0,180);}
+   catch(_){}
+   return {...item,ok:response.ok,status:response.status,elapsed:Math.round(performance.now()-started),detail};
+  }catch(error){return {...item,ok:false,status:0,elapsed:Math.round(performance.now()-started),detail:error.message||"Network request failed"};}
+ }));
+ let available=0;
+ for(const result of results){
+  if(result.ok)available++;
+  const item=document.createElement("div");item.className="list-item";
+  const head=document.createElement("div");head.style.display="flex";head.style.justifyContent="space-between";head.style.gap="12px";head.style.flexWrap="wrap";
+  const name=document.createElement("b");name.textContent=result.label;
+  const badge=document.createElement("span");badge.className="badge";badge.textContent=result.ok?"HTTP "+result.status:(result.status?"HTTP "+result.status:"Unreachable");
+  head.append(name,badge);
+  const endpoint=document.createElement("p");endpoint.className="muted";endpoint.textContent=result.path+" · "+result.elapsed+" ms";
+  item.append(head,endpoint);
+  if(result.detail){const detail=document.createElement("p");detail.className="muted";detail.textContent=result.detail;item.append(detail);}
+  list.append(item);
+ }
+ $("audit-controls-total").textContent=String(results.length);
+ $("audit-controls-available").textContent=String(available);
+ $("audit-controls-attention").textContent=String(results.length-available);
+ updated.textContent="Last checked "+new Date().toLocaleString()+". "+available+" of "+results.length+" endpoints responded successfully. HTTP errors indicate a missing, unavailable, or access-restricted route; inspect the endpoint and server logs before changing configuration.";
+ button.disabled=false;button.textContent="Run audit again";
+}
+$("audit-controls-btn")?.addEventListener("click",runControlAudit);
+
 async function fetchProviderModels({auto=false}={}) {
  const button=$("fetch-provider-models"),error=$("provider-model-error"),count=$("provider-model-count"),list=$("provider-model-options");
  if(!button||!error||!count||!list)return;
