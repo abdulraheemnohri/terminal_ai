@@ -435,3 +435,19 @@ def test_health_timeline_and_collection_search_are_served():
     assert css.status_code == 200
     assert ".health-timeline-chart" in css.text
     assert ".collection-search" in css.text
+
+
+
+def test_settings_rejects_localhost_prefix_spoofing_and_url_credentials():
+    unsafe_urls = [
+        "http://localhost.attacker.example/v1",
+        "http://127.0.0.1.attacker.example/v1",
+        "http://192.168.1.10:1234/v1",
+        "https://user:password@api.example.com/v1",
+        "https://api.example.com/v1?token=secret",
+        "https://api.example.com:99999/v1",
+    ]
+    with TestClient(app=app) as client:
+        for url in unsafe_urls:
+            response = client.patch("/api/settings", json={"custom_base_url": url})
+            assert response.status_code == 400, url
