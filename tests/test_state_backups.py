@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sqlite3
 import zipfile
 
 import pytest
@@ -74,3 +75,23 @@ def test_backup_directory_must_not_be_inside_state(tmp_path: Path):
     state.mkdir()
     with pytest.raises(BackupError, match="outside the state directory"):
         create_backup(state, state / "backups")
+
+
+def test_backup_uses_consistent_sqlite_snapshot(tmp_path: Path):
+    state = tmp_path / "state"
+    state.mkdir()
+    database = state / "memory.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE facts (value TEXT)")
+        connection.execute("INSERT INTO facts VALUES ('committed-in-wal')")
+        connection.commit()
+    output = tmp_path / "backups"
+    created = create_backup(state, output)
+    with zipfile.ZipFile(created["path"]) as archive:
+        restored_bytes = archive.read("state/memory.sqlite3")
+    restored = tmp_path / "snapshot.sqlite3"
+    restored.write_bytes(restored_bytes)
+    with sqlite3.connect(restored) as connection:
+        row = connection.execute("SELECT value FROM facts").fetchone()
+    assert row == ("committed-in-wal",)
