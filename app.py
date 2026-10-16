@@ -987,6 +987,31 @@ async def providers() -> dict[str, Any]:
 
 
 
+@post("/api/providers/models")
+async def discover_provider_models(data: dict[str, Any]) -> dict[str, Any]:
+    """Fetch available model IDs for the selected provider without running inference."""
+    _load_env()
+    provider_value = data.get("provider_id", "gemini")
+    api_key_value = data.get("api_key", "")
+    base_url_value = data.get("base_url", "")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
+    if not isinstance(base_url_value, str) or len(base_url_value) > 500:
+        raise HTTPException(status_code=400, detail="base_url must be text of at most 500 characters.")
+    from application.provider_models import ModelDiscoveryError, fetch_provider_models
+    try:
+        return await asyncio.to_thread(
+            fetch_provider_models,
+            provider_value.strip().lower(),
+            api_key=api_key_value,
+            base_url=base_url_value,
+        )
+    except ModelDiscoveryError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @post("/api/providers/test")
 async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
     _load_env()
