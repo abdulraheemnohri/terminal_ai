@@ -49,7 +49,7 @@ def _snapshot_file(path: Path) -> bytes:
         return b""
     with path.open("rb") as stream:
         header = stream.read(16)
-    if header != b"SQLite format 3\\x00":
+    if header[:15] != b"SQLite format 3" or header[15:16] != bytes([0]):
         return path.read_bytes()
     with tempfile.TemporaryDirectory(prefix="terminal-ai-sqlite-snapshot-") as directory:
         snapshot = Path(directory) / "snapshot.sqlite3"
