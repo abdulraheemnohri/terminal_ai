@@ -52,6 +52,19 @@ The project should implement comparable *workflow categories* where technically 
 
 Manual update helpers are `sh update.sh` and `./update.ps1`. They require a clean Git working tree and the expected official Git origin. The Windows updater additionally backs up local state when present, rejects diverged history, validates dependencies/source/tests, and restores the previous source commit if validation fails. Always review the update output and backup path.
 
+## Bounded autonomous decision loop
+
+The Self-X dashboard exposes `GET /api/agentic/autonomy/status` and `POST /api/agentic/autonomy/run`.
+
+- Uses task classification and the verified-outcome learning store to recommend a workflow strategy. This is an explainable, empirical strategy recommender—not model-weight training or a claim of general intelligence.
+- Automatically runs only registered read-only actions: bounded workspace file listing, learning-summary retrieval, and world-model summary retrieval.
+- Creates a persistent task plan for general work and records a decision/audit summary. It does not claim a plan is a completed task.
+- Detects common side-effect intent phrases and defers them. File writes, shell commands, browser actions, network requests, deployments, and high-risk work are not autonomously executed by this loop.
+- Does not change allowlists, permissions, approval policy, credentials, or global terminal auto-execution settings.
+- Uses bounded request sizes, action allowlists, and a capped SQLite history. An independent security review is still required before exposing these endpoints remotely.
+
+This is an initial autonomous control loop, not unrestricted autonomous execution. Broader autonomy requires explicit action adapters with their own validation, idempotency, timeout, resource limits, independent verification, and policy enforcement.
+
 ## Remaining production gates
 
 These must be completed and verified before describing a deployment as enterprise-grade:
