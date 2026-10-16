@@ -1,5 +1,6 @@
 from litestar.testing import TestClient
 
+import app as web_app
 from app import app
 
 
@@ -466,3 +467,56 @@ def test_provider_connection_test_rejects_unsafe_custom_endpoint_before_network(
         )
     assert response.status_code == 400
     assert "loopback" in response.json()["detail"]
+
+
+def test_provider_connection_test_rejects_oversized_or_mistyped_inputs():
+    with TestClient(app=app) as client:
+        oversized_key = client.post(
+            "/api/providers/test",
+            json={"provider_id": "custom-openai", "api_key": "k" * 4097, "model": "m", "base_url": "https://provider.example/v1"},
+        )
+        oversized_model = client.post(
+            "/api/providers/test",
+            json={"provider_id": "custom-openai", "api_key": "test-only-key", "model": "m" * 201, "base_url": "https://provider.example/v1"},
+        )
+        wrong_endpoint_type = client.post(
+            "/api/providers/test",
+            json={"provider_id": "custom-openai", "api_key": "test-only-key", "model": "m", "base_url": {"host": "provider.example"}},
+        )
+    assert oversized_key.status_code == 400
+    assert oversized_model.status_code == 400
+    assert wrong_endpoint_type.status_code == 400
+
+
+def test_settings_rejects_oversized_api_key_without_persisting():
+    with TestClient(app=app) as client:
+        before = client.get("/api/settings").json()
+        response = client.patch("/api/settings", json={"api_key": "k" * 4097})
+        after = client.get("/api/settings").json()
+    assert response.status_code == 400
+    assert before["active_provider"] == after["active_provider"]
+
+
+def test_null_secret_settings_are_ignored_not_stringified(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "settings.json")
+    monkeypatch.setattr(web_app.core, "HF_TOKEN_FILE", tmp_path / "hf-token")
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    env_writes = []
+
+    class FakeEnvManager:
+        def __init__(self, **kwargs):
+            pass
+
+        def load(self, *, apply=False):
+            return {}
+
+        def set(self, name, value, *, persist=False):
+            env_writes.append((name, value))
+            return True
+
+    monkeypatch.setattr(web_app.core, "EnvManager", FakeEnvManager)
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"api_key": None, "hf_token": None})
+    assert response.status_code == 200
+    assert env_writes == []
+    assert not (tmp_path / "hf-token").exists()
