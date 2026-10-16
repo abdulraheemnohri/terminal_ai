@@ -69,3 +69,21 @@ def test_provider_generation_settings_are_bounded():
     assert backend.top_p == 0
     assert backend.max_tokens == 32768
     assert backend.timeout == 180
+
+
+
+def test_ollama_backend_does_not_send_bearer_auth_when_key_is_optional(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["url"] = request.full_url
+        return FakeStreamResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    backend = APIProviderBackend(
+        "ollama", "", model="local-qwen", base_url="http://localhost:11434/v1",
+    )
+    list(backend.stream("", [core.Msg("user", "hello")]))
+    assert captured["url"] == "http://localhost:11434/v1/chat/completions"
+    assert captured["authorization"] is None
