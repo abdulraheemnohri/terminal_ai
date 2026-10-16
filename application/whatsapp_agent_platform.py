@@ -208,7 +208,6 @@ class WhatsAppAgentPlatform:
                 raise ValueError("Meta accepted the request without returning a message ID.") from None
             sent_ids.append(str(message_id))
             self._state["sent_count"] = int(self._state.get("sent_count", 0)) + 1
-        self._save()
         return sent_ids[-1] if sent_ids else ""
 
     async def test_connection(self) -> dict[str, Any]:
@@ -279,9 +278,13 @@ class WhatsAppAgentPlatform:
         if recipient != self._state.get("creator_id"):
             raise PermissionError("Outbound messages are restricted to the creator ID verified by Meta.")
         await self._send_text(recipient, message)
+        self._save()
         return {"sent": True, "status": self.status()}
 
-    async def _process_payload(self, payload: dict[str, Any]) -> None:
+    async def _process_payload(self, payload: dict[str, Any], *, previous_offset: int | None) -> None:
+        # Persist handled IDs while retaining the old cursor until the whole page is complete.
+        # If a later message fails, the page is fetched again and earlier IDs are deduplicated.
+        page_offset = self._state.get("next_offset")
         seen_list = list(self._state.get("seen_ids", []))
         seen = set(seen_list)
         for message in self._messages(payload):
@@ -294,10 +297,16 @@ class WhatsAppAgentPlatform:
             # Meta's read-receipt endpoint is the authoritative creator check.
             if not await self._mark_read(message_id):
                 seen.add(message_id)
+                self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
+                self._state["next_offset"] = previous_offset
+                self._save()
                 continue
             creator = self._state.get("creator_id")
             if creator and creator != sender:
                 seen.add(message_id)
+                self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
+                self._state["next_offset"] = previous_offset
+                self._save()
                 continue
             self._state["creator_id"] = sender
             message_type = message.get("type")
@@ -323,7 +332,11 @@ class WhatsAppAgentPlatform:
                 logger.warning("WhatsApp reply delivery failed; check connection status.")
                 raise
             seen.add(message_id)
-        self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
+            seen_list.append(message_id)
+            self._state["seen_ids"] = seen_list[-SEEN_LIMIT:]
+            self._state["next_offset"] = previous_offset
+            self._save()
+        self._state["next_offset"] = page_offset
         self._state["last_poll_at"] = int(time.time())
         self._state["last_error"] = ""
         self._save()
@@ -331,11 +344,13 @@ class WhatsAppAgentPlatform:
     async def _poll_loop(self) -> None:
         backoff = 2.0
         while self._state.get("enabled") and self._state.get("api_key"):
+            previous_offset = self._state.get("next_offset")
             try:
                 payload = await self._get_updates(timeout=POLL_TIMEOUT)
                 if payload is not None:
-                    await self._process_payload(payload)
+                    await self._process_payload(payload, previous_offset=previous_offset)
                 else:
+                    self._state["next_offset"] = previous_offset
                     self._state["last_poll_at"] = int(time.time())
                     self._save()
                 self._state["connected"] = True
@@ -344,6 +359,7 @@ class WhatsAppAgentPlatform:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                self._state["next_offset"] = previous_offset
                 self._state["connected"] = False
                 self._state["last_error"] = str(exc)[:300]
                 self._save()
