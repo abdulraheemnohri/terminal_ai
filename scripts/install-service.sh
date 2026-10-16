@@ -1,36 +1,22 @@
 #!/usr/bin/env sh
-# Install a per-user startup service for Terminal AI on Linux/macOS.
-# Run from any directory: sh scripts/install-service.sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cd "$ROOT"
-if [ ! -x "$ROOT/.venv/bin/python" ]; then
-  echo "Missing .venv/bin/python. Run sh install.sh first." >&2
-  exit 1
-fi
 PYTHON="$ROOT/.venv/bin/python"
-HOST="${TERMINAL_AI_HOST:-127.0.0.1}"
-PORT="${TERMINAL_AI_PORT:-8000}"
-case "$PORT" in *[!0-9]*|'') echo "TERMINAL_AI_PORT must be numeric." >&2; exit 1;; esac
-if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then echo "Port must be 1–65535." >&2; exit 1; fi
-
-case "$(uname -s)" in
-  Linux)
-    command -v systemctl >/dev/null 2>&1 || { echo "systemd is required for this installer." >&2; exit 1; }
-    SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-    mkdir -p "$SERVICE_DIR"
-    cat > "$SERVICE_DIR/terminal-ai.service" <<EOF
+if [ ! -x "$PYTHON" ]; then echo "Virtual environment not found. Run sh install.sh first." >&2; exit 1; fi
+if ! command -v systemctl >/dev/null 2>&1; then echo "systemd is not available. Use start-server.sh or your OS service manager." >&2; exit 1; fi
+SERVICE_DIR="$HOME/.config/systemd/user"
+mkdir -p "$SERVICE_DIR"
+cat > "$SERVICE_DIR/terminal-ai.service" <<EOF
 [Unit]
-Description=Terminal AI local agent web server
-After=network.target
+Description=Terminal AI local web agent
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=$ROOT
 Environment=PYTHONUNBUFFERED=1
-Environment=TERMINAL_AI_HOST=$HOST
-Environment=TERMINAL_AI_PORT=$PORT
-ExecStart=$PYTHON -m uvicorn app:app --host $HOST --port $PORT
+ExecStart=$PYTHON -m uvicorn app:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=20
@@ -40,48 +26,17 @@ UMask=0077
 [Install]
 WantedBy=default.target
 EOF
-    systemctl --user daemon-reload
-    systemctl --user enable --now terminal-ai.service
-    echo "Installed and started terminal-ai.service."
-    echo "Status: systemctl --user status terminal-ai.service"
-    echo "Logs:   journalctl --user -u terminal-ai.service -f"
-    echo "Stop:   systemctl --user disable --now terminal-ai.service"
-    if [ "${TERMINAL_AI_ENABLE_LINGER:-0}" = "1" ]; then
-      if command -v loginctl >/dev/null 2>&1; then
-        loginctl enable-linger "$USER" || echo "Could not enable lingering; service starts at user login." >&2
-      else
-        echo "loginctl unavailable; service starts at user login." >&2
-      fi
-    else
-      echo "Starts at user login. For boot-before-login, set TERMINAL_AI_ENABLE_LINGER=1 and rerun (system policy may require admin approval)."
-    fi
-    ;;
-  Darwin)
-    SERVICE_DIR="$HOME/Library/LaunchAgents"
-    mkdir -p "$SERVICE_DIR"
-    PLIST="$SERVICE_DIR/com.terminal-ai.server.plist"
-    cat > "$PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>Label</key><string>com.terminal-ai.server</string>
-<key>ProgramArguments</key><array><string>$PYTHON</string><string>-m</string><string>uvicorn</string><string>app:app</string><string>--host</string><string>$HOST</string><string>--port</string><string>$PORT</string></array>
-<key>WorkingDirectory</key><string>$ROOT</string>
-<key>RunAtLoad</key><true/>
-<key>KeepAlive</key><true/>
-<key>StandardOutPath</key><string>$HOME/Library/Logs/terminal-ai.log</string>
-<key>StandardErrorPath</key><string>$HOME/Library/Logs/terminal-ai-error.log</string>
-<key>Umask</key><integer>63</integer>
-</dict></plist>
-EOF
-    mkdir -p "$HOME/Library/Logs"
-    launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
-    launchctl bootstrap "gui/$(id -u)" "$PLIST"
-    echo "Installed launch agent; it starts at user login and restarts if it exits."
-    echo "Stop/unload: launchctl bootout gui/$(id -u) $PLIST"
-    ;;
-  *)
-    echo "Unsupported OS. Use systemd on Linux or launchd on macOS; Termux needs Termux:Boot." >&2
-    exit 1
-    ;;
-esac
+systemctl --user daemon-reload
+systemctl --user enable --now terminal-ai.service
+echo "Service enabled: systemctl --user status terminal-ai.service"
+echo "Dashboard: http://127.0.0.1:8000"
+echo "Disable: systemctl --user disable --now terminal-ai.service"
+if command -v loginctl >/dev/null 2>&1; then
+  if loginctl enable-linger "$USER" 2>/dev/null; then
+    echo "User lingering enabled: service can start at boot before interactive login."
+  else
+    echo "Could not enable lingering automatically. If boot-before-login startup is needed, run: loginctl enable-linger $USER" >&2
+  fi
+else
+  echo "loginctl unavailable; service starts when the user manager starts (usually at login)." >&2
+fi
