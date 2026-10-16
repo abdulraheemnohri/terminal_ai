@@ -1038,9 +1038,18 @@ async def providers() -> dict[str, Any]:
 @post("/api/providers/test")
 async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
     _load_env()
-    provider_id = str(data.get("provider_id", "gemini")).strip().lower()
-    model = str(data.get("model", "")).strip() or None
-    api_key = str(data.get("api_key", "")).strip()
+    provider_value = data.get("provider_id", "gemini")
+    model_value = data.get("model", "")
+    api_key_value = data.get("api_key", "")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    if not isinstance(model_value, str) or len(model_value) > 200:
+        raise HTTPException(status_code=400, detail="model must be text of at most 200 characters.")
+    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
+    provider_id = provider_value.strip().lower()
+    model = model_value.strip() or None
+    api_key = api_key_value.strip()
     started = time.time()
     try:
         if provider_id == "gemini":
@@ -1052,12 +1061,20 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
             if info is None:
                 raise HTTPException(status_code=400, detail="Unknown provider.")
             key = api_key or os.environ.get(info["env"], "")
-            endpoint = str(data.get("base_url", "")).strip() or None
-            if provider_id == "custom-openai" and endpoint:
-                try:
-                    endpoint = validate_custom_base_url(endpoint)
-                except SettingsValidationError as exc:
-                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            endpoint_value = data.get("base_url", "")
+            if provider_id == "custom-openai":
+                if not isinstance(endpoint_value, str):
+                    raise HTTPException(status_code=400, detail="base_url must be text.")
+                if len(endpoint_value) > 500:
+                    raise HTTPException(status_code=400, detail="Custom endpoint URL is too long.")
+                endpoint = endpoint_value.strip() or None
+                if endpoint:
+                    try:
+                        endpoint = validate_custom_base_url(endpoint)
+                    except SettingsValidationError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+            else:
+                endpoint = None
             backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
         answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
         backend.close()
