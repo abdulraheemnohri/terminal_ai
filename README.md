@@ -73,6 +73,7 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 - Local diagnostics, operational evaluation, research notes, goals, recovery checkpoints, and bounded maintenance profiles.
 - Task lifecycle records connecting a plan to an existing Command Control operation, recorded execution status, operator verification, and reviewed outcomes.
 - Bounded autonomous decision loop with a dashboard, adaptive strategy selection from verified outcomes, persistent run history, and automatic execution limited to registered read-only actions.
+- Durable SQLite autonomy job queue with a single background worker, progress/status tracking, cooperative cancellation, restart recovery, and at most two attempts per job; queued work still invokes only the bounded decision cycle.
 - Autonomous runs automatically create plans for general work; file changes, commands, external side effects, and elevated-risk tasks are deferred to the existing approval boundary.
 - Action summaries and audit events without exposing private chain-of-thought or secrets.
 
