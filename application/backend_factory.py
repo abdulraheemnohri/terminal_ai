@@ -63,7 +63,7 @@ def build_cloud_backends(
                 if provider is None:
                     continue
                 key = environment.get(provider["env"], "").strip()
-                if not key:
+                if not key and provider.get("auth") != "none":
                     continue
                 backend = APIProviderBackend(
                     provider_id=provider_id,
@@ -71,7 +71,7 @@ def build_cloud_backends(
                     model=selected_model if provider_id == selected_provider else None,
                     base_url=(
                         (settings.get("custom_base_url") or None)
-                        if provider_id == "custom-openai" else None
+                        if provider.get("endpoint_configurable") == "true" else None
                     ),
                     timeout=int(settings.get("provider_timeout_seconds", 60)),
                     temperature=float(settings.get("provider_temperature", 0.7)),
