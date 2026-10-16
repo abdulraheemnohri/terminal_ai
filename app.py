@@ -545,10 +545,13 @@ async def chat(data: ChatRequest) -> dict[str, Any]:
             inference_started = time.monotonic()
             try:
                 answer = await asyncio.to_thread(agent.turn, message)
+                # The cloud-first router updates its label to the provider that
+                # actually produced the answer (including local fallback).
+                backend_label = getattr(agent.backend, "label", backend_label)
             except Exception as exc:
                 stage("inference", "failed", inference_started, type(exc).__name__)
                 raise HTTPException(status_code=502, detail=f"Model request failed: {exc}") from exc
-            stage("inference", "completed", inference_started, "Model turn returned.")
+            stage("inference", "completed", inference_started, backend_label)
 
             archive_started = time.monotonic()
             try:
