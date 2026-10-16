@@ -54,4 +54,4 @@ jobs:
       - name: Run test suite
         # Fail fast so the workflow captures a useful traceback instead of continuing into a stalled test.
         # Dump thread stacks when a single test stalls for two minutes.
-        run: python -m pytest tests/ -v --color=yes -x -o faulthandler_timeout=120
+        run: python -m pytest tests/ -v --color=yes -x -o faulthandler_timeout=30
