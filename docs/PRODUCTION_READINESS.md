@@ -11,6 +11,7 @@ This document defines the production target for Terminal AI and distinguishes im
 - **Audit:** SQLite WAL, busy timeouts, append-only audit rows, and a hash chain with integrity verification. This detects changes to the stored chain but is not a signature against a privileged attacker who can rewrite the database and recompute hashes. Export critical audit records to a separately controlled destination.
 - **Skills:** import/export of versioned JSON/YAML procedure packages. Imported skill steps are untrusted text until reviewed; they are not executable Python or shell scripts.
 - **Memory and jobs:** local SQLite memory, conversation archive, persistent task scheduling, and optional ARQ/Redis offload for supported background maintenance jobs.
+- **Bounded autonomy jobs:** persistent SQLite queue, single-process background worker, status/progress endpoints, cooperative cancellation, restart recovery, and bounded retries. The worker only invokes registered read-only actions or creates plans; it does not execute planned steps.
 - **Self-X:** local diagnostics, deterministic evaluation, reviewed repair proposals, local research notes, goals, skill procedures, checksummed checkpoints, and bounded maintenance. It does not claim sentience or automatically rewrite source code.
 - **Operations:** per-user startup integrations for systemd, Windows Task Scheduler, macOS LaunchAgents, and optional Termux:Boot; opt-in project update helpers; local state backups; syntax/dependency/test validation before the updater restarts a configured service.
 
