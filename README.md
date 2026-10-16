@@ -51,7 +51,7 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 
 - Multi-turn chat, saved sessions, active-session restoration, and configurable response personas.
 - Provider configuration for Google Gemini, OpenAI, Anthropic Claude, OpenRouter, Groq, DeepSeek, Together AI, Mistral, xAI, Fireworks AI, Cerebras, and custom OpenAI-compatible endpoints.
-- Backend modes: **Auto**, **Cloud**, **Local**, and **Hybrid**.
+- Backend modes: **Auto**, **Cloud**, **Local**, and **Hybrid**. Auto/Hybrid try the selected cloud provider first, then other providers with configured credentials, and fall back to the installed local model only after cloud candidates fail. Cloud mode performs cloud-only failover; Local mode stays offline.
 - Local LiteRT-LM inference through the Python API when the installed runtime, model artifact, Python version, and platform are compatible.
 - Model catalog, explicit model-download requests, provider connection checks, and runtime diagnostics.
 - API keys and tokens are not returned by settings responses; keep real credentials in local environment configuration.
