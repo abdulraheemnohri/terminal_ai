@@ -1450,6 +1450,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         "self_max_goals_per_cycle", "self_autonomy_profile", "updates_enabled",
         "update_channel", "update_check_interval_hours", "long_term_memory_enabled",
         "conversation_archive_enabled", "workspace_tools_enabled", "scheduled_tasks_enabled", "hf_token", "api_key",
+        "clear_provider_api_key", "clear_hf_token",
     }
     unknown = sorted(set(data) - allowed_settings)
     if unknown:
@@ -1624,6 +1625,21 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="api_key must be text.")
     if isinstance(data.get("api_key"), str) and len(data["api_key"]) > 4096:
         raise HTTPException(status_code=400, detail="API key is too long.")
+    clear_provider = data.get("clear_provider_api_key")
+    if clear_provider is not None and (not isinstance(clear_provider, str) or not clear_provider.strip()):
+        raise HTTPException(status_code=400, detail="clear_provider_api_key must be a registered provider ID.")
+    if "clear_hf_token" in data and type(data["clear_hf_token"]) is not bool:
+        raise HTTPException(status_code=400, detail="clear_hf_token must be a boolean.")
+    if clear_provider and isinstance(data.get("api_key"), str) and data["api_key"].strip():
+        raise HTTPException(status_code=400, detail="Do not clear and replace a provider key in the same request.")
+    if data.get("clear_hf_token") and isinstance(data.get("hf_token"), str) and data["hf_token"].strip():
+        raise HTTPException(status_code=400, detail="Do not clear and replace the Hugging Face token in the same request.")
+    if data.get("clear_hf_token") is True:
+        try:
+            core.HF_TOKEN_FILE.unlink(missing_ok=True)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail="Could not remove the locally saved Hugging Face token.") from exc
+        os.environ.pop("HF_TOKEN", None)
     if isinstance(data.get("hf_token"), str) and data["hf_token"].strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
@@ -1635,6 +1651,16 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         except OSError:
             pass
         os.environ["HF_TOKEN"] = token
+    if clear_provider:
+        from api_provider_backend import PROVIDERS
+        valid_ids = {"gemini", *PROVIDERS.keys()}
+        if clear_provider not in valid_ids:
+            raise HTTPException(status_code=400, detail="Unknown provider for API-key removal.")
+        env_name = "GEMINI_API_KEY" if clear_provider == "gemini" else PROVIDERS[clear_provider]["env"]
+        manager = core.EnvManager(env_file=ROOT / ".env", workspace=ROOT)
+        manager.load(apply=True)
+        manager.unset(env_name, persist=True)
+        os.environ.pop(env_name, None)
     if isinstance(data.get("api_key"), str) and data["api_key"].strip():
         provider_id = str(current.get("active_provider", "gemini"))
         if provider_id == "gemini":

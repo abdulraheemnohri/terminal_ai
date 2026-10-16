@@ -389,6 +389,32 @@ async function loadSettings(){
   if(configured[data.active_provider])await fetchProviderModels({auto:true});
  }catch(e){$("settings-error").textContent=e.message;}
 }
+async function clearSelectedProviderKey(){
+ const provider=$("setting-provider").value;
+ if(!provider)return;
+ const label=$("setting-provider").selectedOptions[0]?.textContent||provider;
+ if(!confirm("Remove the saved API key for "+label+" from this Terminal AI process and local .env file? This cannot edit environment variables configured outside Terminal AI."))return;
+ const button=$("clear-provider-api-key"),status=$("credential-action-status");
+ button.disabled=true;status.textContent="Removing provider key…";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify({clear_provider_api_key:provider})});
+  $("setting-api-key").value="";status.textContent="Provider key removed from local .env/current process. Refreshing status…";
+  await loadSettings();status.textContent="Provider key removed. Check provider status below.";
+ }catch(error){status.textContent="";$("settings-error").textContent=error.message;}
+ finally{button.disabled=false;}
+}
+$("clear-provider-api-key")?.addEventListener("click",clearSelectedProviderKey);
+$("clear-hf-token")?.addEventListener("click",async()=>{
+ if(!confirm("Remove the saved Hugging Face token file and clear HF_TOKEN from this process?"))return;
+ const button=$("clear-hf-token");button.disabled=true;$("settings-error").textContent="";
+ try{
+  await api("/api/settings",{method:"PATCH",body:JSON.stringify({clear_hf_token:true})});
+  $("setting-hf-token").value="";$("hf-token-state").textContent="No Hugging Face token saved locally.";
+  $("settings-saved").textContent="Hugging Face token removed from local state/current process.";
+ }catch(error){$("settings-error").textContent=error.message;}
+ finally{button.disabled=false;}
+});
+
 $("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=!["custom-openai","ollama","lm-studio","vllm"].includes($("setting-provider").value);$("provider-model-options")?.replaceChildren();$("provider-model-count").textContent="Provider changed · model list not loaded";$("provider-model-error").textContent="";fetchProviderModels({auto:true});});
 
 let latestUpdateInfo=null;
