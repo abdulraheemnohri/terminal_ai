@@ -237,53 +237,83 @@ def _build_agent() -> core.Agent:
     provider_id = str(settings_data.get("active_provider", "gemini"))
     provider_model = str(settings_data.get("provider_model", "")).strip() or None
 
+    cloud_backends: list[core.Backend] = []
+    local: core.Backend | None = None
+    mode = settings_data["mode"]
+
+    # Build a deterministic cloud order: selected provider first, then every
+    # other configured provider. Missing credentials are skipped, never logged.
     if mode in {"auto", "cloud", "hybrid"}:
-        try:
-            if provider_id == "gemini":
-                if not key:
-                    raise core.BackendError("Missing GEMINI_API_KEY. Configure it in Settings.")
-                cloud = core.GeminiBackend(
-                    model=provider_model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"),
-                    api_key=key,
-                )
-            else:
-                from api_provider_backend import APIProviderBackend, PROVIDERS
-                provider = PROVIDERS.get(provider_id)
-                if provider is None:
-                    raise core.BackendError(f"Unsupported cloud provider: {provider_id}")
-                provider_key = os.environ.get(provider["env"], "")
-                if not provider_key:
-                    raise core.BackendError(f"Missing API key for {provider['label']}. Configure it in Settings.")
-                cloud = APIProviderBackend(
-                    provider_id=provider_id,
-                    api_key=provider_key,
-                    model=provider_model,
-                    base_url=(settings_data.get("custom_base_url") or None) if provider_id == "custom-openai" else None,
-                )
-        except Exception as exc:
-            _ENGINE_ERROR = f"Cloud backend unavailable: {exc}"
+        from api_provider_backend import APIProviderBackend, PROVIDERS
+
+        provider_order = [provider_id]
+        provider_order.extend(
+            name for name in ["gemini", *PROVIDERS.keys()]
+            if name not in provider_order
+        )
+        for candidate_id in provider_order:
+            try:
+                if candidate_id == "gemini":
+                    candidate_key = _gemini_key()
+                    if not candidate_key:
+                        continue
+                    candidate = core.GeminiBackend(
+                        model=(
+                            provider_model if candidate_id == provider_id and provider_model
+                            else os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash")
+                        ),
+                        api_key=candidate_key,
+                    )
+                else:
+                    provider = PROVIDERS.get(candidate_id)
+                    if provider is None:
+                        continue
+                    candidate_key = os.environ.get(provider["env"], "").strip()
+                    if not candidate_key:
+                        continue
+                    candidate = APIProviderBackend(
+                        provider_id=candidate_id,
+                        api_key=candidate_key,
+                        model=(
+                            provider_model if candidate_id == provider_id and provider_model
+                            else None
+                        ),
+                        base_url=(
+                            (settings_data.get("custom_base_url") or None)
+                            if candidate_id == "custom-openai" else None
+                        ),
+                    )
+                cloud_backends.append(candidate)
+            except Exception as exc:
+                # Do not expose credentials or raw request data in diagnostics.
+                logger.warning("Cloud provider %s could not initialize (%s)", candidate_id, type(exc).__name__)
 
     if local_path and mode in {"auto", "local", "hybrid"}:
         try:
             from litert_api_backend import LiteRTPythonBackend
             local = LiteRTPythonBackend(local_path)
         except Exception as exc:
-            if not _ENGINE_ERROR:
-                _ENGINE_ERROR = f"Local backend unavailable: {exc}"
+            logger.warning("Local backend could not initialize (%s)", type(exc).__name__)
+            if not cloud_backends:
+                _ENGINE_ERROR = f"Local backend unavailable: {type(exc).__name__}"
 
-    if mode == "cloud":
-        backend = cloud
-    elif mode == "local":
-        backend = local
-    elif mode == "hybrid":
-        backend = core.HybridBackend(cloud, local, router) if cloud or local else None
+    if mode == "local":
+        backend: core.Backend | None = local
+    elif mode == "cloud":
+        backend = cloud_backends[0] if cloud_backends else None
+    elif mode in {"auto", "hybrid"}:
+        from application.provider_fallback import CloudFirstFallbackBackend
+        backend = CloudFirstFallbackBackend(
+            cloud_backends,
+            local if mode in {"auto", "hybrid"} else None,
+        ) if cloud_backends or local else None
     else:
-        backend = core.HybridBackend(cloud, local, router) if cloud and local else (cloud or local)
+        backend = None
 
     if backend is None:
         _BACKEND = None
         detail = _ENGINE_ERROR or (
-            "No model backend is available. Configure GEMINI_API_KEY in .env, "
+            "No model backend is available. Configure one or more cloud provider API keys, "
             "or install LiteRT-LM and place a compatible .litertlm model in the models directory."
         )
         raise RuntimeError(detail)
