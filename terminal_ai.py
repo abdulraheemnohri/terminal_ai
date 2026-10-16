@@ -2398,8 +2398,10 @@ class LiteRTBackend(Backend):
             if full_sys:
                 out.append(f"<|im_start|>system\n{full_sys}<|im_end|>\n")
             for m in history:
-                role = "assistant" if m.role in ("model", "assistant") else m.role
-                out.append(f"<|im_start|>{role}\n{m.text}<|im_end|>\n")
+                normalized = self._normalize_local_message(m)
+                role = normalized["role"]
+                text = normalized["content"]
+                out.append(f"<|im_start|>{role}\n{text}<|im_end|>\n")
             out.append("<|im_start|>assistant\n")
             return "".join(out)
         out, sys_txt = [], (system or "").strip()
@@ -2410,7 +2412,9 @@ class LiteRTBackend(Backend):
             if i == 0 and m.role == "user" and sys_txt:
                 text = f"{sys_txt}\n\n{text}"
                 sys_txt = ""
-            role = "user" if m.role == "user" else "model"
+            normalized = self._normalize_local_message(m)
+            role = "user" if normalized["role"] == "user" else "model"
+            text = normalized["content"]
             out.append(f"<start_of_turn>{role}\n{text.strip()}<end_of_turn>\n")
         out.append("<start_of_turn>model\n")
         return "".join(out)
