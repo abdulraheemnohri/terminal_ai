@@ -63,7 +63,7 @@ The Self-X dashboard exposes `GET /api/agentic/autonomy/status` and `POST /api/a
 - Does not change allowlists, permissions, approval policy, credentials, or global terminal auto-execution settings.
 - Uses bounded request sizes, action allowlists, and a capped SQLite history. An independent security review is still required before exposing these endpoints remotely.
 
-This is an initial autonomous control loop, not unrestricted autonomous execution. Broader autonomy requires explicit action adapters with their own validation, idempotency, timeout, resource limits, independent verification, and policy enforcement.
+This is an initial autonomous control loop, not unrestricted autonomous execution. Broader autonomy requires explicit action adapters with their own validation, idempotency, timeout, resource limits, independent verification, and policy enforcement. The run history is operational metadata; do not store secrets or sensitive personal data in goal text.
 
 ## Remaining production gates
 
