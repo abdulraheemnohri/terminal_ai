@@ -127,14 +127,23 @@ class AutonomyEngine:
         signals["learning"] = recommendation
 
         # Mutating, external, or high-risk work never enters the autonomous executor.
-        needs_review = has_external_side_effects or risk in {"medium", "high", "critical"} or risk == "low"
+        action_intent_markers = (
+            "write ", "delete ", "remove ", "modify ", "change ", "edit ",
+            "send ", "purchase ", "deploy ", "install ", "execute ", "run command",
+            "commit ", "push ", "restart ", "upload ", "email ", "publish ",
+        )
+        inferred_side_effects = any(marker in goal.casefold() for marker in action_intent_markers)
+        needs_review = (has_external_side_effects or inferred_side_effects
+                        or risk in {"low", "medium", "high", "critical"})
         if needs_review and chosen != "plan_task":
             chosen = "plan_task"
 
-        if chosen == "workspace_overview" and not needs_review:
+        if chosen == "workspace_overview" and not needs_review and self.workspace is not None:
             result = {"files": self.workspace.list_files("."), "count_limit": 500,
                       "executed_action": "workspace_overview", "read_only": True}
             decision, status = "auto_execute_allowlisted_read_only", "completed"
+        elif chosen == "workspace_overview" and self.workspace is None and not needs_review:
+            raise ValueError("workspace tools are not available in this application context")
         elif chosen == "learning_summary" and not needs_review:
             result = {"learning": self.learning.summary(), "executed_action": "learning_summary",
                       "read_only": True}
