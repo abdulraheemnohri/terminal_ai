@@ -451,3 +451,18 @@ def test_settings_rejects_localhost_prefix_spoofing_and_url_credentials():
         for url in unsafe_urls:
             response = client.patch("/api/settings", json={"custom_base_url": url})
             assert response.status_code == 400, url
+
+
+def test_provider_connection_test_rejects_unsafe_custom_endpoint_before_network():
+    with TestClient(app=app) as client:
+        response = client.post(
+            "/api/providers/test",
+            json={
+                "provider_id": "custom-openai",
+                "api_key": "test-only-key",
+                "model": "test-model",
+                "base_url": "http://localhost.attacker.example/v1",
+            },
+        )
+    assert response.status_code == 400
+    assert "loopback" in response.json()["detail"]
