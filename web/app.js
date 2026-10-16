@@ -195,7 +195,14 @@ async function loadProviderConfigurationStatus(){
  if(!target)return;
  try{
   const data=await api("/api/providers");
-  const providers=(data.providers||[]).filter(item=>item.kind==="cloud");
+  const providers=(data.providers||[]).filter(item=>item.kind==="cloud"&&item.id&&item.label);
+  const selector=$("setting-provider");
+  if(selector&&providers.length){
+   const selected=selector.value||data.active_provider||"gemini";
+   selector.replaceChildren(...providers.map(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=item.label;return option;}));
+   selector.value=providers.some(item=>item.id===selected)?selected:(data.active_provider||providers[0].id);
+   $("custom-endpoint-field").hidden=selector.value!=="custom-openai";
+  }
   target.innerHTML=providers.map(item=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(item.label||item.id)+'</b><span class="badge '+(item.configured?'success':'')+'">'+(item.configured?'Configured':'Missing key')+'</span></div><p class="muted">'+escapeHtml(item.protocol||"Gemini API")+' · default '+escapeHtml(item.default_model||"provider default")+'</p></div>').join("")||'<div class="empty">No cloud providers are registered.</div>';
  }catch(error){target.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
 }
