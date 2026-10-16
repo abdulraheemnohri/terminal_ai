@@ -353,3 +353,5 @@ Backups can contain sensitive state and credentials; keep them in a private dire
 ---
 
 **Contributions and bug reports:** please include your operating system, Python version, reproducible steps, relevant redacted logs, and whether the issue occurs with cloud or local inference. Never attach secrets or private conversation data.
+
+- The Model Inventory supports explicitly confirmed removal of installed local `.litertlm` files, with path containment checks and safeguards against active downloads or a loaded local backend.
