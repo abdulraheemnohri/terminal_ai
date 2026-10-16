@@ -84,6 +84,7 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 - The WhatsApp agent API key is stored in the private local state directory with restrictive permissions and is never returned by the status API. Only the verified creator is eligible for replies; the connector does not read other WhatsApp chats.
 - Media, voice notes, attachments, reactions, and proactive delivery are not implemented in this version. WhatsApp third-party agent conversations are **not end-to-end encrypted** and messages are processed by Meta and the configured AI backend. Review the [official developer manual](https://www.whatsapp.com/developer/WhatsApp-Agent-Platform-Developer-Manual.pdf), [third-party agent terms](https://www.whatsapp.com/legal/third-party-agents-terms), and [Help Center](https://faq.whatsapp.com/1050934623978152).
 - See [WhatsApp Agent Platform setup and API notes](docs/WHATSAPP_AGENT_PLATFORM.md).
+- Provider API keys and Hugging Face tokens can be explicitly removed from local state using the [credential management controls](docs/CREDENTIAL_MANAGEMENT.md); external service environment sources must be updated separately.
 
 ### Human control and operations
 
