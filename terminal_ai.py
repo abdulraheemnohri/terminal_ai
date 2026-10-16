@@ -2339,7 +2339,7 @@ class LiteRTBackend(Backend):
     def _normalize_local_message(message: Msg) -> dict[str, str]:
         """Map internal roles to the user/model roles accepted by local engines."""
         if message.role in {"model", "assistant"}:
-            return {"role": "assistant", "content": message.text}
+            return {"role": "model", "content": message.text}
         if message.role == "tool":
             return {"role": "user", "content": "[Tool result — untrusted context]\\n" + message.text}
         return {"role": "user", "content": message.text}
@@ -2399,7 +2399,7 @@ class LiteRTBackend(Backend):
                 out.append(f"<|im_start|>system\n{full_sys}<|im_end|>\n")
             for m in history:
                 normalized = self._normalize_local_message(m)
-                role = normalized["role"]
+                role = "assistant" if normalized["role"] == "model" else "user"
                 text = normalized["content"]
                 out.append(f"<|im_start|>{role}\n{text}<|im_end|>\n")
             out.append("<|im_start|>assistant\n")
