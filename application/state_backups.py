@@ -81,10 +81,19 @@ def list_backups(backup_dir: Path | None = None) -> dict[str, Any]:
     root = (backup_dir or default_backup_dir()).expanduser().resolve()
     items = []
     if root.is_dir():
-        for path in sorted(root.glob("terminal-ai-state-*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)[:100]:
-            if path.is_symlink() or not path.is_file():
+        candidates = []
+        for path in root.glob("terminal-ai-state-*.zip"):
+            try:
+                if path.is_symlink() or not path.is_file():
+                    continue
+                candidates.append((path.stat().st_mtime, path))
+            except OSError:
                 continue
-            stat_result = path.stat()
+        for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)[:100]:
+            try:
+                stat_result = path.stat()
+            except OSError:
+                continue
             items.append({
                 "name": path.name,
                 "size_bytes": stat_result.st_size,
@@ -154,6 +163,8 @@ def create_backup(state_dir: Path, backup_dir: Path | None = None) -> dict[str, 
 
 def validate_backup(name: str, state_dir: Path, backup_dir: Path | None = None) -> dict[str, Any]:
     path = _safe_backup_path(name, backup_dir)
+    if path.stat().st_size > MAX_TOTAL_BYTES + 20 * 1024 * 1024:
+        raise BackupError("Backup archive exceeds the compressed-size safety limit.")
     state = state_dir.expanduser().resolve()
     try:
         with zipfile.ZipFile(path, "r") as archive:
@@ -162,6 +173,8 @@ def validate_backup(name: str, state_dir: Path, backup_dir: Path | None = None) 
                 raise BackupError("Backup contains duplicate archive members.")
             if names.count("manifest.json") != 1:
                 raise BackupError("Backup must contain exactly one manifest.")
+            if archive.getinfo("manifest.json").file_size > 5 * 1024 * 1024:
+                raise BackupError("Backup manifest exceeds the 5 MiB safety limit.")
             manifest = json.loads(archive.read("manifest.json"))
             if not isinstance(manifest, dict):
                 raise BackupError("Unsupported backup manifest.")
