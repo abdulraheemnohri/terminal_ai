@@ -26,6 +26,22 @@ terminal_ai/
 
 The first extraction is now implemented in `application/container.py`: `RuntimeServices` constructs the long-lived memory, workspace, scheduler, and command-control services from explicit filesystem roots. `app.py` keeps compatibility aliases while route modules are migrated incrementally.
 
+## Root-level Python module inventory
+
+The following modules remain at the repository root because they are public import surfaces used by the current app and test suite. Keep them stable during refactors; extract implementations behind compatibility imports rather than moving them in bulk.
+
+| Module | Responsibility |
+|---|---|
+| `app.py` | Litestar application composition and lifecycle |
+| `terminal_ai.py` | Legacy-compatible agent/runtime API |
+| `terminal_ai_runtime.py`, `agentic_runtime.py`, `agentic_features.py` | Runtime wiring and agentic feature coordination |
+| `command_control.py`, `api_schemas.py` | Approval policy, audit, and API contracts |
+| `memory_store.py` | Persistent memory compatibility layer |
+| `workspace_tools.py`, `task_scheduler.py` | Constrained workspace actions and scheduled tasks |
+| `selfx_engine.py` | Diagnostics, checkpoints, and bounded self-maintenance |
+| `litert_api_backend.py`, `api_provider_backend.py` | Local LiteRT and external provider adapters |
+| `arq_worker.py`, `maintenance_worker.py` | Background worker entrypoints |
+
 ## Operational script organization
 
 Operational implementations are canonical under `scripts/`: installation, update, service management, login/boot autostart, backup/restore, diagnostics, and validation. Root-level `.sh` and `.ps1` files are compatibility wrappers only. This keeps existing documented commands and desktop shortcuts working without maintaining duplicate implementations.
