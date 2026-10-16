@@ -29,6 +29,7 @@
     <button data-view="learning"><span class="ico">↗</span><span class="nav-text">Learning</span></button>
     <button data-view="improvements"><span class="ico">⟳</span><span class="nav-text">Self-improve</span></button>
     <button data-view="selfx"><span class="ico">⟲</span><span class="nav-text">Self-X Engine</span></button>
+    <button data-view="whatsapp-agent"><span class="ico">☏</span><span class="nav-text">WhatsApp Agent</span></button>
     <button data-view="settings"><span class="ico">⚙</span><span class="nav-text">Settings</span></button>
   </nav></div>
   <div class="side-foot"><span class="dot"></span><b id="side-state">Web interface</b><br>Local state storage<br><span id="side-version">Loading version…</span></div>
@@ -288,6 +289,52 @@
       </article>
       <article class="card span-12"><div class="card-head"><h2>Human approval boundary</h2><span class="badge">Required</span></div><p>Approval and execution are distinct operations. This panel only creates plan previews and evidence observations; it does not launch browser actions, tools, shell commands, or scheduled jobs.</p><div class="row"><button class="btn primary" data-go="command-control">Open Command Control Center</button><button class="btn" data-go="learning">Review learning dashboard</button><button class="btn" data-go="improvements">Review skill proposals</button></div><div id="agentic-console-error" class="error"></div></article>
       <article class="card span-12"><div class="card-head"><h2>Self-X capabilities and activity</h2></div><div class="list" id="selfx-capabilities"></div><div class="list" id="selfx-events"></div></article>
+    </div>
+  </section>
+
+  <section class="view" id="view-whatsapp-agent">
+    <div class="grid">
+      <article class="card span-12">
+        <div class="card-head"><div><h2>WhatsApp Agent Platform</h2><p class="muted">Connect an agent created in WhatsApp Settings → Agents using its Agent API key. This is not QR pairing or WhatsApp Business Cloud API.</p></div><span class="badge" id="wa-agent-state">Not configured</span></div>
+        <div class="notice warning" role="note"><strong>Privacy notice:</strong> WhatsApp says third-party agent chats are not end-to-end encrypted. Messages you send here are processed by Meta and forwarded to your configured AI backend. Avoid sharing passwords, financial details, or other sensitive information. Only enable this integration if you understand and accept these terms.</div>
+        <div class="notice">This v1 supports text messages only. Media, voice notes, files, reactions, and proactive scheduled delivery are not enabled. WhatsApp Agent availability is limited by Meta's rollout. You can connect up to five agents in your WhatsApp account; this setting configures one agent key for this Terminal AI instance.</div>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><h2>Connection settings</h2><button class="btn" id="wa-agent-refresh" type="button">Refresh status</button></div>
+        <form id="wa-agent-config-form">
+          <div class="field"><label for="wa-agent-api-key">Agent API key</label><input id="wa-agent-api-key" type="password" autocomplete="new-password" maxlength="4096" placeholder="Paste key from WhatsApp agent chat info"><p>In WhatsApp: Settings → Agents → open your agent chat → Chat info → API key. The key is stored locally with restricted file permissions and is never returned to the browser.</p></div>
+          <label class="toggle-row"><input id="wa-agent-enabled" type="checkbox"><span><strong>Enable WhatsApp polling</strong><small>Start or stop the background long-poll worker for this agent key.</small></span></label>
+          <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" type="submit">Save settings</button><button class="btn" id="wa-agent-test" type="button">Test connection</button><button class="btn danger" id="wa-agent-remove-key" type="button">Remove key & disconnect</button></div>
+          <div id="wa-agent-config-result" class="error" role="status" aria-live="polite"></div>
+        </form>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><h2>Live status</h2><span class="muted">Local runtime</span></div>
+        <div class="metrics">
+          <article class="card metric-card"><div class="muted">Connection</div><div class="metric" id="wa-agent-connected">—</div></article>
+          <article class="card metric-card"><div class="muted">Received</div><div class="metric" id="wa-agent-received">0</div></article>
+          <article class="card metric-card"><div class="muted">Replies sent</div><div class="metric" id="wa-agent-sent">0</div></article>
+          <article class="card metric-card"><div class="muted">Creator verified</div><div class="metric" id="wa-agent-creator">Not yet</div></article>
+        </div>
+        <div class="field"><label>Last poll</label><p id="wa-agent-last-poll" class="muted">Never</p></div>
+        <div class="field"><label>Last message</label><p id="wa-agent-last-message" class="muted">None yet</p></div>
+        <div class="field"><label>Last connection error</label><pre id="wa-agent-last-error" style="white-space:pre-wrap;overflow-wrap:anywhere">None</pre></div>
+      </article>
+      <article class="card span-12">
+        <div class="card-head"><h2>Send a text message</h2><span class="badge">Creator only</span></div>
+        <p class="muted">Outbound delivery is restricted to the creator ID verified by Meta after the first inbound message. Send a message from the WhatsApp agent chat first to establish that identity.</p>
+        <form id="wa-agent-send-form"><div class="field"><label for="wa-agent-message">Message</label><textarea id="wa-agent-message" rows="3" maxlength="20000" required placeholder="Write a message to send to your verified WhatsApp agent creator"></textarea></div><button class="btn primary" type="submit">Send message</button><div id="wa-agent-send-result" role="status" aria-live="polite"></div></form>
+      </article>
+      <article class="card span-12">
+        <div class="card-head"><h2>Setup guide & limits</h2></div>
+        <ol>
+          <li>In WhatsApp, open <strong>Settings → Agents</strong> and create or open your agent.</li>
+          <li>Open that agent's chat, go to <strong>Chat info → API key</strong>, and copy the key.</li>
+          <li>Paste the key above, save it, then enable polling. The key remains local and is not displayed again.</li>
+          <li>Send a new text message in the agent's WhatsApp chat. Terminal AI verifies the sender with Meta before processing the message and replying.</li>
+        </ol>
+        <p class="muted">One poller per agent API key. The API key authenticates the agent, not a WhatsApp QR session. This connector does not access other WhatsApp chats. Check the <a href="https://www.whatsapp.com/developer/WhatsApp-Agent-Platform-Developer-Manual.pdf" target="_blank" rel="noopener noreferrer">official developer manual</a>, <a href="https://www.whatsapp.com/legal/third-party-agents-terms" target="_blank" rel="noopener noreferrer">third-party agent terms</a>, and <a href="https://faq.whatsapp.com/1050934623978152" target="_blank" rel="noopener noreferrer">WhatsApp Help Center</a> for current eligibility and terms.</p>
+      </article>
     </div>
   </section>
 
