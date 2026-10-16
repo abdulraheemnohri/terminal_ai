@@ -35,7 +35,9 @@ class APIProviderBackend(core.Backend):
     supports_tools = False
 
     def __init__(self, provider_id: str, api_key: str, model: str | None = None,
-                 base_url: str | None = None, timeout: int = 90):
+                 base_url: str | None = None, timeout: int = 90,
+                 temperature: float = 0.7, top_p: float = 0.95,
+                 max_tokens: int = 2048):
         if provider_id not in PROVIDERS:
             raise core.BackendError(f"Unsupported API provider: {provider_id}")
         self.provider_id = provider_id
@@ -53,7 +55,10 @@ class APIProviderBackend(core.Backend):
         self.base_url = configured_base_url.rstrip("/")
         if not self.base_url or not self.model:
             raise core.BackendError("Custom API provider requires both a base URL and model ID.")
-        self.timeout = max(10, min(int(timeout), 300))
+        self.timeout = max(5, min(int(timeout), 180))
+        self.temperature = max(0.0, min(2.0, float(temperature)))
+        self.top_p = max(0.0, min(1.0, float(top_p)))
+        self.max_tokens = max(64, min(32768, int(max_tokens)))
         self.label = f"{self.config['label']} · {self.model}"
 
     @staticmethod
@@ -78,7 +83,7 @@ class APIProviderBackend(core.Backend):
         messages.extend(self._history_messages(history))
         if self.config["protocol"] == "anthropic":
             url = self.base_url + "/messages"
-            body = {"model": self.model, "max_tokens": 2048, "stream": True, "messages":
+            body = {"model": self.model, "max_tokens": self.max_tokens, "stream": True, "messages":
                     [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]}
             if system:
                 body["system"] = system
@@ -87,7 +92,8 @@ class APIProviderBackend(core.Backend):
         else:
             url = self.base_url + "/chat/completions"
             body = {"model": self.model, "messages": messages, "stream": True,
-                    "temperature": 0.7}
+                    "temperature": self.temperature, "top_p": self.top_p,
+                    "max_tokens": self.max_tokens}
             headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
             if self.provider_id == "openrouter":
                 headers["HTTP-Referer"] = "http://localhost"
@@ -113,7 +119,7 @@ class APIProviderBackend(core.Backend):
         if not messages:
             return
         if self.config["protocol"] == "anthropic":
-            body = {"model": self.model, "max_tokens": 2048, "stream": True,
+            body = {"model": self.model, "max_tokens": self.max_tokens, "stream": True,
                     "messages": [m for m in messages if m["role"] != "system"]}
             if system:
                 body["system"] = system
@@ -121,7 +127,9 @@ class APIProviderBackend(core.Backend):
             headers = {"x-api-key": self.api_key, "anthropic-version": "2023-06-01",
                        "content-type": "application/json"}
         else:
-            body = {"model": self.model, "messages": messages, "stream": True, "temperature": 0.7}
+            body = {"model": self.model, "messages": messages, "stream": True,
+                    "temperature": self.temperature, "top_p": self.top_p,
+                    "max_tokens": self.max_tokens}
             url = self.base_url + "/chat/completions"
             headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
             if self.provider_id == "openrouter":
