@@ -281,7 +281,7 @@ class WhatsAppAgentPlatform:
         self._save()
         return {"sent": True, "status": self.status()}
 
-    async def _process_payload(self, payload: dict[str, Any], *, previous_offset: int | None) -> None:
+    async def _process_payload(self, payload: dict[str, Any], *, previous_offset: int | None = None) -> None:
         # Persist handled IDs while retaining the old cursor until the whole page is complete.
         # If a later message fails, the page is fetched again and earlier IDs are deduplicated.
         page_offset = self._state.get("next_offset")
