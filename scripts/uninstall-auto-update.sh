@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# Compatibility forwarding entrypoint. Canonical legacy implementation remains at repository root.
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TARGET="$ROOT/uninstall-auto-update.sh"
-[ -f "$TARGET" ] || { echo "Missing script: $TARGET" >&2; exit 1; }
-exec sh "$TARGET" "$@"
+systemctl --user disable --now terminal-ai-update.timer 2>/dev/null || true
+rm -f "$HOME/.config/systemd/user/terminal-ai-update.timer" "$HOME/.config/systemd/user/terminal-ai-update.service"
+systemctl --user daemon-reload
+echo "Automatic Terminal AI project updates disabled. Existing source and state were kept."
