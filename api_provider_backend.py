@@ -27,7 +27,10 @@ PROVIDERS: dict[str, dict[str, str]] = {
     "fireworks": {"label": "Fireworks AI", "env": "FIREWORKS_API_KEY", "base_url": "https://api.fireworks.ai/inference/v1", "model_env": "TERMINAL_AI_FIREWORKS_MODEL", "default_model": "accounts/fireworks/models/llama-v3p3-70b-instruct", "protocol": "openai"},
     "cerebras": {"label": "Cerebras", "env": "CEREBRAS_API_KEY", "base_url": "https://api.cerebras.ai/v1", "model_env": "TERMINAL_AI_CEREBRAS_MODEL", "default_model": "llama-3.3-70b", "protocol": "openai"},
     "anthropic": {"label": "Anthropic Claude", "env": "ANTHROPIC_API_KEY", "base_url": "https://api.anthropic.com/v1", "model_env": "TERMINAL_AI_ANTHROPIC_MODEL", "default_model": "claude-3-7-sonnet-latest", "protocol": "anthropic"},
-    "custom-openai": {"label": "Custom OpenAI-compatible endpoint", "env": "TERMINAL_AI_CUSTOM_API_KEY", "base_url": "", "model_env": "TERMINAL_AI_CUSTOM_MODEL", "default_model": "", "protocol": "openai"},
+    "custom-openai": {"label": "Custom OpenAI-compatible endpoint", "env": "TERMINAL_AI_CUSTOM_API_KEY", "base_url": "", "model_env": "TERMINAL_AI_CUSTOM_MODEL", "default_model": "", "protocol": "openai", "endpoint_configurable": "true"},
+    "ollama": {"label": "Ollama (local)", "env": "OLLAMA_API_KEY", "base_url": "http://localhost:11434/v1", "model_env": "TERMINAL_AI_OLLAMA_MODEL", "default_model": "", "protocol": "openai", "auth": "none", "endpoint_configurable": "true", "requires_network": "false"},
+    "lm-studio": {"label": "LM Studio (local)", "env": "LM_STUDIO_API_KEY", "base_url": "http://localhost:1234/v1", "model_env": "TERMINAL_AI_LM_STUDIO_MODEL", "default_model": "", "protocol": "openai", "auth": "none", "endpoint_configurable": "true", "requires_network": "false"},
+    "vllm": {"label": "vLLM / local OpenAI-compatible server", "env": "VLLM_API_KEY", "base_url": "http://localhost:8000/v1", "model_env": "TERMINAL_AI_VLLM_MODEL", "default_model": "", "protocol": "openai", "auth": "none", "endpoint_configurable": "true", "requires_network": "false"},
 }
 
 
@@ -35,17 +38,23 @@ class APIProviderBackend(core.Backend):
     supports_tools = False
 
     def __init__(self, provider_id: str, api_key: str, model: str | None = None,
-                 base_url: str | None = None, timeout: int = 90):
+                 base_url: str | None = None, timeout: int = 90,
+                 temperature: float = 0.7, top_p: float = 0.95,
+                 max_tokens: int = 2048):
         if provider_id not in PROVIDERS:
             raise core.BackendError(f"Unsupported API provider: {provider_id}")
         self.provider_id = provider_id
         self.config = PROVIDERS[provider_id]
         self.api_key = (api_key or "").strip()
-        if not self.api_key:
+        if not self.api_key and self.config.get("auth") != "none":
             raise core.BackendError(f"Missing API key for {self.config['label']}; configure it in Settings.")
         self.model = (model or os.environ.get(self.config["model_env"]) or self.config["default_model"]).strip()
-        configured_base_url = base_url or os.environ.get("TERMINAL_AI_CUSTOM_BASE_URL") or self.config["base_url"]
-        if provider_id == "custom-openai":
+        configured_base_url = (
+            base_url
+            or os.environ.get("TERMINAL_AI_CUSTOM_BASE_URL") if provider_id == "custom-openai"
+            else base_url or self.config["base_url"]
+        )
+        if self.config.get("endpoint_configurable") == "true":
             try:
                 configured_base_url = validate_custom_base_url(configured_base_url)
             except SettingsValidationError as exc:
@@ -53,7 +62,10 @@ class APIProviderBackend(core.Backend):
         self.base_url = configured_base_url.rstrip("/")
         if not self.base_url or not self.model:
             raise core.BackendError("Custom API provider requires both a base URL and model ID.")
-        self.timeout = max(10, min(int(timeout), 300))
+        self.timeout = max(5, min(int(timeout), 180))
+        self.temperature = max(0.0, min(2.0, float(temperature)))
+        self.top_p = max(0.0, min(1.0, float(top_p)))
+        self.max_tokens = max(64, min(32768, int(max_tokens)))
         self.label = f"{self.config['label']} · {self.model}"
 
     @staticmethod
@@ -78,7 +90,7 @@ class APIProviderBackend(core.Backend):
         messages.extend(self._history_messages(history))
         if self.config["protocol"] == "anthropic":
             url = self.base_url + "/messages"
-            body = {"model": self.model, "max_tokens": 2048, "stream": True, "messages":
+            body = {"model": self.model, "max_tokens": self.max_tokens, "temperature": self.temperature, "stream": True, "messages":
                     [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]}
             if system:
                 body["system"] = system
@@ -87,8 +99,11 @@ class APIProviderBackend(core.Backend):
         else:
             url = self.base_url + "/chat/completions"
             body = {"model": self.model, "messages": messages, "stream": True,
-                    "temperature": 0.7}
-            headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
+                    "temperature": self.temperature, "top_p": self.top_p,
+                    "max_tokens": self.max_tokens}
+            headers = {"content-type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = "Bearer " + self.api_key
             if self.provider_id == "openrouter":
                 headers["HTTP-Referer"] = "http://localhost"
                 headers["X-Title"] = "Terminal AI"
@@ -113,7 +128,7 @@ class APIProviderBackend(core.Backend):
         if not messages:
             return
         if self.config["protocol"] == "anthropic":
-            body = {"model": self.model, "max_tokens": 2048, "stream": True,
+            body = {"model": self.model, "max_tokens": self.max_tokens, "stream": True,
                     "messages": [m for m in messages if m["role"] != "system"]}
             if system:
                 body["system"] = system
@@ -121,9 +136,13 @@ class APIProviderBackend(core.Backend):
             headers = {"x-api-key": self.api_key, "anthropic-version": "2023-06-01",
                        "content-type": "application/json"}
         else:
-            body = {"model": self.model, "messages": messages, "stream": True, "temperature": 0.7}
+            body = {"model": self.model, "messages": messages, "stream": True,
+                    "temperature": self.temperature, "top_p": self.top_p,
+                    "max_tokens": self.max_tokens}
             url = self.base_url + "/chat/completions"
-            headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
+            headers = {"content-type": "application/json"}
+            if self.api_key:
+                headers["Authorization"] = "Bearer " + self.api_key
             if self.provider_id == "openrouter":
                 headers["HTTP-Referer"] = "http://localhost"
                 headers["X-Title"] = "Terminal AI"

@@ -192,7 +192,7 @@ def _read_settings() -> dict[str, Any]:
         defaults["agentic_persona"] = "helpful"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
-    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai", "ollama", "lm-studio", "vllm"}:
         defaults["active_provider"] = "gemini"
     if defaults.get("update_channel") != "main":
         defaults["update_channel"] = "main"
@@ -959,6 +959,142 @@ async def model_detail(model_id: str) -> dict[str, Any]:
         "hf_repo": model.hf_repo or None, "hf_file": model.hf_file or None,
         "installed": installed_path is not None, "path": installed_path,
     }
+
+@get("/api/providers")
+async def providers() -> dict[str, Any]:
+    """Discover available provider integrations and configuration state."""
+    _load_env()
+    local_files = [p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()]
+    from api_provider_backend import PROVIDERS
+    cloud_providers = [
+        {"id": "gemini", "label": "Google Gemini", "kind": "cloud",
+         "configured": _gemini_key() is not None, "requires_network": True},
+    ]
+    cloud_providers.extend(
+        {"id": pid, "label": info["label"], "kind": "cloud",
+         "configured": (bool(os.environ.get(info["env"])) or info.get("auth") == "none"),
+         "auth_required": info.get("auth") != "none",
+         "requires_network": info.get("requires_network", True) != "false",
+         "protocol": info["protocol"], "default_model": info["default_model"],
+         "base_url": info["base_url"],
+         "endpoint_configurable": info.get("endpoint_configurable") == "true"}
+        for pid, info in PROVIDERS.items()
+    )
+    cloud_providers.extend([
+        {"id": "litert-lm", "label": "LiteRT-LM Python API", "kind": "local",
+         "configured": bool(local_files), "requires_network": False},
+        {"id": "huggingface-hub", "label": "Hugging Face Hub", "kind": "model-source",
+         "configured": True, "requires_network": True,
+         "token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())},
+    ])
+    return {"providers": cloud_providers, "active_mode": _read_settings()["mode"],
+            "active_provider": _read_settings().get("active_provider", "gemini")}
+
+
+
+@post("/api/providers/models")
+async def discover_provider_models(data: dict[str, Any]) -> dict[str, Any]:
+    """Fetch available model IDs for the selected provider without running inference."""
+    _load_env()
+    provider_value = data.get("provider_id", "gemini")
+    api_key_value = data.get("api_key", "")
+    base_url_value = data.get("base_url", "")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
+    if not isinstance(base_url_value, str) or len(base_url_value) > 500:
+        raise HTTPException(status_code=400, detail="base_url must be text of at most 500 characters.")
+    from application.provider_models import ModelDiscoveryError, fetch_provider_models
+    try:
+        return await asyncio.to_thread(
+            fetch_provider_models,
+            provider_value.strip().lower(),
+            api_key=api_key_value,
+            base_url=base_url_value,
+        )
+    except ModelDiscoveryError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@post("/api/providers/test")
+async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
+    """Test a provider without returning credential-bearing exception details."""
+    _load_env()
+    provider_value = data.get("provider_id", "gemini")
+    model_value = data.get("model", "")
+    api_key_value = data.get("api_key", "")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    if not isinstance(model_value, str) or len(model_value) > 200:
+        raise HTTPException(status_code=400, detail="model must be text of at most 200 characters.")
+    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
+    provider_id = provider_value.strip().lower()
+    model = model_value.strip() or None
+    api_key = api_key_value.strip()
+    settings = _read_settings()
+    started = time.time()
+    backend = None
+    try:
+        if provider_id == "gemini":
+            key = api_key or _gemini_key()
+            backend = core.GeminiBackend(
+                model=model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"),
+                api_key=key,
+                temperature=float(settings.get("provider_temperature", 0.7)),
+                top_p=float(settings.get("provider_top_p", 0.95)),
+                max_tokens=int(settings.get("provider_max_tokens", 2048)),
+            )
+        else:
+            from api_provider_backend import APIProviderBackend, PROVIDERS
+            info = PROVIDERS.get(provider_id)
+            if info is None:
+                raise HTTPException(status_code=400, detail="Unknown provider.")
+            key = api_key or os.environ.get(info["env"], "")
+            endpoint_value = data.get("base_url", "")
+            if info.get("endpoint_configurable") == "true":
+                if not isinstance(endpoint_value, str):
+                    raise HTTPException(status_code=400, detail="base_url must be text.")
+                if len(endpoint_value) > 500:
+                    raise HTTPException(status_code=400, detail="Custom endpoint URL is too long.")
+                endpoint = endpoint_value.strip() or info["base_url"]
+                try:
+                    endpoint = validate_custom_base_url(endpoint)
+                except SettingsValidationError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            else:
+                endpoint = None
+            backend = APIProviderBackend(
+                provider_id, key, model=model,
+                base_url=endpoint if info.get("endpoint_configurable") == "true" else None,
+                timeout=int(settings.get("provider_timeout_seconds", 60)),
+                temperature=float(settings.get("provider_temperature", 0.7)),
+                top_p=float(settings.get("provider_top_p", 0.95)),
+                max_tokens=int(settings.get("provider_max_tokens", 2048)),
+            )
+        answer = "".join(backend.stream(
+            "Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None
+        )).strip()
+        if not answer:
+            raise RuntimeError("Provider returned an empty response.")
+        return {
+            "ok": True, "provider_id": provider_id, "model": model,
+            "elapsed_ms": round((time.time() - started) * 1000),
+            "message": "Connection successful.",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Provider connection test failed for %s (%s)", provider_id, type(exc).__name__)
+        raise HTTPException(status_code=502, detail=f"Provider connection failed ({type(exc).__name__}).") from exc
+    finally:
+        if backend is not None:
+            try:
+                backend.close()
+            except Exception:
+                logger.debug("Provider backend cleanup failed (%s)", provider_id)
+
 
 @get("/api/downloads")
 async def downloads() -> dict[str, Any]:

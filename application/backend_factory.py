@@ -54,13 +54,16 @@ def build_cloud_backends(
                         else environment.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash")
                     ),
                     api_key=key,
+                    temperature=float(settings.get("provider_temperature", 0.7)),
+                    top_p=float(settings.get("provider_top_p", 0.95)),
+                    max_tokens=int(settings.get("provider_max_tokens", 2048)),
                 )
             else:
                 provider = PROVIDERS.get(provider_id)
                 if provider is None:
                     continue
                 key = environment.get(provider["env"], "").strip()
-                if not key:
+                if not key and provider.get("auth") != "none":
                     continue
                 backend = APIProviderBackend(
                     provider_id=provider_id,
@@ -68,8 +71,12 @@ def build_cloud_backends(
                     model=selected_model if provider_id == selected_provider else None,
                     base_url=(
                         (settings.get("custom_base_url") or None)
-                        if provider_id == "custom-openai" else None
+                        if provider.get("endpoint_configurable") == "true" else None
                     ),
+                    timeout=int(settings.get("provider_timeout_seconds", 60)),
+                    temperature=float(settings.get("provider_temperature", 0.7)),
+                    top_p=float(settings.get("provider_top_p", 0.95)),
+                    max_tokens=int(settings.get("provider_max_tokens", 2048)),
                 )
             backends.append(backend)
         except Exception as exc:

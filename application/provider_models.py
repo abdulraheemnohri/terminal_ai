@@ -127,10 +127,14 @@ def fetch_provider_models(
         if not info:
             raise ModelDiscoveryError("Unknown provider.")
         key = api_key.strip() or environment.get(info["env"], "").strip()
-        if not key:
+        if not key and info.get("auth") != "none":
             raise ModelDiscoveryError(f"Add an API key for {info['label']} in Settings first.")
-        configured_url = base_url.strip() if provider_id == "custom-openai" else info["base_url"]
-        if provider_id == "custom-openai":
+        configured_url = (
+            base_url.strip() if info.get("endpoint_configurable") == "true"
+            else info["base_url"]
+        )
+        if info.get("endpoint_configurable") == "true":
+            configured_url = configured_url or info["base_url"]
             try:
                 configured_url = validate_custom_base_url(configured_url)
             except SettingsValidationError as exc:
@@ -141,7 +145,7 @@ def fetch_provider_models(
         headers = (
             {"x-api-key": key, "anthropic-version": "2023-06-01"}
             if info["protocol"] == "anthropic"
-            else {"Authorization": f"Bearer {key}"}
+            else ({"Authorization": f"Bearer {key}"} if key else {})
         )
         protocol = info["protocol"]
         default_model = environment.get(info["model_env"], info["default_model"])

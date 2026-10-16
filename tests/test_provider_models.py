@@ -146,3 +146,21 @@ def test_repeated_provider_cursor_does_not_loop_forever(monkeypatch):
     result = fetch_provider_models("openai", api_key="test-key", environ={})
     assert len(calls) == 2
     assert result["count"] == 1
+
+
+
+def test_local_ollama_model_discovery_does_not_require_api_key(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        return FakeResponse({"data": [{"id": "local-qwen"}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    result = fetch_provider_models(
+        "ollama", base_url="http://localhost:11434/v1", environ={},
+    )
+    assert captured["url"] == "http://localhost:11434/v1/models"
+    assert captured["authorization"] is None
+    assert result["models"][0]["id"] == "local-qwen"
