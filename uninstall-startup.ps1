@@ -1,9 +1,6 @@
 $ErrorActionPreference = "Stop"
-$Task = Get-ScheduledTask -TaskName "TerminalAI" -ErrorAction SilentlyContinue
-if ($Task) {
-    Stop-ScheduledTask -TaskName "TerminalAI" -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName "TerminalAI" -Confirm:$false
-    Write-Host "Terminal AI autostart task removed. Project files and data were kept."
-} else {
-    Write-Host "No Terminal AI autostart task was registered for this user."
-}
+# Backwards-compatible wrapper; implementation lives in scripts/uninstall-startup.ps1.
+$Target = Join-Path $PSScriptRoot "scripts\uninstall-startup.ps1"
+if (-not (Test-Path -LiteralPath $Target)) { throw "Missing script: $Target" }
+& $Target @args
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
