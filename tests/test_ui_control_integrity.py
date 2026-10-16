@@ -45,7 +45,7 @@ def test_control_audit_is_visible_and_endpoint_catalog_is_unique():
         "audit-controls-available",
         "audit-controls-attention",
         "audit-controls-updated",
-        "control-audit-list",
+        "feature-control-audit-list",
     }
     html_ids = set(re.findall(r'\bid="([^"]+)"', html))
     assert required_ids <= html_ids, f"Control audit UI is missing: {sorted(required_ids - html_ids)}"
