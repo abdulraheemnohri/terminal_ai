@@ -1192,6 +1192,45 @@ async def start_model_download(data: dict[str, Any]) -> dict[str, Any]:
     asyncio.create_task(_run_model_download(job_id, model.hf_repo, model.hf_file))
     return {"job_id": job_id, "status": "queued", "message": "Download queued. Poll GET /api/downloads for progress."}
 
+@post("/api/models/remove")
+async def remove_model(data: dict[str, Any]) -> dict[str, Any]:
+    """Remove one explicitly confirmed local model artifact inside MODELS_DIR."""
+    if set(data) - {"filename", "confirm"}:
+        raise HTTPException(status_code=400, detail="Only filename and confirm are accepted.")
+    filename = data.get("filename")
+    if data.get("confirm") is not True:
+        raise HTTPException(status_code=400, detail="Set confirm=true to explicitly approve model removal.")
+    if (
+        not isinstance(filename, str) or not filename or len(filename) > 255
+        or Path(filename).name != filename or filename in {".", ".."}
+        or not filename.endswith(".litertlm")
+    ):
+        raise HTTPException(status_code=400, detail="Choose a single .litertlm filename from the installed model inventory.")
+    root = core.MODELS_DIR.expanduser().resolve()
+    candidate = root / filename
+    with _DOWNLOAD_LOCK:
+        if any(
+            job.get("filename") == filename and job.get("status") in {"queued", "downloading"}
+            for job in _DOWNLOAD_JOBS.values()
+        ):
+            raise HTTPException(status_code=409, detail="This model has an active download; wait for it to finish before removing it.")
+    if candidate.is_symlink() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="Installed model file was not found.")
+    resolved = candidate.resolve()
+    if resolved.parent != root:
+        raise HTTPException(status_code=400, detail="Model path escapes the configured models directory.")
+    backend_label = str(getattr(getattr(_AGENT, "backend", None), "label", "")).casefold()
+    if _AGENT is not None and any(token in backend_label for token in ("litert", "local")):
+        raise HTTPException(status_code=409, detail="A local model backend is active. Switch to a non-local backend and reinitialize the agent before removing model files.")
+    try:
+        candidate.unlink()
+    except OSError as exc:
+        logger.warning("Local model removal failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Could not remove the model file. Check file permissions and whether another process is using it.") from exc
+    _COMMAND_CONTROL.audit("user", "model.removed", filename, {"confirmed": True, "bytes": None})
+    return {"removed": True, "filename": filename, "models_dir": str(root), "notice": "Only the selected .litertlm file was removed. Provider cache metadata and unrelated files were left untouched."}
+
+
 @get("/api/diagnostics")
 async def diagnostics() -> dict[str, Any]:
     """Fast local diagnostics; intentionally avoids cloud calls and model loading."""
@@ -2291,7 +2330,7 @@ app = Litestar(
         create_whatsapp_agent_router(_WHATSAPP_AGENT),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, remove_model, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
