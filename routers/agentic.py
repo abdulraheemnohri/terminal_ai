@@ -13,6 +13,7 @@ from litestar.exceptions import HTTPException
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
 from application.autonomy import AutonomyEngine, AutonomyStore
+from application.approved_plan_dispatch import prepare_plan_operation
 from application.autonomy_jobs import AutonomyJobQueue, AutonomyJobWorker
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
@@ -313,6 +314,35 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         })
         return {"task": task, "execution_started": False,
                 "notice": "Linking records the operation association; it does not approve or execute it."}
+
+    @post("/tasks/{task_id:str}/terminal-operation")
+    async def prepare_task_terminal_operation(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Queue a specific argv-only terminal operation for approval and link it to a plan."""
+        allowed = {"argv", "cwd", "timeout"}
+        unknown = set(data) - allowed
+        if unknown:
+            raise HTTPException(status_code=400, detail="Unknown fields: " + ", ".join(sorted(unknown)))
+        if workspace is None:
+            raise HTTPException(status_code=503, detail="Workspace tools are not available.")
+        try:
+            return prepare_plan_operation(
+                task_id=task_id,
+                argv=data.get("argv"),
+                cwd=data.get("cwd", "."),
+                timeout=data.get("timeout", 30),
+                control=control,
+                workspace=workspace,
+                task_lifecycle=task_lifecycle,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Task run not found.") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409 if "only an unlinked planned task" in str(exc) else 400,
+                                detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=400, detail="Could not prepare operation safely.") from exc
 
     @post("/tasks/{task_id:str}/verify")
     async def verify_task_run(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
