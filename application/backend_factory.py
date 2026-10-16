@@ -54,6 +54,9 @@ def build_cloud_backends(
                         else environment.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash")
                     ),
                     api_key=key,
+                    temperature=float(settings.get("provider_temperature", 0.7)),
+                    top_p=float(settings.get("provider_top_p", 0.95)),
+                    max_tokens=int(settings.get("provider_max_tokens", 2048)),
                 )
             else:
                 provider = PROVIDERS.get(provider_id)
@@ -70,6 +73,10 @@ def build_cloud_backends(
                         (settings.get("custom_base_url") or None)
                         if provider_id == "custom-openai" else None
                     ),
+                    timeout=int(settings.get("provider_timeout_seconds", 60)),
+                    temperature=float(settings.get("provider_temperature", 0.7)),
+                    top_p=float(settings.get("provider_top_p", 0.95)),
+                    max_tokens=int(settings.get("provider_max_tokens", 2048)),
                 )
             backends.append(backend)
         except Exception as exc:
