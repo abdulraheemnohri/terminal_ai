@@ -51,7 +51,7 @@ def main() -> int:
             continue
         wrapper_text = root_entry.read_text(encoding="utf-8", errors="replace")
         canonical_text = canonical.read_text(encoding="utf-8", errors="replace")
-        target = f"scripts\\\\{name}" if name.lower().endswith(".ps1") else f"scripts/{name}"
+        target = f"scripts\\{name}" if name.lower().endswith(".ps1") else f"scripts/{name}"
         if "Backwards-compatible wrapper" not in wrapper_text or target not in wrapper_text:
             missing.append(f"root compatibility wrapper: {name}")
         if "Compatibility forwarding entrypoint" in canonical_text:
