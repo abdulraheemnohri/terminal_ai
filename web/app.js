@@ -218,7 +218,7 @@ const CONTROL_AUDIT_ENDPOINTS=[
  {label:"WhatsApp Agent Platform",path:"/api/whatsapp-agent/status"}
 ];
 async function runControlAudit(){
- const button=$("audit-controls-btn"),list=$("control-audit-list"),updated=$("audit-controls-updated");
+ const button=$("audit-controls-btn"),list=$("feature-control-audit-list"),updated=$("audit-controls-updated");
  if(!button||!list||!updated)return;
  button.disabled=true;button.textContent="Checking…";updated.textContent="Checking "+CONTROL_AUDIT_ENDPOINTS.length+" read-only control endpoints…";
  list.replaceChildren();
