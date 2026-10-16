@@ -582,3 +582,33 @@ def test_selected_default_model_is_saved_and_returned(monkeypatch, tmp_path):
     assert saved.status_code == 200
     assert loaded.status_code == 200
     assert loaded.json()["provider_model"] == "gpt-test-model"
+
+
+def test_provider_profiles_are_validated_and_persisted():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"provider_profiles": {
+            "ollama": {"model": "qwen3:8b", "base_url": "http://localhost:11434/v1", "temperature": 0.4, "top_p": 0.8, "max_tokens": 4096, "timeout_seconds": 30, "failover_priority": 10},
+            "openai": {"model": "gpt-example", "temperature": 3.0, "max_tokens": 99999},
+        }})
+        assert response.status_code == 200
+        profiles = response.json()["provider_profiles"]
+        assert profiles["ollama"]["model"] == "qwen3:8b"
+        assert profiles["ollama"]["temperature"] == 0.4
+        assert profiles["ollama"]["failover_priority"] == 10
+        assert profiles["openai"]["temperature"] == 2.0
+        assert profiles["openai"]["max_tokens"] == 32768
+        client.patch("/api/settings", json={"provider_profiles": {}})
+
+
+def test_provider_profiles_reject_unknown_fields_and_unregistered_providers():
+    with TestClient(app=app) as client:
+        unknown = client.patch("/api/settings", json={"provider_profiles": {"openai": {"api_key": "never-store-here"}}})
+        invalid_provider = client.patch("/api/settings", json={"provider_profiles": {"made-up": {"model": "x"}}})
+    assert unknown.status_code == 400
+    assert invalid_provider.status_code == 400
+
+
+def test_provider_profiles_reject_boolean_numeric_values():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={"provider_profiles": {"openai": {"temperature": True}}})
+    assert response.status_code == 400
