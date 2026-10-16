@@ -191,7 +191,7 @@ def _read_settings() -> dict[str, Any]:
         defaults["agentic_persona"] = "helpful"
     if defaults.get("mode") not in {"auto", "cloud", "local", "hybrid"}:
         defaults["mode"] = "auto"
-    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}:
+    if defaults.get("active_provider") not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai", "ollama", "lm-studio", "vllm"}:
         defaults["active_provider"] = "gemini"
     if defaults.get("update_channel") != "main":
         defaults["update_channel"] = "main"
@@ -971,8 +971,12 @@ async def providers() -> dict[str, Any]:
     ]
     cloud_providers.extend(
         {"id": pid, "label": info["label"], "kind": "cloud",
-         "configured": bool(os.environ.get(info["env"])), "requires_network": True,
-         "protocol": info["protocol"], "default_model": info["default_model"]}
+         "configured": (bool(os.environ.get(info["env"])) or info.get("auth") == "none"),
+         "auth_required": info.get("auth") != "none",
+         "requires_network": info.get("requires_network", True) != "false",
+         "protocol": info["protocol"], "default_model": info["default_model"],
+         "base_url": info["base_url"],
+         "endpoint_configurable": info.get("endpoint_configurable") == "true"}
         for pid, info in PROVIDERS.items()
     )
     cloud_providers.extend([
@@ -1048,22 +1052,21 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
                 raise HTTPException(status_code=400, detail="Unknown provider.")
             key = api_key or os.environ.get(info["env"], "")
             endpoint_value = data.get("base_url", "")
-            if provider_id == "custom-openai":
+            if info.get("endpoint_configurable") == "true":
                 if not isinstance(endpoint_value, str):
                     raise HTTPException(status_code=400, detail="base_url must be text.")
                 if len(endpoint_value) > 500:
                     raise HTTPException(status_code=400, detail="Custom endpoint URL is too long.")
-                endpoint = endpoint_value.strip() or None
-                if endpoint:
-                    try:
-                        endpoint = validate_custom_base_url(endpoint)
-                    except SettingsValidationError as exc:
-                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+                endpoint = endpoint_value.strip() or info["base_url"]
+                try:
+                    endpoint = validate_custom_base_url(endpoint)
+                except SettingsValidationError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
             else:
                 endpoint = None
             backend = APIProviderBackend(
                 provider_id, key, model=model,
-                base_url=endpoint if provider_id == "custom-openai" else None,
+                base_url=endpoint if info.get("endpoint_configurable") == "true" else None,
                 timeout=int(settings.get("provider_timeout_seconds", 60)),
                 temperature=float(settings.get("provider_temperature", 0.7)),
                 top_p=float(settings.get("provider_top_p", 0.95)),
