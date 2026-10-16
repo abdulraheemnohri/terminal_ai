@@ -308,7 +308,7 @@ Restore is intentionally explicit and refuses overwriting files unless you pass 
 python scripts/restore_state.py /path/to/terminal-ai-state.zip --confirm
 ```
 
-Backups can contain sensitive state and credentials; keep them in a private directory. Existing root-level install/update scripts remain available for backwards compatibility and have forwarding entries in `scripts/`.
+Backups can contain sensitive state and credentials; keep them in a private directory. Operational implementations now live in `scripts/`; root-level install/update/startup commands are small compatibility wrappers so existing instructions and shortcuts keep working.
 
 ## Documentation
 
