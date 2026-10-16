@@ -520,3 +520,18 @@ def test_null_secret_settings_are_ignored_not_stringified(monkeypatch, tmp_path)
     assert response.status_code == 200
     assert env_writes == []
     assert not (tmp_path / "hf-token").exists()
+
+
+def test_settings_rejects_wrong_types_and_unknown_keys():
+    invalid_payloads = [
+        {"unexpected_setting": True},
+        {"self_critique": "false"},
+        {"max_ctx_chars": True},
+        {"agentic_persona": "root"},
+        {"self_autonomy_profile": "unrestricted"},
+        {"update_channel": "nightly"},
+    ]
+    with TestClient(app=app) as client:
+        for payload in invalid_payloads:
+            response = client.patch("/api/settings", json=payload)
+            assert response.status_code == 400, payload
