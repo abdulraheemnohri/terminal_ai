@@ -155,6 +155,7 @@ def test_manual_send_is_limited_to_verified_creator(tmp_path):
         service = _service(tmp_path)
         await service.configure({"api_key": "test-agent-secret", "enabled": False})
         service._state["creator_id"] = "user:verified-creator"
+        service._state["enabled"] = True
         with pytest.raises(PermissionError, match="restricted to the creator"):
             await service.send_manual({"recipient": "user:other-person", "message": "hello"})
         result = await service.send_manual({"message": "hello"})
