@@ -8,6 +8,7 @@
 - agent/memory.py: typed SQLite knowledge and conversation storage; memory_store.py remains a compatibility import shim.
 - terminal_ai.py: core agent, backend abstractions, conversation/session management, skill library, tools, memory and provider integration.
 - litert_api_backend.py: local LiteRT-LM Python API adapter. Local inference does not require Gemini or network access when a local model is selected and available.
+- application/provider_fallback.py: ordered cloud-first provider chain; it tries the selected provider, then other configured cloud providers, and only then local inference in Auto/Hybrid modes. It refuses to switch after partial output to prevent duplicate answers.
 - selfx_engine.py: local diagnostics, evaluation, research notes, recovery checkpoints and bounded maintenance.
 - memory_store.py: compatibility shim re-exporting `agent.memory.MemoryStore` for existing imports.
 - workspace_tools.py: workspace-confined file operations and approval-gated subprocess execution.
