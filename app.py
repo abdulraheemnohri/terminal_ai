@@ -39,6 +39,7 @@ from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
 from routers.providers import create_provider_router
 from routers.workspace import create_workspace_router
+from routers.terminal import create_terminal_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
@@ -2083,6 +2084,7 @@ app = Litestar(
         status, chat, clear_chat, memory, remember, forget_memory,
         create_provider_router(core, _load_env, _gemini_key, _read_settings, validate_custom_base_url, SettingsValidationError),
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
+        create_terminal_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL),
         create_control_router(_COMMAND_CONTROL),
         create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning),
         create_health_router(ROOT, core.STATE_DIR),
