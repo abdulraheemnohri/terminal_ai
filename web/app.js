@@ -4,7 +4,7 @@ let apiReachable=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -273,6 +273,47 @@ $("save-provider-profile")?.addEventListener("click",async()=>{
  try{await saveProviderProfile();}catch(error){showToast(error.message,"error");}
 });
 $("reset-provider-profile")?.addEventListener("click",loadProviderProfileIntoEditor);
+
+
+async function loadBackups(){
+ const list=$("backup-list"),status=$("backup-status"),error=$("backup-error");
+ if(!list)return;
+ error.textContent="";
+ try{
+  const data=await api("/api/operations/backups");
+  const backups=data.backups||[];
+  status.textContent="Directory: "+data.backup_dir+" · "+backups.length+" backup"+(backups.length===1?"":"s")+" listed";
+  list.innerHTML=backups.length?backups.map(item=>{
+   const size=item.size_bytes<1024*1024?(item.size_bytes/1024).toFixed(1)+" KiB":(item.size_bytes/(1024*1024)).toFixed(2)+" MiB";
+   return '<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>'+escapeHtml(item.name)+'</b><span class="badge">'+escapeHtml(size)+'</span></div><p class="muted">Modified '+escapeHtml(new Date(item.modified_at).toLocaleString())+'</p><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-backup-validate="'+escapeHtml(item.name)+'">Validate archive</button><a class="btn" href="/api/operations/backups/'+encodeURIComponent(item.name)+'/download" rel="noopener">Download ZIP</a></div></div>';
+  }).join(""):'<div class="empty">No backups found. Create a backup before changing or restoring local state.</div>';
+ }catch(err){status.textContent="Backup inventory unavailable";error.textContent=err.message;list.innerHTML='<div class="empty">Could not load local backups.</div>';}
+}
+if($("backup-refresh"))$("backup-refresh").addEventListener("click",loadBackups);
+if($("backup-create"))$("backup-create").addEventListener("click",async()=>{
+ const button=$("backup-create"),status=$("backup-status"),error=$("backup-error");
+ if(!confirm("Create a private ZIP backup of Terminal AI state? The archive may include private memories and settings."))return;
+ button.disabled=true;button.textContent="Creating backup…";error.textContent="";status.textContent="Creating checksum-verified archive…";
+ try{
+  const result=await api("/api/operations/backups",{method:"POST",body:"{}"});
+  status.textContent="Created "+result.name+" · "+result.file_count+" files · "+(result.size_bytes/1024/1024).toFixed(2)+" MiB";
+  showToast("State backup created. Keep the archive private.","success");
+  await loadBackups();
+ }catch(err){status.textContent="Backup failed";error.textContent=err.message;}
+ finally{button.disabled=false;button.textContent="Create state backup";}
+});
+document.addEventListener("click",async e=>{
+ const button=e.target.closest("[data-backup-validate]");
+ if(!button)return;
+ const name=button.dataset.backupValidate, status=$("backup-status"), error=$("backup-error");
+ button.disabled=true;error.textContent="";status.textContent="Validating "+name+"…";
+ try{
+  const result=await api("/api/operations/backups/validate",{method:"POST",body:JSON.stringify({name})});
+  status.textContent="VALID · "+result.file_count+" files · "+(result.total_bytes/1024/1024).toFixed(2)+" MiB · existing-file conflicts: "+result.existing_file_conflicts+". "+result.notice;
+  showToast("Backup hashes and paths validated; no restore was performed.","success");
+ }catch(err){status.textContent="Backup validation failed";error.textContent=err.message;}
+ finally{button.disabled=false;}
+});
 
 async function loadSettings(){
  try{
