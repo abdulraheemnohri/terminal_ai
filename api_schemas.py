@@ -34,7 +34,7 @@ class QueueOperationRequest(APIRequest):
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 class ReviewOperationRequest(APIRequest):
-    approve: bool
+    approve: bool = Field(strict=True)
     note: str = Field(default="", max_length=500)
 
 class SkillDefinition(APIRequest):
