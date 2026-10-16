@@ -13,8 +13,15 @@ from pathlib import Path
 from typing import Any
 
 
+def _usable_credential(value: str | None) -> str | None:
+    value = (value or "").strip()
+    if not value or value.lower().startswith(("replace_", "your_", "change_me", "placeholder")):
+        return None
+    return value
+
+
 def _env_value(root: Path, key: str) -> str | None:
-    value = os.environ.get(key, "").strip()
+    value = _usable_credential(os.environ.get(key))
     if value:
         return value
     env_file = root / ".env"
@@ -35,9 +42,7 @@ def _env_value(root: Path, key: str) -> str | None:
         if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
             raw = raw[1:-1]
         raw = raw.strip()
-        if raw and not raw.lower().startswith(("replace_", "your_", "change_me", "placeholder")):
-            return raw
-        return None
+        return _usable_credential(raw)
     return None
 
 
