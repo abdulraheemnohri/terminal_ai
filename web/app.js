@@ -222,7 +222,7 @@ async function loadSettings(){
   await loadProviderConfigurationStatus();
   $("setting-browser-domains").value=(data.browser_allowed_domains||[]).join("\n");
   try{const browser=await api("/api/browser/status");$("browser-config-status").textContent=browser.enabled?("Allowlist configured: "+browser.allowed_domain_count+" domain(s) · Playwright "+(browser.playwright_installed?"installed":"not installed")+" · actions disabled pending secure dispatch"):"Browser disabled · no domains configured";}catch(e){$("browser-config-status").textContent="Browser status unavailable: "+e.message;}
-  $("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";
+  $("custom-endpoint-field").hidden=!["custom-openai","ollama","lm-studio","vllm"].includes($("setting-provider").value);
   $("setting-critique").checked=!!data.self_critique;
   $("setting-agentic-persona").value=data.agentic_persona||"helpful";
   $("setting-agentic-planning").checked=data.agentic_planning_enabled!==false;

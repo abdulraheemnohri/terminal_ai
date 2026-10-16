@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -39,6 +40,7 @@ from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
 from routers.providers import create_provider_router
 from routers.workspace import create_workspace_router
+from routers.terminal import create_terminal_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
@@ -106,6 +108,10 @@ def _read_settings() -> dict[str, Any]:
         "scheduled_tasks_enabled": True,
         "active_provider": "gemini",
         "provider_model": "",
+        "provider_temperature": 0.7,
+        "provider_top_p": 0.95,
+        "provider_max_tokens": 2048,
+        "provider_timeout_seconds": 60,
         "custom_base_url": "",
         "provider_profiles": {},
         "browser_allowed_domains": [],
@@ -173,11 +179,21 @@ def _read_settings() -> dict[str, Any]:
         "self_max_goals_per_cycle": (1, 20),
         "update_check_interval_hours": (6, 168),
     }
+    int_ranges.update({
+        "provider_max_tokens": (64, 32768),
+        "provider_timeout_seconds": (5, 180),
+    })
     for key, (minimum, maximum) in int_ranges.items():
         value = defaults.get(key)
         if isinstance(value, bool) or not isinstance(value, int):
             value = base_defaults[key]
         defaults[key] = max(minimum, min(maximum, value))
+
+    for key, minimum, maximum in (("provider_temperature", 0.0, 2.0), ("provider_top_p", 0.0, 1.0)):
+        value = defaults.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            value = base_defaults[key]
+        defaults[key] = max(minimum, min(maximum, float(value)))
 
     for key, fallback, limit in (
         ("provider_model", "", 200), ("custom_base_url", "", 500),
@@ -1216,7 +1232,8 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Describe the settings change in 1–3000 characters.")
     agent = _get_agent()
     allowed = {
-        "mode", "active_provider", "provider_model", "max_ctx_chars", "self_critique", "proactive",
+        "mode", "active_provider", "provider_model", "provider_temperature", "provider_top_p",
+        "provider_max_tokens", "provider_timeout_seconds", "max_ctx_chars", "self_critique", "proactive",
         "learning_enabled", "auto_extract_skills", "self_improvement_enabled", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled", "self_goals_enabled",
         "self_skills_enabled", "self_recovery_enabled", "self_maintenance_enabled", "self_autonomous_enabled",
@@ -1230,7 +1247,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         "Translate a user's request into a minimal JSON settings proposal. Return ONLY JSON with keys "
         "'changes' (object) and 'explanation' (string). Allowed keys are: " + ", ".join(sorted(allowed)) + ". "
         "Use only these keys. Values must match their types. self_autonomy_profile is observe (checks only), maintain (checks and scheduled checkpoints), or goal-driven (maintain plus bounded diagnostic goal creation). Goal creation is separately gated and limited by self_max_goals_per_cycle. mode is auto/cloud/local/hybrid. active_provider may be "
-        "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai. "
+        "gemini, openai, anthropic, openrouter, groq, deepseek, together, mistral, xai, fireworks, cerebras, custom-openai, ollama, lm-studio, vllm. "
         "Never propose API keys, credentials, URLs, code, commands, permission changes, or disabling tool approval. "
         "If the request cannot be expressed safely, return empty changes and explain why. The proposal is not applied.\n"
         + json.dumps({"request": request_text, "current_settings": {k: current.get(k) for k in sorted(allowed)}}, ensure_ascii=False)
@@ -1257,7 +1274,7 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
             changes.pop("mode")
         if "active_provider" in changes and (
             not isinstance(changes["active_provider"], str)
-            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai"}
+            or changes["active_provider"] not in {"gemini", "openai", "anthropic", "openrouter", "groq", "deepseek", "together", "mistral", "xai", "fireworks", "cerebras", "custom-openai", "ollama", "lm-studio", "vllm"}
         ):
             changes.pop("active_provider")
         for key in ("self_critique", "proactive", "learning_enabled", "auto_extract_skills", "self_improvement_enabled",
@@ -1297,6 +1314,20 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
                 changes.pop("provider_model")
             else:
                 changes["provider_model"] = value.strip()[:200]
+        for key, minimum, maximum in (("provider_temperature", 0.0, 2.0), ("provider_top_p", 0.0, 1.0)):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, float(value)))
+        for key, minimum, maximum in (("provider_max_tokens", 64, 32768), ("provider_timeout_seconds", 5, 180)):
+            if key in changes:
+                value = changes[key]
+                if isinstance(value, bool) or not isinstance(value, int):
+                    changes.pop(key)
+                else:
+                    changes[key] = max(minimum, min(maximum, value))
         return {"changes": changes, "explanation": str(parsed.get("explanation", "Review this proposal before applying."))[:1000],
                 "applied": False, "notice": "AI suggestions are untrusted proposals. Review the diff and explicitly apply them; credentials and risky tool permissions are excluded."}
     except Exception as exc:
@@ -1548,7 +1579,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    backend_changed = bool(isinstance(data.get("api_key"), str) and data["api_key"].strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url", "self_identity", "self_mission"))
+    backend_changed = bool(isinstance(data.get("api_key"), str) and data["api_key"].strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "provider_temperature", "provider_top_p", "provider_max_tokens", "provider_timeout_seconds", "custom_base_url", "self_identity", "self_mission"))
     if backend_changed:
         if _AGENT is not None:
             try:
@@ -2130,6 +2161,7 @@ app = Litestar(
         status, chat, clear_chat, memory, remember, forget_memory,
         create_provider_router(core, _load_env, _gemini_key, _read_settings, validate_custom_base_url, SettingsValidationError),
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
+        create_terminal_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL),
         create_control_router(_COMMAND_CONTROL),
         create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning),
         create_health_router(ROOT, core.STATE_DIR),
