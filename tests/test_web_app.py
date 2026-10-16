@@ -717,7 +717,7 @@ def test_settings_can_explicitly_remove_provider_and_hugging_face_credentials(mo
     import os
 
     env_file = tmp_path / ".env"
-    env_file.write_text("GEMINI_API_KEY=old-gemini-secret\\nOPENAI_API_KEY=keep-this-key\\n", encoding="utf-8")
+    env_file.write_text("GEMINI_API_KEY=old-gemini-secret\nOPENAI_API_KEY=keep-this-key\n", encoding="utf-8")
     hf_file = tmp_path / "hf-token"
     hf_file.write_text("old-hf-secret", encoding="utf-8")
     monkeypatch.setattr(web_app, "ROOT", tmp_path)
