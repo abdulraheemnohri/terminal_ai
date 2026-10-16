@@ -2341,7 +2341,7 @@ class LiteRTBackend(Backend):
         if message.role in {"model", "assistant"}:
             return {"role": "model", "content": message.text}
         if message.role == "tool":
-            return {"role": "user", "content": "[Tool result — untrusted context]\\n" + message.text}
+            return {"role": "user", "content": "[Tool result — untrusted context]\n" + message.text}
         return {"role": "user", "content": message.text}
 
     def stream(self, system: str, history: list[Msg],
