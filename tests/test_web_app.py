@@ -545,3 +545,40 @@ def test_settings_rejects_wrong_types_and_unknown_keys():
         for payload in invalid_payloads:
             response = client.patch("/api/settings", json=payload)
             assert response.status_code == 400, payload
+
+
+
+def test_provider_model_discovery_endpoint_returns_api_models(monkeypatch):
+    from application import provider_models
+
+    def fake_fetch(provider_id, **kwargs):
+        return {
+            "provider_id": provider_id,
+            "models": [{"id": "model-a", "label": "Model A"}, {"id": "model-b", "label": "Model B"}],
+            "count": 2,
+            "default_model": "model-a",
+        }
+
+    monkeypatch.setattr(provider_models, "fetch_provider_models", fake_fetch)
+    with TestClient(app=app) as client:
+        response = client.post("/api/providers/models", json={"provider_id": "openai"})
+    assert response.status_code == 200
+    assert response.json()["default_model"] == "model-a"
+    assert [item["id"] for item in response.json()["models"]] == ["model-a", "model-b"]
+
+
+def test_provider_model_discovery_rejects_oversized_input():
+    with TestClient(app=app) as client:
+        response = client.post("/api/providers/models", json={"provider_id": "openai", "api_key": "x" * 4097})
+    assert response.status_code == 400
+
+
+def test_selected_default_model_is_saved_and_returned(monkeypatch, tmp_path):
+    monkeypatch.setattr(web_app, "WEB_SETTINGS", tmp_path / "web_settings.json")
+    monkeypatch.setattr(web_app.SelfXEngine, "create_checkpoint", lambda self: {})
+    with TestClient(app=app) as client:
+        saved = client.patch("/api/settings", json={"provider_model": "gpt-test-model"})
+        loaded = client.get("/api/settings")
+    assert saved.status_code == 200
+    assert loaded.status_code == 200
+    assert loaded.json()["provider_model"] == "gpt-test-model"
