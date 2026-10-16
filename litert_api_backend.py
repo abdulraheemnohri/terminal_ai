@@ -33,8 +33,16 @@ class LiteRTPythonBackend(core.Backend):
 
     @staticmethod
     def _message(role: str, text: str) -> dict[str, str]:
-        role = role if role in {"user", "assistant"} else "user"
-        return {"role": role, "content": text}
+        # LiteRT-LM accepts user/model roles only. Convert internal tool results
+        # to clearly marked untrusted user context, and map model -> assistant.
+        if role in {"assistant", "model"}:
+            normalized_role = "assistant"
+        elif role == "tool":
+            normalized_role = "user"
+            text = "[Tool result — untrusted context]\n" + text
+        else:
+            normalized_role = "user"
+        return {"role": normalized_role, "content": text}
 
     @staticmethod
     def _chunk_text(chunk: Any) -> str:
@@ -95,7 +103,7 @@ class LiteRTPythonBackend(core.Backend):
         messages = [
             self._message(item.role, item.text)
             for item in history[:-1]
-            if item.role in {"user", "assistant"} and item.text
+            if item.role in {"user", "assistant", "model", "tool"} and item.text
         ]
         latest_user_message = next(
             (item.text for item in reversed(history) if item.role == "user" and item.text),
