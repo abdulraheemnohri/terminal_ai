@@ -765,3 +765,64 @@ def test_credential_removal_controls_are_visible_and_wired():
     assert "clear_provider_api_key" in js
     assert "clear_hf_token" in js
     assert "external environment" not in js.lower()
+
+
+def test_model_removal_requires_confirmation_and_only_deletes_a_direct_litertlm_file(monkeypatch, tmp_path):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    model = models_dir / "local-test.litertlm"
+    model.write_bytes(b"test model")
+    keep = models_dir / "notes.txt"
+    keep.write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(web_app.core, "MODELS_DIR", models_dir)
+    monkeypatch.setattr(web_app, "_AGENT", None)
+
+    with TestClient(app=app) as client:
+        no_confirmation = client.post("/api/models/remove", json={"filename": model.name, "confirm": False})
+        traversal = client.post("/api/models/remove", json={"filename": "../outside.litertlm", "confirm": True})
+        removed = client.post("/api/models/remove", json={"filename": model.name, "confirm": True})
+
+    assert no_confirmation.status_code == 400
+    assert traversal.status_code == 400
+    assert removed.status_code == 200
+    assert removed.json()["removed"] is True
+    assert not model.exists()
+    assert keep.read_text(encoding="utf-8") == "keep"
+
+
+def test_model_removal_rejects_active_download_and_active_local_backend(monkeypatch, tmp_path):
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    model = models_dir / "local-test.litertlm"
+    model.write_bytes(b"test model")
+    monkeypatch.setattr(web_app.core, "MODELS_DIR", models_dir)
+    monkeypatch.setattr(web_app, "_DOWNLOAD_JOBS", {
+        "job-1": {"filename": model.name, "status": "downloading"},
+    })
+    monkeypatch.setattr(web_app, "_AGENT", None)
+    with TestClient(app=app) as client:
+        active_download = client.post("/api/models/remove", json={"filename": model.name, "confirm": True})
+    assert active_download.status_code == 409
+    assert model.exists()
+
+    class LocalBackend:
+        label = "LiteRT-LM local backend"
+
+    class ActiveAgent:
+        backend = LocalBackend()
+
+    monkeypatch.setattr(web_app, "_DOWNLOAD_JOBS", {})
+    monkeypatch.setattr(web_app, "_AGENT", ActiveAgent())
+    with TestClient(app=app) as client:
+        active_backend = client.post("/api/models/remove", json={"filename": model.name, "confirm": True})
+    assert active_backend.status_code == 409
+    assert model.exists()
+
+
+def test_model_inventory_shows_confirmed_remove_control():
+    with TestClient(app=app) as client:
+        html = client.get("/models").text
+        js = client.get("/static/app.js").text
+    assert "Remove local model" in js
+    assert "data-remove-model" in js
+    assert "/api/models/remove" in js
