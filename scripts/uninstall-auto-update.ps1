@@ -1,7 +1,9 @@
-# Compatibility forwarding entrypoint. Canonical legacy implementation remains at repository root.
 $ErrorActionPreference = "Stop"
-$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Target = Join-Path $Root "uninstall-auto-update.ps1"
-if (-not (Test-Path -LiteralPath $Target)) { throw "Missing script: $Target" }
-& $Target @args
-exit $LASTEXITCODE
+$TaskName = "TerminalAI-AutoUpdate"
+$Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($Task) {
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-Host "Weekly automatic project updates disabled."
+} else {
+    Write-Host "No TerminalAI-AutoUpdate task was registered."
+}
