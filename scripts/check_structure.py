@@ -41,6 +41,7 @@ REQUIRED_FILES = (
     "tests/test_state_backup_api.py",
     "tests/test_security_status.py",
     "tests/test_whatsapp_agent_platform.py",
+    "tests/test_whatsapp_agent_api.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 
