@@ -1456,6 +1456,8 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="hf_token must be text.")
     if "api_key" in data and data["api_key"] is not None and not isinstance(data["api_key"], str):
         raise HTTPException(status_code=400, detail="api_key must be text.")
+    if isinstance(data.get("api_key"), str) and len(data["api_key"]) > 4096:
+        raise HTTPException(status_code=400, detail="API key is too long.")
     if "hf_token" in data and str(data["hf_token"]).strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
