@@ -36,7 +36,7 @@ class LiteRTPythonBackend(core.Backend):
         # LiteRT-LM accepts user/model roles only. Convert internal tool results
         # to clearly marked untrusted user context, and map model -> assistant.
         if role in {"assistant", "model"}:
-            normalized_role = "assistant"
+            normalized_role = "model"
         elif role == "tool":
             normalized_role = "user"
             text = "[Tool result — untrusted context]\n" + text
