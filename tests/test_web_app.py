@@ -29,6 +29,8 @@ def test_dashboard_returns_html():
     assert 'id="backup-list"' in response.text
     assert 'id="backup-refresh"' in response.text
     assert "checksum-verified backups" in response.text
+    assert 'id="security-status"' in response.text
+    assert 'id="security-refresh"' in response.text
 
 
 def test_status_endpoint_is_available_without_model():
@@ -698,3 +700,14 @@ def test_global_provider_generation_settings_are_validated_and_persisted():
         assert saved["provider_timeout_seconds"] == 5
         invalid = client.patch("/api/settings", json={"provider_temperature": True})
         assert invalid.status_code == 400
+
+
+def test_security_status_endpoint_never_exposes_credentials():
+    with TestClient(app=app) as client:
+        response = client.get("/api/security/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["remote_bind_requires_auth"] is True
+    assert payload["credentials_exposed"] is False
+    assert "TERMINAL_AI_AUTH_PASSWORD" in payload["required_environment_names"]
+    assert "password" not in payload
