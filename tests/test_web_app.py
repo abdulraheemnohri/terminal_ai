@@ -139,6 +139,26 @@ def test_dashboard_assets_are_served_separately():
     assert "overview-health" in js.text
 
 
+def test_settings_backup_controls_are_visible_and_credentials_are_excluded():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    for control_id in (
+        "settings-export-backup", "settings-import-json",
+        "settings-validate-import", "settings-apply-import",
+        "settings-import-preview", "settings-import-error",
+    ):
+        assert f'id="{control_id}"' in html
+    assert "SETTINGS_BACKUP_KEYS" in js
+    assert "terminal-ai-settings-backup.json" in js
+    assert "Credentials were excluded" in js
+    assert "mandatory human-approval setting cannot be disabled" in js
+    # Credentials must never be part of the export allowlist.
+    allowlist = js.split("const SETTINGS_BACKUP_KEYS=[", 1)[1].split("];", 1)[0]
+    assert '"api_key"' not in allowlist
+    assert '"hf_token"' not in allowlist
+
+
 def test_self_status_exposes_operational_model_without_claiming_sentience():
     with TestClient(app=app) as client:
         response = client.get("/api/self/status")
