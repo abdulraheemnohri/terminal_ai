@@ -237,6 +237,7 @@ async function loadSettings(){
   const configured=data.provider_configured||{};
   const rows=[["State directory",data.state_dir],["Models directory",data.models_dir],...Object.entries(configured).map(([k,v])=>[k,v?"API key configured":"API key missing"])];
   $("storage-list").innerHTML=rows.map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
+  if(configured[data.active_provider])await fetchProviderModels({auto:true});
  }catch(e){$("settings-error").textContent=e.message;}
 }
 $("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";$("provider-model-options")?.replaceChildren();$("provider-model-count").textContent="Provider changed · model list not loaded";$("provider-model-error").textContent="";fetchProviderModels({auto:true});});
