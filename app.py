@@ -107,6 +107,7 @@ def _read_settings() -> dict[str, Any]:
         "active_provider": "gemini",
         "provider_model": "",
         "custom_base_url": "",
+        "provider_profiles": {},
         "browser_allowed_domains": [],
         "self_identity": "Terminal AI",
         "self_mission": "Help the user accurately and safely while respecting permissions and privacy.",
@@ -1343,7 +1344,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     allowed_settings = {
         "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
         "agentic_planning_enabled", "agentic_recovery_enabled", "agentic_persona",
-        "provider_model", "custom_base_url", "browser_allowed_domains", "self_identity", "self_mission",
+        "provider_model", "custom_base_url", "provider_profiles", "browser_allowed_domains", "self_identity", "self_mission",
         "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
@@ -1390,6 +1391,52 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data["provider_model"], str):
             raise HTTPException(status_code=400, detail="provider_model must be text.")
         current["provider_model"] = data["provider_model"].strip()[:200]
+    if "provider_profiles" in data:
+        profiles = data["provider_profiles"]
+        if not isinstance(profiles, dict) or len(profiles) > 30:
+            raise HTTPException(status_code=400, detail="provider_profiles must be an object with at most 30 provider entries.")
+        from api_provider_backend import PROVIDERS
+        valid_ids = {"gemini", *PROVIDERS.keys()}
+        normalized = {}
+        for provider_id, raw in profiles.items():
+            if provider_id not in valid_ids or not isinstance(raw, dict):
+                raise HTTPException(status_code=400, detail="Each provider profile must use a registered provider ID and an object value.")
+            unknown_fields = set(raw) - {"model", "base_url", "temperature", "top_p", "max_tokens", "timeout_seconds", "failover_priority"}
+            if unknown_fields:
+                raise HTTPException(status_code=400, detail="Unknown provider profile field(s): " + ", ".join(sorted(unknown_fields)[:5]))
+            profile = {}
+            if "model" in raw:
+                if not isinstance(raw["model"], str) or len(raw["model"]) > 200:
+                    raise HTTPException(status_code=400, detail=f"{provider_id} model must be text up to 200 characters.")
+                profile["model"] = raw["model"].strip()
+            if "base_url" in raw:
+                if not isinstance(raw["base_url"], str) or len(raw["base_url"]) > 500:
+                    raise HTTPException(status_code=400, detail=f"{provider_id} base_url must be text up to 500 characters.")
+                endpoint = raw["base_url"].strip()
+                if endpoint:
+                    try:
+                        profile["base_url"] = validate_custom_base_url(endpoint)
+                    except SettingsValidationError as exc:
+                        raise HTTPException(status_code=400, detail=f"Invalid {provider_id} endpoint: {exc}") from exc
+                else:
+                    profile["base_url"] = ""
+            for key, minimum, maximum in (("temperature", 0.0, 2.0), ("top_p", 0.0, 1.0)):
+                if key in raw:
+                    value = raw[key]
+                    if isinstance(value, bool) or not isinstance(value, (int, float)):
+                        raise HTTPException(status_code=400, detail=f"{provider_id} {key} must be numeric.")
+                    import math
+                    if not math.isfinite(value):
+                        raise HTTPException(status_code=400, detail=f"{provider_id} {key} must be finite.")
+                    profile[key] = max(minimum, min(maximum, float(value)))
+            for key, minimum, maximum in (("max_tokens", 64, 32768), ("timeout_seconds", 5, 180), ("failover_priority", 1, 1000)):
+                if key in raw:
+                    value = raw[key]
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise HTTPException(status_code=400, detail=f"{provider_id} {key} must be an integer.")
+                    profile[key] = max(minimum, min(maximum, value))
+            normalized[provider_id] = profile
+        current["provider_profiles"] = normalized
     if "browser_allowed_domains" in data:
         values = data["browser_allowed_domains"]
         if not isinstance(values, list) or len(values) > 50:
