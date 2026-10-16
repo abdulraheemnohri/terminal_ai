@@ -133,8 +133,8 @@ class AutonomyEngine:
             "commit ", "push ", "restart ", "upload ", "email ", "publish ",
         )
         inferred_side_effects = any(marker in goal.casefold() for marker in action_intent_markers)
-        needs_review = (has_external_side_effects or inferred_side_effects
-                        or risk in {"low", "medium", "high", "critical"})
+        effective_side_effects = has_external_side_effects or inferred_side_effects
+        needs_review = (effective_side_effects or risk in {"low", "medium", "high", "critical"})
         if needs_review and chosen != "plan_task":
             chosen = "plan_task"
 
@@ -150,12 +150,13 @@ class AutonomyEngine:
             decision, status = "auto_execute_allowlisted_read_only", "completed"
         elif chosen == "world_model_summary" and not needs_review:
             facts = self.world_model.model.query()
-            result = {"facts": facts[:200], "count": len(facts), "executed_action": "world_model_summary",
+            safe_facts = [fact.__dict__ if hasattr(fact, "__dict__") else fact for fact in facts[:200]]
+            result = {"facts": safe_facts, "count": len(facts), "executed_action": "world_model_summary",
                       "read_only": True}
             decision, status = "auto_execute_allowlisted_read_only", "completed"
         else:
             plan = self.planner.plan(goal, complexity=complexity, risk=risk,
-                                     has_external_side_effects=has_external_side_effects)
+                                     has_external_side_effects=effective_side_effects)
             task = self.task_lifecycle.create(
                 goal=goal, task_type=str(signals["task_type"]),
                 algorithm=str(signals["algorithm"]), risk=risk, steps=plan.steps,
