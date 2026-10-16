@@ -1,3 +1,9 @@
+## Unreleased — Gemini conversation-role compatibility
+
+- Normalize internal tool results into labelled user-context messages before sending chat history to Gemini SDKs, which accept only user/model content roles in this text-only adapter.
+- Keep assistant/model turns mapped to the provider's model role and omit unknown internal roles instead of forwarding them to the API.
+- Add regression tests covering tool-result history, unsupported internal roles, and SDK typed-content construction.
+
 ## Unreleased — health timeline and collection search
 
 - Add a browser-local health timeline for API reachability and inference readiness, bounded to 48 recent samples and never uploaded to the server.
