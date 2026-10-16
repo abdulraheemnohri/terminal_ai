@@ -270,6 +270,8 @@ class WhatsAppAgentPlatform:
             raise ValueError("Unknown send field(s).")
         message = data.get("message")
         recipient = str(data.get("recipient") or self._state.get("creator_id") or "").strip()
+        if not self._state.get("enabled"):
+            raise ValueError("Enable the WhatsApp Agent integration before sending.")
         if not isinstance(message, str) or not message.strip() or len(message) > 20000:
             raise ValueError("Message must contain 1–20,000 characters.")
         if not recipient or len(recipient) > 128 or any(ch.isspace() for ch in recipient):
