@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
-Set-Location -LiteralPath $PSScriptRoot
-$Python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
-if (-not (Test-Path $Python)) { throw "Virtual environment not found. Run .\install.ps1 first." }
-& $Python -m uvicorn app:app --host 127.0.0.1 --port 8000
-exit $LASTEXITCODE
+# Backwards-compatible wrapper; implementation lives in scripts/start-server.ps1.
+$Target = Join-Path $PSScriptRoot "scripts\start-server.ps1"
+if (-not (Test-Path -LiteralPath $Target)) { throw "Missing script: $Target" }
+& $Target @args
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
