@@ -58,6 +58,40 @@ def _is_remote_bind(scope: dict[str, Any]) -> bool:
         return host in {"0.0.0.0", "::", "::0", "*"} or host.casefold() in {"0.0.0.0", "::"}
 
 
+
+def security_status(root: str | Path) -> dict[str, Any]:
+    """Return a redacted security configuration summary without credential values."""
+    root_path = Path(root)
+    username = _env_value(root_path, "TERMINAL_AI_AUTH_USER")
+    password = _env_value(root_path, "TERMINAL_AI_AUTH_PASSWORD")
+    complete = bool(username and password)
+    partial = bool(username) != bool(password)
+    env_user = _usable_credential(os.environ.get("TERMINAL_AI_AUTH_USER"))
+    env_password = _usable_credential(os.environ.get("TERMINAL_AI_AUTH_PASSWORD"))
+    env_complete = bool(env_user and env_password)
+    env_partial = bool(env_user) != bool(env_password)
+    if partial:
+        state = "misconfigured"
+        message = "Only one authentication credential is configured. Requests fail closed until both are set."
+    elif complete:
+        state = "protected"
+        message = "HTTP Basic authentication is configured. Use HTTPS or a trusted local tunnel before remote exposure."
+    else:
+        state = "local-only"
+        message = "Authentication is not configured. Remote-bound requests are rejected by the fail-closed middleware."
+    return {
+        "state": state,
+        "authentication_configured": complete,
+        "credential_pair_complete": not partial,
+        "configuration_error": partial,
+        "credential_source": "environment" if env_complete else ("private .env or mixed" if complete or partial else "none"),
+        "remote_bind_requires_auth": True,
+        "credentials_exposed": False,
+        "message": message,
+        "required_environment_names": ["TERMINAL_AI_AUTH_USER", "TERMINAL_AI_AUTH_PASSWORD"],
+    }
+
+
 class BasicAuthMiddleware:
     """Protect all routes except health probes when credentials are configured.
 

@@ -16,6 +16,7 @@ REQUIRED_FILES = (
     "application/autonomy_jobs.py",
     "application/approved_plan_dispatch.py",
     "application/state_backups.py",
+    "application/security.py",
     "application/learning.py",
     "application/skill_evolution.py",
     "application/task_lifecycle.py",
@@ -37,6 +38,7 @@ REQUIRED_FILES = (
     "tests/test_approved_plan_dispatch.py",
     "tests/test_state_backups.py",
     "tests/test_state_backup_api.py",
+    "tests/test_security_status.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 

@@ -4,7 +4,7 @@ let apiReachable=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();loadSecurityStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -274,6 +274,19 @@ $("save-provider-profile")?.addEventListener("click",async()=>{
 });
 $("reset-provider-profile")?.addEventListener("click",loadProviderProfileIntoEditor);
 
+
+async function loadSecurityStatus(){
+ const host=$("security-status");
+ if(!host)return;
+ host.innerHTML='<div class="empty">Checking authentication configuration…</div>';
+ try{
+  const data=await api("/api/security/status");
+  const state=String(data.state||"unknown");
+  const badge=state==="protected"?"Configured":state==="misconfigured"?"Needs attention":"Local-only";
+  host.innerHTML='<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(badge)+'</b><span class="badge">'+escapeHtml(state)+'</span></div><p>'+escapeHtml(data.message||"No status detail returned.")+'</p><p class="muted">Credential source: '+escapeHtml(data.credential_source||"unknown")+' · credential values exposed: no · remote bind requires auth: '+(data.remote_bind_requires_auth?"yes":"no")+'</p></div>';
+ }catch(err){host.innerHTML='<div class="list-item"><b>Status unavailable</b><p>'+escapeHtml(err.message)+'</p></div>';}
+}
+if($("security-refresh"))$("security-refresh").addEventListener("click",loadSecurityStatus);
 
 async function loadBackups(){
  const list=$("backup-list"),status=$("backup-status"),error=$("backup-error");

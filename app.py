@@ -44,7 +44,7 @@ from routers.terminal import create_terminal_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
-from application.security import BasicAuthMiddleware
+from application.security import BasicAuthMiddleware, security_status
 from application.settings_validation import SettingsValidationError, validate_custom_base_url
 from application.state_backups import BackupError, create_backup, default_backup_dir, list_backups, validate_backup
 
@@ -1409,6 +1409,12 @@ async def validate_state_backup(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@get("/api/security/status")
+async def get_security_status() -> dict[str, Any]:
+    """Return security posture metadata without exposing credentials."""
+    return security_status(ROOT)
+
+
 @get("/api/browser/status")
 async def browser_status() -> dict[str, Any]:
     """Expose browser configuration only; this endpoint never launches a browser."""
@@ -2240,7 +2246,7 @@ app = Litestar(
         create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, browser_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
