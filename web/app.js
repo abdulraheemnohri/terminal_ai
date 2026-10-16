@@ -190,13 +190,28 @@ async function fetchProviderModels({auto=false}={}) {
  }finally{button.disabled=false;button.textContent="Fetch model IDs";}
 }
 $("fetch-provider-models")?.addEventListener("click",()=>fetchProviderModels());
-async function loadSettings(){
+async function loadProviderConfigurationStatus(){
+ const target=$("provider-configuration-status");
+ if(!target)return;
  try{
+  const data=await api("/api/providers");
+  const providers=(data.providers||[]).filter(item=>item.kind==="cloud");
+  target.innerHTML=providers.map(item=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(item.label||item.id)+'</b><span class="badge '+(item.configured?'success':'')+'">'+(item.configured?'Configured':'Missing key')+'</span></div><p class="muted">'+escapeHtml(item.protocol||"Gemini API")+' · default '+escapeHtml(item.default_model||"provider default")+'</p></div>').join("")||'<div class="empty">No cloud providers are registered.</div>';
+ }catch(error){target.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
+}
+$("refresh-provider-status")?.addEventListener("click",loadProviderConfigurationStatus);
+
+async function loadSettings(){
   const data=await api("/api/settings");
   $("setting-mode").value=data.mode||"auto";
   $("setting-provider").value=data.active_provider||"gemini";
   $("setting-model").value=data.provider_model||"";
+  $("setting-temperature").value=data.provider_temperature??0.7;
+  $("setting-top-p").value=data.provider_top_p??0.95;
+  $("setting-max-tokens").value=data.provider_max_tokens??2048;
+  $("setting-timeout").value=data.provider_timeout_seconds??60;
   $("setting-endpoint").value=data.custom_base_url||"";
+  await loadProviderConfigurationStatus();
   $("setting-browser-domains").value=(data.browser_allowed_domains||[]).join("\n");
   try{const browser=await api("/api/browser/status");$("browser-config-status").textContent=browser.enabled?("Allowlist configured: "+browser.allowed_domain_count+" domain(s) · Playwright "+(browser.playwright_installed?"installed":"not installed")+" · actions disabled pending secure dispatch"):"Browser disabled · no domains configured";}catch(e){$("browser-config-status").textContent="Browser status unavailable: "+e.message;}
   $("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";
@@ -310,7 +325,12 @@ $("settings-form").addEventListener("submit",async e=>{
  try{
   await api("/api/settings",{method:"PATCH",body:JSON.stringify({
    mode:$("setting-mode").value,active_provider:$("setting-provider").value,
-   provider_model:$("setting-model").value,custom_base_url:$("setting-endpoint").value,
+   provider_model:$("setting-model").value,
+   provider_temperature:Number($("setting-temperature").value),
+   provider_top_p:Number($("setting-top-p").value),
+   provider_max_tokens:Number($("setting-max-tokens").value),
+   provider_timeout_seconds:Number($("setting-timeout").value),
+   custom_base_url:$("setting-endpoint").value,
    browser_allowed_domains:$("setting-browser-domains").value.split(String.fromCharCode(10)).flatMap(x=>x.split(",")).map(x=>x.trim()).filter(Boolean),
    api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
    self_critique:$("setting-critique").checked,
@@ -347,7 +367,7 @@ $("settings-form").addEventListener("submit",async e=>{
   })});
   $("setting-hf-token").value="";
   $("settings-saved").textContent="Saved";$("setting-api-key").value="";
-  await loadSettings();await loadStatus();
+  await loadSettings();await loadProviderConfigurationStatus();await loadStatus();
  }catch(err){$("settings-saved").textContent="";$("settings-error").textContent=err.message;}
 });
 async function loadSelfX(){
