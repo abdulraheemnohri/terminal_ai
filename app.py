@@ -1014,6 +1014,7 @@ async def discover_provider_models(data: dict[str, Any]) -> dict[str, Any]:
 
 @post("/api/providers/test")
 async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
+    """Test a provider without returning credential-bearing exception details."""
     _load_env()
     provider_value = data.get("provider_id", "gemini")
     model_value = data.get("model", "")
@@ -1027,11 +1028,19 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
     provider_id = provider_value.strip().lower()
     model = model_value.strip() or None
     api_key = api_key_value.strip()
+    settings = _read_settings()
     started = time.time()
+    backend = None
     try:
         if provider_id == "gemini":
             key = api_key or _gemini_key()
-            backend = core.GeminiBackend(model=model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"), api_key=key)
+            backend = core.GeminiBackend(
+                model=model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"),
+                api_key=key,
+                temperature=float(settings.get("provider_temperature", 0.7)),
+                top_p=float(settings.get("provider_top_p", 0.95)),
+                max_tokens=int(settings.get("provider_max_tokens", 2048)),
+            )
         else:
             from api_provider_backend import APIProviderBackend, PROVIDERS
             info = PROVIDERS.get(provider_id)
@@ -1052,16 +1061,35 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
                         raise HTTPException(status_code=400, detail=str(exc)) from exc
             else:
                 endpoint = None
-            backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
-        answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
-        backend.close()
+            backend = APIProviderBackend(
+                provider_id, key, model=model,
+                base_url=endpoint if provider_id == "custom-openai" else None,
+                timeout=int(settings.get("provider_timeout_seconds", 60)),
+                temperature=float(settings.get("provider_temperature", 0.7)),
+                top_p=float(settings.get("provider_top_p", 0.95)),
+                max_tokens=int(settings.get("provider_max_tokens", 2048)),
+            )
+        answer = "".join(backend.stream(
+            "Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None
+        )).strip()
         if not answer:
             raise RuntimeError("Provider returned an empty response.")
-        return {"ok": True, "provider_id": provider_id, "model": model, "elapsed_ms": round((time.time() - started) * 1000), "message": "Connection successful."}
+        return {
+            "ok": True, "provider_id": provider_id, "model": model,
+            "elapsed_ms": round((time.time() - started) * 1000),
+            "message": "Connection successful.",
+        }
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        logger.warning("Provider connection test failed for %s (%s)", provider_id, type(exc).__name__)
+        raise HTTPException(status_code=502, detail=f"Provider connection failed ({type(exc).__name__}).") from exc
+    finally:
+        if backend is not None:
+            try:
+                backend.close()
+            except Exception:
+                logger.debug("Provider backend cleanup failed (%s)", provider_id)
 
 
 @get("/api/downloads")
