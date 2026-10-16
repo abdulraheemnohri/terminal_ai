@@ -114,7 +114,7 @@ class AutonomyEngine:
             raise ValueError("goal must be a non-empty string of at most 4000 characters")
         if isinstance(complexity, bool) or not isinstance(complexity, int) or not 1 <= complexity <= 10:
             raise ValueError("complexity must be an integer from 1 to 10")
-        if risk not in {"read", "low", "medium", "high", "critical"}:
+        if not isinstance(risk, str) or risk not in {"read", "low", "medium", "high", "critical"}:
             raise ValueError("invalid risk level")
         if not isinstance(has_external_side_effects, bool):
             raise ValueError("has_external_side_effects must be boolean")
