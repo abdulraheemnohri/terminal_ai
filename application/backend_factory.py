@@ -79,7 +79,7 @@ def build_cloud_backends(
                     provider_id=provider_id,
                     api_key=key,
                     model=model,
-                    base_url=(endpoint or None) if provider.get("endpoint_configurable") == "true" else None,
+                    base_url=(endpoint or None) if (provider.get("endpoint_configurable") == "true" or provider_id == "custom-openai") else None,
                     timeout=timeout,
                     temperature=temperature,
                     top_p=top_p,
