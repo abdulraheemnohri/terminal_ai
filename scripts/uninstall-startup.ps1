@@ -1,7 +1,9 @@
-# Compatibility forwarding entrypoint. Canonical legacy implementation remains at repository root.
 $ErrorActionPreference = "Stop"
-$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$Target = Join-Path $Root "uninstall-startup.ps1"
-if (-not (Test-Path -LiteralPath $Target)) { throw "Missing script: $Target" }
-& $Target @args
-exit $LASTEXITCODE
+$Task = Get-ScheduledTask -TaskName "TerminalAI" -ErrorAction SilentlyContinue
+if ($Task) {
+    Stop-ScheduledTask -TaskName "TerminalAI" -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName "TerminalAI" -Confirm:$false
+    Write-Host "Terminal AI autostart task removed. Project files and data were kept."
+} else {
+    Write-Host "No Terminal AI autostart task was registered for this user."
+}
