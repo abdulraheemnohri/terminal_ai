@@ -21,4 +21,11 @@ Backups may contain private conversation state, configuration, and credentials. 
 
 The `scripts/` directory is the canonical home for installer, updater, service, autostart, and maintenance implementations. Root-level commands such as `install.sh`, `update.sh`, and `start-server.sh` are compatibility wrappers that forward into this directory. This avoids duplicated implementations while preserving existing instructions and shortcuts. Review each script before running it, especially scripts that register login/boot services or automatic project updates.
 
-Use `scripts/install-service.sh` for a per-user Linux systemd service, `scripts/install-launchagent.sh` for macOS login startup, `scripts/install-service.ps1` for Windows scheduled startup, `scripts/install_autostart_windows.ps1` for a Windows Startup-folder shortcut, and `scripts/termux-boot-start.sh` as the optional Termux:Boot entrypoint. System-wide systemd installation is separate and intentionally asks for confirmation.
+- `scripts/install-service.sh`: per-user Linux systemd service. Boot-before-login persistence is enabled only when `TERMINAL_AI_ENABLE_LINGER=1` is explicitly set during installation.
+- `scripts/install_systemd_service.sh`: optional system-wide Linux systemd service; review the expected `/opt/terminal_ai` checkout and dedicated account before use.
+- `scripts/install-launchagent.sh` / `scripts/uninstall-launchagent.sh`: per-user macOS LaunchAgent.
+- `scripts/install-service.ps1`: Windows Task Scheduler startup.
+- `scripts/install_autostart_windows.ps1`: Windows Startup-folder shortcut.
+- `scripts/termux-boot-start.sh`: optional Termux:Boot entrypoint.
+
+Server launchers validate the port and refuse non-loopback binding by default. Remote access still requires a separately reviewed security layer; an opt-in bind flag is not authentication.
