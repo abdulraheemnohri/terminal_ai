@@ -2,6 +2,17 @@
 
 Terminal AI is a local-first agent, not a hardened multi-tenant service. Startup helpers bind to `127.0.0.1` by default. Do not expose the service directly to a network without authentication, authorization, TLS, CSRF/origin protections, rate limiting, and firewall rules.
 
+## Optional HTTP Basic authentication
+
+For a local shared account, add both of these to the private `.env` file and replace the examples with real values:
+
+```dotenv
+TERMINAL_AI_AUTH_USER=your_unique_username
+TERMINAL_AI_AUTH_PASSWORD=your_long_random_password
+```
+
+Restart the server after changing credentials. The dashboard, APIs, and WebSocket events require Basic authentication when configured; `/healthz` and `/readyz` remain public for probes. If the process is bound to a non-loopback IP, the app refuses requests unless both values are configured. Basic authentication is not a substitute for HTTPS, CSRF/origin protections, rate limits, authorization, or firewall rules.
+
 ## Linux (systemd user service)
 
 1. Install the project: `sh install.sh`.
