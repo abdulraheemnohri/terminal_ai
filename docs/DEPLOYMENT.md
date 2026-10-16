@@ -14,11 +14,11 @@ This service starts at user login and restarts after process failure. Boot-befor
 
 ## macOS (launchd user agent)
 
-Run `sh scripts/install-service.sh` only if the script is the macOS LaunchAgent installer in your checkout. Check the generated plist and logs before relying on it. Unload the user agent with `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.terminal-ai.server.plist`. (The same filename may be used by platform-specific installer revisions; inspect the script before running it.)
+After `sh install.sh`, run `sh install-launchagent.sh` (or `sh scripts/install-launchagent.sh`). The LaunchAgent is per-user, starts at login, and restarts after failure. Logs are `~/Library/Logs/terminal-ai.log` and `terminal-ai-error.log`. Remove it with `sh uninstall-launchagent.sh`.
 
 ## Windows (Task Scheduler)
 
-After `./install.ps1`, run `./scripts/install-service.ps1` in PowerShell. The task starts the server at user logon and retries after failures. Inspect it with `Get-ScheduledTask -TaskName 'Terminal AI Web Server'`; remove it with `Unregister-ScheduledTask -TaskName 'Terminal AI Web Server'`. The launcher validates host and port and refuses non-loopback binds unless explicitly opted in.
+After `./install.ps1`, run `./scripts/install-service.ps1` in PowerShell. The task starts the server at user logon and retries after failures. Inspect it with `Get-ScheduledTask -TaskName 'Terminal AI Web Server'`; remove it with `Unregister-ScheduledTask -TaskName 'Terminal AI Web Server'`. The installer validates host and port and refuses non-loopback binds unless explicitly opted in.
 
 ## Termux / Android
 
