@@ -201,7 +201,7 @@ async function loadProviderConfigurationStatus(){
    const selected=selector.value||data.active_provider||"gemini";
    selector.replaceChildren(...providers.map(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=item.label;return option;}));
    selector.value=providers.some(item=>item.id===selected)?selected:(data.active_provider||providers[0].id);
-   $("custom-endpoint-field").hidden=selector.value!=="custom-openai";
+   $("custom-endpoint-field").hidden=!providers.find(item=>item.id===selector.value)?.endpoint_configurable;
   }
   target.innerHTML=providers.map(item=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(item.label||item.id)+'</b><span class="badge '+(item.configured?'success':'')+'">'+(item.configured?'Configured':'Missing key')+'</span></div><p class="muted">'+escapeHtml(item.protocol||"Gemini API")+' · default '+escapeHtml(item.default_model||"provider default")+'</p></div>').join("")||'<div class="empty">No cloud providers are registered.</div>';
  }catch(error){target.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
@@ -263,7 +263,7 @@ async function loadSettings(){
   if(configured[data.active_provider])await fetchProviderModels({auto:true});
  }catch(e){$("settings-error").textContent=e.message;}
 }
-$("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";$("provider-model-options")?.replaceChildren();$("provider-model-count").textContent="Provider changed · model list not loaded";$("provider-model-error").textContent="";fetchProviderModels({auto:true});});
+$("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=!["custom-openai","ollama","lm-studio","vllm"].includes($("setting-provider").value);$("provider-model-options")?.replaceChildren();$("provider-model-count").textContent="Provider changed · model list not loaded";$("provider-model-error").textContent="";fetchProviderModels({auto:true});});
 
 let latestUpdateInfo=null;
 async function loadUpdateStatus(){
