@@ -232,9 +232,7 @@ def _build_agent() -> core.Agent:
     registry = core.ModelRegistry()
     downloader = core.AutoDownloader(registry)
     router = core.TaskRouter(registry)
-    key = _gemini_key()
     local_path = next((p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()), None)
-    cloud: core.Backend | None = None
     local: core.Backend | None = None
     mode = settings_data["mode"]
 
