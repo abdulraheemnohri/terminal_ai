@@ -472,7 +472,9 @@ async function loadTaskLifecycle(){
   host.innerHTML=tasks.length?tasks.map(t=>{
    const status=escapeHtml(t.status),id=escapeHtml(t.id);
    let actions='<button class="btn" data-task-refresh="'+id+'">Sync status</button>';
-   if(t.status==="planned")actions+='<button class="btn primary" data-task-link="'+id+'">Link Command Control operation</button>';
+   if(t.status==="planned")actions+='<button class="btn primary" data-task-prepare="'+id+'">Prepare terminal operation</button><button class="btn" data-task-link="'+id+'">Link existing operation</button>';
+   if(t.status==="awaiting_approval"||t.status==="pending")actions+='<button class="btn primary" data-go="command-control">Review in Command Control</button>';
+   if(t.status==="approved"&&t.operation_tool==="terminal"&&t.operation_name==="execute")actions+='<button class="btn primary" data-task-execute="'+id+'" data-operation-id="'+escapeHtml(t.operation_id)+'">Execute approved command</button>';
    if(t.status==="executed")actions+='<button class="btn primary" data-task-verify="'+id+'">Verify result</button>';
    if(t.status==="verified")actions+='<button class="btn primary" data-task-review="'+id+'">Review outcome</button>';
    if(t.operation_id&&["failed","expired"].includes(t.execution_status))actions+='<button class="btn" data-task-recovery="'+id+'">Draft recovery proposal</button>';
@@ -500,7 +502,25 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
  const run=async(path,body)=>api(path,{method:"POST",body:JSON.stringify(body)});
  try{
   if(b.dataset.taskRefresh){b.disabled=true;await api("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskRefresh));await loadTaskLifecycle();return;}
-  if(b.dataset.taskLink){
+  if(b.dataset.taskPrepare){
+   const raw=prompt('Enter the exact argv as a JSON array (no shell strings), e.g. ["pytest","-q"]:','["pytest","-q"]');
+   if(raw===null)return;
+   let argv;try{argv=JSON.parse(raw);}catch(_){$("task-lifecycle-error").textContent="argv must be valid JSON.";return;}
+   if(!Array.isArray(argv)||!argv.length||argv.some(x=>typeof x!=="string")){$("task-lifecycle-error").textContent="argv must be a non-empty array of strings.";return;}
+   const cwd=prompt("Workspace-relative working directory",".");if(cwd===null)return;
+   const timeoutText=prompt("Timeout in seconds (1–120)","30");if(timeoutText===null)return;
+   const timeout=Number(timeoutText);if(!Number.isInteger(timeout)||timeout<1||timeout>120){$("task-lifecycle-error").textContent="Timeout must be an integer from 1 to 120.";return;}
+   if(!confirm("Queue this exact command for approval? It will NOT execute until you approve it in Command Control and then click Execute approved command."))return;
+   const result=await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskPrepare)+"/terminal-operation",{argv,cwd,timeout});
+   $("task-lifecycle-result").textContent=JSON.stringify(result,null,2);
+   $("task-lifecycle-error").textContent="Operation queued. Open Command Control Center, approve the exact operation, then return and sync task status.";
+  }else if(b.dataset.taskExecute){
+   if(!confirm("Execute the exact command you previously approved? This consumes that approval. No shell is used."))return;
+   b.disabled=true;b.textContent="Executing…";
+   const result=await api("/api/terminal/execute/"+encodeURIComponent(b.dataset.operationId),{method:"POST",body:"{}"});
+   $("task-lifecycle-result").textContent=JSON.stringify(result,null,2);
+   $("task-lifecycle-error").textContent=result.returncode===0?"Command returned exit code 0. Sync task status, independently verify the result, then review the outcome.":"Command failed with exit code "+result.returncode+". Sync task status; do not mark it successful. Use the recovery proposal workflow if needed.";
+  }else if(b.dataset.taskLink){
    const id=prompt("Paste the existing Command Control operation ID. This only links it; it does not approve or execute it.");
    if(!id)return;
    await run("/api/agentic/tasks/"+encodeURIComponent(b.dataset.taskLink)+"/operation",{operation_id:id.trim()});

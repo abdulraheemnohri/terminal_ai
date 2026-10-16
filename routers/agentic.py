@@ -13,6 +13,7 @@ from litestar.exceptions import HTTPException
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
 from application.autonomy import AutonomyEngine, AutonomyStore
+from application.approved_plan_dispatch import prepare_plan_operation
 from application.autonomy_jobs import AutonomyJobQueue, AutonomyJobWorker
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
@@ -262,7 +263,17 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         }:
             raise HTTPException(status_code=400, detail="Invalid task status.")
         items = task_lifecycle.list(limit, status)
-        for item in items:
+        for item_index, item in enumerate(items):
+            if item.get("operation_id"):
+                operation = control.get_operation(item["operation_id"])
+                if operation is not None:
+                    try:
+                        item = task_lifecycle.sync_operation(item["id"], operation)
+                    except ValueError:
+                        pass
+                    item["operation_tool"] = operation.get("tool")
+                    item["operation_name"] = operation.get("operation")
+                    items[item_index] = item
             proposals = recovery_store.list_for_task(item["id"])
             for proposal in proposals:
                 operation_id = proposal.get("new_operation_id")
@@ -283,6 +294,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
                     task = task_lifecycle.sync_operation(task_id, operation)
                 except ValueError:
                     pass
+                task["operation_tool"] = operation.get("tool")
+                task["operation_name"] = operation.get("operation")
         proposals = recovery_store.list_for_task(task_id)
         for proposal in proposals:
             operation_id = proposal.get("new_operation_id")
@@ -313,6 +326,35 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         })
         return {"task": task, "execution_started": False,
                 "notice": "Linking records the operation association; it does not approve or execute it."}
+
+    @post("/tasks/{task_id:str}/terminal-operation")
+    async def prepare_task_terminal_operation(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Queue a specific argv-only terminal operation for approval and link it to a plan."""
+        allowed = {"argv", "cwd", "timeout"}
+        unknown = set(data) - allowed
+        if unknown:
+            raise HTTPException(status_code=400, detail="Unknown fields: " + ", ".join(sorted(unknown)))
+        if workspace is None:
+            raise HTTPException(status_code=503, detail="Workspace tools are not available.")
+        try:
+            return prepare_plan_operation(
+                task_id=task_id,
+                argv=data.get("argv"),
+                cwd=data.get("cwd", "."),
+                timeout=data.get("timeout", 30),
+                control=control,
+                workspace=workspace,
+                task_lifecycle=task_lifecycle,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Task run not found.") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409 if "only an unlinked planned task" in str(exc) else 400,
+                                detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=400, detail="Could not prepare operation safely.") from exc
 
     @post("/tasks/{task_id:str}/verify")
     async def verify_task_run(task_id: str, data: dict[str, Any]) -> dict[str, Any]:
