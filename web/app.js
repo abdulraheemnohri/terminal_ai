@@ -170,6 +170,26 @@ loadProviders();loadDownloads();
 async function loadDiagnostics(){const list=$("diagnostic-list");list.innerHTML='<div class="empty">Running local checks…</div>';$("diagnostics-error").textContent="";try{const d=await api("/api/diagnostics");const sections=[["Application",d.application],["Backend",d.backend],["Storage",d.storage],["Runtime",d.runtime]];list.innerHTML=sections.map(([name,values])=>'<div class="list-item"><b>'+escapeHtml(name)+'</b>'+Object.entries(values||{}).map(([k,v])=>'<p><span class="muted">'+escapeHtml(k.replace(/_/g," "))+'</span>: '+escapeHtml(typeof v==="object"&&v!==null?JSON.stringify(v):v)+'</p>').join("")+'</div>').join("");}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
 $("refresh-diagnostics").addEventListener("click",loadDiagnostics);
 
+async function fetchProviderModels({auto=false}={}) {
+ const button=$("fetch-provider-models"),error=$("provider-model-error"),count=$("provider-model-count"),list=$("provider-model-options");
+ if(!button||!error||!count||!list)return;
+ const provider=$("setting-provider").value;
+ button.disabled=true;button.textContent="Fetching…";error.textContent="";count.textContent="Contacting provider API…";
+ try{
+  const result=await api("/api/providers/models",{method:"POST",body:JSON.stringify({
+   provider_id:provider,api_key:$("setting-api-key").value,base_url:$("setting-endpoint").value
+  })});
+  list.replaceChildren(...(result.models||[]).map(model=>{const option=document.createElement("option");option.value=model.id;option.label=model.label||model.id;return option;}));
+  const current=$("setting-model").value.trim();
+  if(!current||!(result.models||[]).some(model=>model.id===current))$("setting-model").value=result.default_model||"";
+  count.textContent=(result.count||0)+" model ID(s) loaded";
+  if(!auto)showToast("Loaded "+(result.count||0)+" model IDs from "+provider+". Choose one and save settings.","status");
+ }catch(e){
+  count.textContent="Could not load model list";
+  error.textContent=e.message+" You can still enter a model ID manually.";
+ }finally{button.disabled=false;button.textContent="Fetch model IDs";}
+}
+$("fetch-provider-models")?.addEventListener("click",()=>fetchProviderModels());
 async function loadSettings(){
  try{
   const data=await api("/api/settings");
@@ -219,7 +239,7 @@ async function loadSettings(){
   $("storage-list").innerHTML=rows.map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");
  }catch(e){$("settings-error").textContent=e.message;}
 }
-$("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";});
+$("setting-provider").addEventListener("change",()=>{$("custom-endpoint-field").hidden=$("setting-provider").value!=="custom-openai";$("provider-model-options")?.replaceChildren();$("provider-model-count").textContent="Provider changed · model list not loaded";$("provider-model-error").textContent="";fetchProviderModels({auto:true});});
 
 let latestUpdateInfo=null;
 async function loadUpdateStatus(){
