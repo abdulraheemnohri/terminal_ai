@@ -37,6 +37,7 @@ from routers.health import create_health_router
 from routers.chat import create_chat_router
 from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
+from routers.providers import create_provider_router
 from routers.workspace import create_workspace_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
@@ -958,111 +959,6 @@ async def model_detail(model_id: str) -> dict[str, Any]:
         "hf_repo": model.hf_repo or None, "hf_file": model.hf_file or None,
         "installed": installed_path is not None, "path": installed_path,
     }
-
-@get("/api/providers")
-async def providers() -> dict[str, Any]:
-    """Discover available provider integrations and configuration state."""
-    _load_env()
-    local_files = [p for p in core.MODELS_DIR.glob("*.litertlm") if p.is_file()]
-    from api_provider_backend import PROVIDERS
-    cloud_providers = [
-        {"id": "gemini", "label": "Google Gemini", "kind": "cloud",
-         "configured": _gemini_key() is not None, "requires_network": True},
-    ]
-    cloud_providers.extend(
-        {"id": pid, "label": info["label"], "kind": "cloud",
-         "configured": bool(os.environ.get(info["env"])), "requires_network": True,
-         "protocol": info["protocol"], "default_model": info["default_model"]}
-        for pid, info in PROVIDERS.items()
-    )
-    cloud_providers.extend([
-        {"id": "litert-lm", "label": "LiteRT-LM Python API", "kind": "local",
-         "configured": bool(local_files), "requires_network": False},
-        {"id": "huggingface-hub", "label": "Hugging Face Hub", "kind": "model-source",
-         "configured": True, "requires_network": True,
-         "token_configured": bool(os.environ.get("HF_TOKEN") or core.HF_TOKEN_FILE.exists())},
-    ])
-    return {"providers": cloud_providers, "active_mode": _read_settings()["mode"],
-            "active_provider": _read_settings().get("active_provider", "gemini")}
-
-
-
-@post("/api/providers/models")
-async def discover_provider_models(data: dict[str, Any]) -> dict[str, Any]:
-    """Fetch available model IDs for the selected provider without running inference."""
-    _load_env()
-    provider_value = data.get("provider_id", "gemini")
-    api_key_value = data.get("api_key", "")
-    base_url_value = data.get("base_url", "")
-    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
-        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
-    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
-        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
-    if not isinstance(base_url_value, str) or len(base_url_value) > 500:
-        raise HTTPException(status_code=400, detail="base_url must be text of at most 500 characters.")
-    from application.provider_models import ModelDiscoveryError, fetch_provider_models
-    try:
-        return await asyncio.to_thread(
-            fetch_provider_models,
-            provider_value.strip().lower(),
-            api_key=api_key_value,
-            base_url=base_url_value,
-        )
-    except ModelDiscoveryError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-
-@post("/api/providers/test")
-async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
-    _load_env()
-    provider_value = data.get("provider_id", "gemini")
-    model_value = data.get("model", "")
-    api_key_value = data.get("api_key", "")
-    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
-        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
-    if not isinstance(model_value, str) or len(model_value) > 200:
-        raise HTTPException(status_code=400, detail="model must be text of at most 200 characters.")
-    if not isinstance(api_key_value, str) or len(api_key_value) > 4096:
-        raise HTTPException(status_code=400, detail="api_key must be text of at most 4096 characters.")
-    provider_id = provider_value.strip().lower()
-    model = model_value.strip() or None
-    api_key = api_key_value.strip()
-    started = time.time()
-    try:
-        if provider_id == "gemini":
-            key = api_key or _gemini_key()
-            backend = core.GeminiBackend(model=model or os.environ.get("TERMINAL_AI_GEMINI_MODEL", "gemini-3.8-flash"), api_key=key)
-        else:
-            from api_provider_backend import APIProviderBackend, PROVIDERS
-            info = PROVIDERS.get(provider_id)
-            if info is None:
-                raise HTTPException(status_code=400, detail="Unknown provider.")
-            key = api_key or os.environ.get(info["env"], "")
-            endpoint_value = data.get("base_url", "")
-            if provider_id == "custom-openai":
-                if not isinstance(endpoint_value, str):
-                    raise HTTPException(status_code=400, detail="base_url must be text.")
-                if len(endpoint_value) > 500:
-                    raise HTTPException(status_code=400, detail="Custom endpoint URL is too long.")
-                endpoint = endpoint_value.strip() or None
-                if endpoint:
-                    try:
-                        endpoint = validate_custom_base_url(endpoint)
-                    except SettingsValidationError as exc:
-                        raise HTTPException(status_code=400, detail=str(exc)) from exc
-            else:
-                endpoint = None
-            backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
-        answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
-        backend.close()
-        if not answer:
-            raise RuntimeError("Provider returned an empty response.")
-        return {"ok": True, "provider_id": provider_id, "model": model, "elapsed_ms": round((time.time() - started) * 1000), "message": "Connection successful."}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
 
 @get("/api/downloads")
 async def downloads() -> dict[str, Any]:
@@ -2049,6 +1945,7 @@ app = Litestar(
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
         status, chat, clear_chat, memory, remember, forget_memory,
+        create_provider_router(core, _load_env, _gemini_key, _read_settings, validate_custom_base_url, SettingsValidationError),
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_control_router(_COMMAND_CONTROL),
         create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning),
@@ -2056,7 +1953,7 @@ app = Litestar(
         create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, providers, test_provider_connection, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
