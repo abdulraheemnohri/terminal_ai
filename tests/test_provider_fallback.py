@@ -111,3 +111,56 @@ def test_cloud_provider_history_normalizes_model_and_tool_roles():
     ])
     assert [item["role"] for item in messages] == ["user", "assistant", "user"]
     assert messages[-1]["content"].startswith("[Tool result — untrusted context]\n")
+
+
+
+def test_litert_local_fallback_sends_tool_result_as_latest_user_message(monkeypatch, tmp_path):
+    import sys
+    from types import SimpleNamespace
+    from litert_api_backend import LiteRTPythonBackend
+
+    observed = {}
+
+    class FakeConversation:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def send_message_async(self, message):
+            observed["latest"] = message
+            return iter(["offline answer"])
+
+    class FakeEngine:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def create_conversation(self, **kwargs):
+            observed["messages"] = kwargs["messages"]
+            return FakeConversation()
+
+    fake_lm = SimpleNamespace(
+        Engine=FakeEngine,
+        Backend=SimpleNamespace(CPU=lambda: object()),
+        ThinkingConfig=lambda **kwargs: kwargs,
+    )
+    monkeypatch.setitem(sys.modules, "litert_lm", fake_lm)
+    model_path = tmp_path / "local.litertlm"
+    model_path.write_bytes(b"test")
+    backend = LiteRTPythonBackend(model_path)
+
+    history = [
+        core.Msg("user", "Question"),
+        core.Msg("model", "I will look it up."),
+        core.Msg("tool", "The tool returned 42."),
+    ]
+    assert list(backend.stream("System", history)) == ["offline answer"]
+    assert [message["role"] for message in observed["messages"]] == ["user", "model"]
+    assert observed["latest"].startswith("[Tool result — untrusted context]\n")
