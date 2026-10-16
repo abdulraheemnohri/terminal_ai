@@ -33,6 +33,26 @@ def test_create_list_and_validate_backup(tmp_path: Path):
     assert report["restore_performed"] is False
 
 
+def test_backup_excludes_whatsapp_agent_api_key_file(tmp_path: Path):
+    state = tmp_path / "state"
+    state.mkdir()
+    secret_file = state / "whatsapp_agent_platform.json"
+    secret_file.write_text('{"api_key":"do-not-export-this-secret","enabled":true}', encoding="utf-8")
+    (state / "ordinary-state.json").write_text('{"ok":true}', encoding="utf-8")
+    output = tmp_path / "backups"
+
+    created = create_backup(state, output)
+    with zipfile.ZipFile(created["path"]) as archive:
+        names = archive.namelist()
+        manifest = json.loads(archive.read("manifest.json"))
+        archive_bytes = b"".join(archive.read(name) for name in names if name != "manifest.json")
+
+    assert "state/ordinary-state.json" in names
+    assert "state/whatsapp_agent_platform.json" not in names
+    assert "whatsapp_agent_platform.json" not in manifest["files"]
+    assert b"do-not-export-this-secret" not in archive_bytes
+
+
 def test_validate_backup_detects_checksum_tampering(tmp_path: Path):
     state = tmp_path / "state"
     state.mkdir()

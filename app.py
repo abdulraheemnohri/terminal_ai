@@ -47,6 +47,7 @@ from application.backend_factory import build_cloud_backends
 from application.security import BasicAuthMiddleware, security_status
 from application.settings_validation import SettingsValidationError, validate_custom_base_url
 from application.state_backups import BackupError, create_backup, default_backup_dir, list_backups, validate_backup
+from application.whatsapp_agent_platform import WhatsAppAgentPlatform, create_whatsapp_agent_router
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -2231,6 +2232,23 @@ async def _stop_scheduler() -> None:
         except asyncio.CancelledError: pass
         _SCHEDULER_TASK = None
 
+async def _whatsapp_agent_reply(message: str) -> str:
+    """Use the existing serialized chat pipeline for verified WhatsApp creator messages."""
+    result = await chat(ChatRequest(message=message))
+    return str(result.get("answer", ""))
+
+
+_WHATSAPP_AGENT = WhatsAppAgentPlatform(core.STATE_DIR, _whatsapp_agent_reply)
+
+
+async def _start_whatsapp_agent() -> None:
+    await _WHATSAPP_AGENT.start()
+
+
+async def _stop_whatsapp_agent() -> None:
+    await _WHATSAPP_AGENT.stop()
+
+
 app = Litestar(
     middleware=[DefineMiddleware(BasicAuthMiddleware, root=ROOT)],
     route_handlers=[
@@ -2244,12 +2262,13 @@ app = Litestar(
         create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning, _WORKSPACE_TOOLS),
         create_health_router(ROOT, core.STATE_DIR),
         create_chat_router(_chat_runs_snapshot),
+        create_whatsapp_agent_router(_WHATSAPP_AGENT),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
         models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
-    on_startup=[_start_update_checker, _start_selfx_maintenance, _start_scheduler, start_autonomy_worker],
-    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance, _stop_scheduler, stop_autonomy_worker],
+    on_startup=[_start_update_checker, _start_selfx_maintenance, _start_scheduler, start_autonomy_worker, _start_whatsapp_agent],
+    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance, _stop_scheduler, stop_autonomy_worker, _stop_whatsapp_agent],
 )

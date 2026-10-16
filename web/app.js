@@ -1,10 +1,10 @@
 const $=id=>document.getElementById(id);
 let statusData=null;
 let apiReachable=null;
-const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
+const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine","whatsapp-agent":"WhatsApp Agent Platform",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();loadSecurityStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();loadSecurityStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();if(name==="whatsapp-agent")loadWhatsAppAgent();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -1326,3 +1326,55 @@ function setupCollectionSearch(){
  }
 }
 setupCollectionSearch();
+
+
+async function loadWhatsAppAgent(){
+ const result=$("wa-agent-config-result");
+ try{
+  const s=await api("/api/whatsapp-agent/status");
+  $("wa-agent-state").textContent=s.connected?"Connected":(s.enabled?(s.configured?"Connecting":"Missing key"):"Disconnected");
+  $("wa-agent-connected").textContent=s.connected?"Connected":(s.enabled?"Connecting":"Off");
+  $("wa-agent-received").textContent=String(s.received_count??0);
+  $("wa-agent-sent").textContent=String(s.sent_count??0);
+  $("wa-agent-creator").textContent=s.creator_id?"Verified":"Not yet";
+  $("wa-agent-last-poll").textContent=s.last_poll_at?new Date(s.last_poll_at*1000).toLocaleString():"Never";
+  $("wa-agent-last-message").textContent=s.last_message_at?new Date(s.last_message_at*1000).toLocaleString():"None yet";
+  $("wa-agent-last-error").textContent=s.last_error||"None";
+  $("wa-agent-enabled").checked=!!s.enabled;
+  if(result&&!result.dataset.preserve)result.textContent="";
+  if(s.privacy_notice)$("wa-agent-state").title=s.privacy_notice;
+ }catch(err){if(result)result.textContent="Could not load WhatsApp status: "+err.message;}
+}
+const waConfigForm=$("wa-agent-config-form");
+if(waConfigForm)waConfigForm.addEventListener("submit",async e=>{
+ e.preventDefault();const result=$("wa-agent-config-result");const button=waConfigForm.querySelector('button[type="submit"]');button.disabled=true;result.textContent="Saving local configuration…";
+ try{
+  const body={enabled:$("wa-agent-enabled").checked};
+  const key=$("wa-agent-api-key").value.trim();if(key)body.api_key=key;
+  const s=await api("/api/whatsapp-agent/config",{method:"POST",body:JSON.stringify(body)});
+  $("wa-agent-api-key").value="";result.textContent=s.enabled?"Settings saved. Polling has been started.":"Settings saved. WhatsApp polling is disabled.";
+  result.className="notice";await loadWhatsAppAgent();
+ }catch(err){result.className="error";result.textContent=err.message;}
+ finally{button.disabled=false;}
+});
+const waRefresh=$("wa-agent-refresh");if(waRefresh)waRefresh.addEventListener("click",loadWhatsAppAgent);
+const waTest=$("wa-agent-test");if(waTest)waTest.addEventListener("click",async()=>{
+ const result=$("wa-agent-config-result");waTest.disabled=true;result.className="muted";result.textContent="Checking the Agent Platform connection…";
+ try{const r=await api("/api/whatsapp-agent/test",{method:"POST",body:"{}"});result.className="notice";result.textContent=r.message||"Connection test succeeded.";await loadWhatsAppAgent();}
+ catch(err){result.className="error";result.textContent=err.message;await loadWhatsAppAgent();}
+ finally{waTest.disabled=false;}
+});
+const waRemove=$("wa-agent-remove-key");if(waRemove)waRemove.addEventListener("click",async()=>{
+ if(!confirm("Remove the saved WhatsApp Agent API key and disconnect this agent?"))return;
+ const result=$("wa-agent-config-result");waRemove.disabled=true;
+ try{await api("/api/whatsapp-agent/config",{method:"POST",body:JSON.stringify({clear_key:true,enabled:false})});$("wa-agent-api-key").value="";result.className="notice";result.textContent="API key removed and poller stopped.";await loadWhatsAppAgent();}
+ catch(err){result.className="error";result.textContent=err.message;}
+ finally{waRemove.disabled=false;}
+});
+const waSendForm=$("wa-agent-send-form");if(waSendForm)waSendForm.addEventListener("submit",async e=>{
+ e.preventDefault();const result=$("wa-agent-send-result");const button=waSendForm.querySelector('button[type="submit"]');button.disabled=true;result.textContent="Sending…";
+ try{const r=await api("/api/whatsapp-agent/send",{method:"POST",body:JSON.stringify({message:$("wa-agent-message").value})});result.className="notice";result.textContent="Message accepted by WhatsApp Agent Platform."; $("wa-agent-message").value="";await loadWhatsAppAgent();}
+ catch(err){result.className="error";result.textContent=err.message;}
+ finally{button.disabled=false;}
+});
+

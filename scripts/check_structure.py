@@ -23,6 +23,7 @@ REQUIRED_FILES = (
     "application/recovery_proposals.py",
     "application/browser_runtime.py",
     "application/browser_dispatch.py",
+    "application/whatsapp_agent_platform.py",
     "scripts/execute_approved_browser_operation.py",
     "scripts/doctor.py",
     "scripts/backup_state.py",
@@ -39,6 +40,8 @@ REQUIRED_FILES = (
     "tests/test_state_backups.py",
     "tests/test_state_backup_api.py",
     "tests/test_security_status.py",
+    "tests/test_whatsapp_agent_platform.py",
+    "tests/test_whatsapp_agent_api.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 
