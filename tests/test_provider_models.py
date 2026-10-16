@@ -95,3 +95,54 @@ def test_provider_http_error_does_not_expose_response_body(monkeypatch):
     with pytest.raises(ModelDiscoveryError, match="HTTP 401") as exc:
         fetch_provider_models("openai", api_key="test", environ={})
     assert "secret response" not in str(exc.value)
+
+
+
+def test_openai_compatible_model_list_follows_has_more_cursor(monkeypatch):
+    urls = []
+
+    def fake_urlopen(request, timeout):
+        urls.append(request.full_url)
+        if len(urls) == 1:
+            return FakeResponse({"data": [{"id": "model-a"}], "has_more": True})
+        return FakeResponse({"data": [{"id": "model-b"}], "has_more": False})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    result = fetch_provider_models("openai", api_key="test-key", environ={})
+    assert len(urls) == 2
+    assert "after=model-a" in urls[1]
+    assert [item["id"] for item in result["models"]] == ["model-a", "model-b"]
+
+
+def test_gemini_model_list_follows_next_page_token(monkeypatch):
+    urls = []
+
+    def fake_urlopen(request, timeout):
+        urls.append(request.full_url)
+        if len(urls) == 1:
+            return FakeResponse({
+                "models": [{"name": "models/gemini-a", "supportedGenerationMethods": ["generateContent"]}],
+                "nextPageToken": "page-token-2",
+            })
+        return FakeResponse({
+            "models": [{"name": "models/gemini-b", "supportedGenerationMethods": ["generateContent"]}],
+        })
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    result = fetch_provider_models("gemini", api_key="gemini-test", environ={})
+    assert len(urls) == 2
+    assert "pageToken=page-token-2" in urls[1]
+    assert [item["id"] for item in result["models"]] == ["gemini-a", "gemini-b"]
+
+
+def test_repeated_provider_cursor_does_not_loop_forever(monkeypatch):
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        return FakeResponse({"data": [{"id": "model-a"}], "has_more": True})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    result = fetch_provider_models("openai", api_key="test-key", environ={})
+    assert len(calls) == 2
+    assert result["count"] == 1
