@@ -959,9 +959,7 @@ def test_gemini_history_uses_supported_roles_with_sdk_content_types():
             self.role = role
             self.parts = parts
 
-    class Types:
-        Content = Content
-        Part = Part
+    Types = type("Types", (), {"Content": Content, "Part": Part})
 
     backend = object.__new__(tai.GeminiBackend)
     backend._types = Types
