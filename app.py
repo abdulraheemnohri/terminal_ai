@@ -1458,7 +1458,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="api_key must be text.")
     if isinstance(data.get("api_key"), str) and len(data["api_key"]) > 4096:
         raise HTTPException(status_code=400, detail="API key is too long.")
-    if "hf_token" in data and str(data["hf_token"]).strip():
+    if isinstance(data.get("hf_token"), str) and data["hf_token"].strip():
         token = str(data["hf_token"]).strip()
         if len(token) > 500:
             raise HTTPException(status_code=400, detail="Hugging Face token is too long.")
@@ -1469,7 +1469,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         except OSError:
             pass
         os.environ["HF_TOKEN"] = token
-    if "api_key" in data and str(data["api_key"]).strip():
+    if isinstance(data.get("api_key"), str) and data["api_key"].strip():
         provider_id = str(current.get("active_provider", "gemini"))
         if provider_id == "gemini":
             env_name = "GEMINI_API_KEY"
@@ -1492,7 +1492,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     _write_settings(current)
     # Settings that affect the backend take effect after the next chat initialization.
     global _AGENT, _BACKEND
-    backend_changed = bool(str(data.get("api_key", "")).strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url", "self_identity", "self_mission"))
+    backend_changed = bool(isinstance(data.get("api_key"), str) and data["api_key"].strip()) or any(current.get(k) != previous.get(k) for k in ("mode", "active_provider", "provider_model", "custom_base_url", "self_identity", "self_mission"))
     if backend_changed:
         if _AGENT is not None:
             try:
