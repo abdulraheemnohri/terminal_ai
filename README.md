@@ -274,7 +274,7 @@ Interactive API documentation is available at `/schema/swagger` while the app is
 - Model artifacts: `~/terminal-ai/models/` by default.
 - Override directories with `TERMINAL_AI_STATE` and `TERMINAL_AI_MODELS`.
 
-Back up the state directory before upgrades or checkpoint restores. Store backups securely because local state can include conversation and operational history.
+Back up the state directory before upgrades or checkpoint restores. Store backups securely because local state can include conversation and operational history. The Settings page also provides **State backup & recovery** controls to create, list, download, and checksum-validate archives. The web UI deliberately does not restore over live SQLite state; stop the service and use the CLI restore command below.
 
 ## Bounded failure recovery
 
