@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-# Compatibility forwarding entrypoint. Canonical legacy implementation remains at repository root.
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-TARGET="$ROOT/uninstall-auto-update-macos.sh"
-[ -f "$TARGET" ] || { echo "Missing script: $TARGET" >&2; exit 1; }
-exec sh "$TARGET" "$@"
+LABEL="com.terminal-ai.auto-update"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
+rm -f "$PLIST"
+echo "Weekly Terminal AI project updates disabled. Project files and local data were kept."
