@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from application.approved_plan_dispatch import prepare_plan_operation, validate_argv
@@ -66,7 +64,7 @@ def test_prepare_plan_operation_rejects_workspace_escape_and_nonplanned_task(tmp
     lifecycle = TaskLifecycleStore(tmp_path / "tasks.sqlite3")
     task = _task(lifecycle)
 
-    with pytest.raises(ValueError, match="Absolute paths"):
+    with pytest.raises(ValueError, match="escapes the configured workspace"):
         prepare_plan_operation(
             task_id=task["id"], argv=["pytest"], cwd="../", timeout=10,
             control=control, workspace=workspace, task_lifecycle=lifecycle,
