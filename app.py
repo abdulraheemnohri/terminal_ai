@@ -2178,7 +2178,7 @@ app = Litestar(
         create_knowledge_router(_LONG_MEMORY, _read_settings), create_workspace_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL, _read_settings),
         create_terminal_router(_WORKSPACE_TOOLS, _COMMAND_CONTROL),
         create_control_router(_COMMAND_CONTROL),
-        create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning),
+        create_agentic_router(_COMMAND_CONTROL, core.STATE_DIR, _SERVICES.learning, _WORKSPACE_TOOLS),
         create_health_router(ROOT, core.STATE_DIR),
         create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
