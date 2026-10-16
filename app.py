@@ -1202,8 +1202,8 @@ async def remove_model(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Set confirm=true to explicitly approve model removal.")
     if (
         not isinstance(filename, str) or not filename or len(filename) > 255
-        or Path(filename).name != filename or filename in {".", ".."}
-        or not filename.endswith(".litertlm")
+        or Path(filename).name != filename or "/" in filename or "\\" in filename
+        or filename in {".", ".."} or not filename.endswith(".litertlm")
     ):
         raise HTTPException(status_code=400, detail="Choose a single .litertlm filename from the installed model inventory.")
     root = core.MODELS_DIR.expanduser().resolve()
