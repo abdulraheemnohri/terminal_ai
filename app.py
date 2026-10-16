@@ -38,6 +38,7 @@ from routers.chat import create_chat_router
 from routers.agentic import create_agentic_router
 from routers.knowledge import create_knowledge_router
 from routers.workspace import create_workspace_router
+from routers.terminal import create_terminal_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
