@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import stat
+import sqlite3
 import tempfile
 from datetime import datetime, timezone
 import zipfile
@@ -39,6 +40,28 @@ def _sha256_file(path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
+
+
+
+def _snapshot_file(path: Path) -> bytes:
+    """Read a consistent SQLite snapshot when the file is a SQLite database."""
+    if path.name.endswith(("-wal", "-shm")):
+        return b""
+    with path.open("rb") as stream:
+        header = stream.read(16)
+    if header != b"SQLite format 3\\x00":
+        return path.read_bytes()
+    with tempfile.TemporaryDirectory(prefix="terminal-ai-sqlite-snapshot-") as directory:
+        snapshot = Path(directory) / "snapshot.sqlite3"
+        source = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=10)
+        destination = sqlite3.connect(snapshot)
+        try:
+            source.backup(destination)
+            destination.commit()
+        finally:
+            destination.close()
+            source.close()
+        return snapshot.read_bytes()
 
 def _safe_backup_path(name: str, backup_dir: Path | None = None) -> Path:
     if not isinstance(name, str) or not name or name in {".", ".."} or Path(name).name != name:
@@ -88,12 +111,14 @@ def create_backup(state_dir: Path, backup_dir: Path | None = None) -> dict[str, 
     try:
         with zipfile.ZipFile(temp_name, "w", compression=zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(state.rglob("*")):
-                if path.is_symlink() or not path.is_file():
+                if path.is_symlink() or not path.is_file() or path.name.endswith(("-wal", "-shm")):
                     continue
                 relative_parts = path.relative_to(state).parts
                 if "backups" in relative_parts:
                     continue
-                size = path.stat().st_size
+                relative = path.relative_to(state).as_posix()
+                data = _snapshot_file(path)
+                size = len(data)
                 if size > MAX_MEMBER_BYTES:
                     raise BackupError(f"State file exceeds the 100 MiB backup limit: {'/'.join(relative_parts)}")
                 total_bytes += size
@@ -101,9 +126,8 @@ def create_backup(state_dir: Path, backup_dir: Path | None = None) -> dict[str, 
                     raise BackupError("State backup exceeds the 1 GiB safety limit.")
                 if len(manifest["files"]) >= MAX_FILES:
                     raise BackupError("State backup contains more than 10,000 files.")
-                relative = path.relative_to(state).as_posix()
-                manifest["files"][relative] = _sha256_file(path)
-                archive.write(path, "state/" + relative)
+                manifest["files"][relative] = _sha256_bytes(data)
+                archive.writestr("state/" + relative, data)
             archive.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True))
         os.chmod(temp_name, stat.S_IRUSR | stat.S_IWUSR)
         # Preserve every backup by choosing a collision-safe name even within one second.
@@ -134,6 +158,8 @@ def validate_backup(name: str, state_dir: Path, backup_dir: Path | None = None) 
     try:
         with zipfile.ZipFile(path, "r") as archive:
             names = archive.namelist()
+            if len(names) != len(set(names)):
+                raise BackupError("Backup contains duplicate archive members.")
             if names.count("manifest.json") != 1:
                 raise BackupError("Backup must contain exactly one manifest.")
             manifest = json.loads(archive.read("manifest.json"))
