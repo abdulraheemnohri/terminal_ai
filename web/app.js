@@ -4,7 +4,7 @@ let apiReachable=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -558,6 +558,30 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
   }else return;
   await loadTaskLifecycle();await loadAgenticConsole();
  }catch(err){$("task-lifecycle-error").textContent=err.message;}
+});
+async function loadAutonomyStatus(){
+ const host=$("autonomy-status");if(!host)return;
+ try{
+  const data=await api("/api/agentic/autonomy/status");
+  const counts=data.history?.by_status||{};
+  host.innerHTML='<div class="list-item"><b>Mode: '+escapeHtml(data.mode||"unknown")+'</b><p>Autonomous runs: '+escapeHtml(data.history?.count??0)+' · Completed read-only actions: '+escapeHtml(counts.completed||0)+' · Plans awaiting approval: '+escapeHtml(counts.awaiting_approval||0)+'</p><p>Automatic actions: '+escapeHtml((data.automatic_actions||[]).join(", "))+'</p><p>External side effects: '+escapeHtml(data.external_side_effects||"approval required")+'</p></div>'+
+   ((data.history?.recent||[]).length?data.history.recent.map(item=>'<div class="list-item"><b>'+escapeHtml(item.action)+' · '+escapeHtml(item.status)+'</b><p>'+escapeHtml(item.goal)+'</p><p class="muted">'+escapeHtml(item.decision)+'</p></div>').join(""):'<div class="empty">No autonomous runs recorded yet.</div>');
+ }catch(error){host.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
+}
+$("autonomy-refresh")?.addEventListener("click",loadAutonomyStatus);
+$("autonomy-run-form")?.addEventListener("submit",async event=>{
+ event.preventDefault();
+ const button=$("autonomy-run-button"),error=$("autonomy-error"),result=$("autonomy-result");
+ button.disabled=true;button.textContent="Running…";error.textContent="";result.textContent="Decision cycle running…";
+ try{
+  const payload={goal:$("autonomy-goal").value.trim(),complexity:Number($("autonomy-complexity").value)};
+  const action=$("autonomy-action").value;if(action)payload.action=action;
+  const data=await api("/api/agentic/autonomy/run",{method:"POST",body:JSON.stringify(payload)});
+  result.textContent=JSON.stringify(data,null,2);
+  error.textContent=data.run?.status==="completed"?"Completed a registered read-only action automatically.": "Plan recorded. Any side effects remain approval-gated.";
+  await loadAutonomyStatus();await loadTaskLifecycle();
+ }catch(err){error.textContent=err.message;result.textContent="The autonomous run did not complete.";}
+ finally{button.disabled=false;button.textContent="Run autonomous decision cycle";}
 });
 async function loadAgenticConsole(){
  const showError=(id,error)=>{const node=$(id);if(node)node.textContent=error?error.message:"";};
