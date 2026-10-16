@@ -26,6 +26,12 @@ terminal_ai/
 
 The first extraction is now implemented in `application/container.py`: `RuntimeServices` constructs the long-lived memory, workspace, scheduler, and command-control services from explicit filesystem roots. `app.py` keeps compatibility aliases while route modules are migrated incrementally.
 
+## Operational script organization
+
+Operational implementations are canonical under `scripts/`: installation, update, service management, login/boot autostart, backup/restore, diagnostics, and validation. Root-level `.sh` and `.ps1` files are compatibility wrappers only. This keeps existing documented commands and desktop shortcuts working without maintaining duplicate implementations.
+
+The structure checker verifies that every root-level operational wrapper has a matching script and that the canonical scripts are not themselves forwarding wrappers. New operational tooling belongs in `scripts/`, with cross-platform behavior documented in `scripts/README.md` and covered by syntax/structure checks in CI.
+
 ## Runtime boundaries
 
 - **Presentation:** `web/` calls JSON APIs; it must not contain credentials or enforce security on its own.
