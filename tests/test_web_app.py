@@ -483,9 +483,19 @@ def test_provider_connection_test_rejects_oversized_or_mistyped_inputs():
             "/api/providers/test",
             json={"provider_id": "custom-openai", "api_key": "test-only-key", "model": "m", "base_url": {"host": "provider.example"}},
         )
+        wrong_provider_type = client.post(
+            "/api/providers/test",
+            json={"provider_id": 123},
+        )
+        oversized_provider_id = client.post(
+            "/api/providers/test",
+            json={"provider_id": "p" * 81},
+        )
     assert oversized_key.status_code == 400
     assert oversized_model.status_code == 400
     assert wrong_endpoint_type.status_code == 400
+    assert wrong_provider_type.status_code == 400
+    assert oversized_provider_id.status_code == 400
 
 
 def test_settings_rejects_oversized_api_key_without_persisting():
@@ -520,3 +530,18 @@ def test_null_secret_settings_are_ignored_not_stringified(monkeypatch, tmp_path)
     assert response.status_code == 200
     assert env_writes == []
     assert not (tmp_path / "hf-token").exists()
+
+
+def test_settings_rejects_wrong_types_and_unknown_keys():
+    invalid_payloads = [
+        {"unexpected_setting": True},
+        {"self_critique": "false"},
+        {"max_ctx_chars": True},
+        {"agentic_persona": "root"},
+        {"self_autonomy_profile": "unrestricted"},
+        {"update_channel": "nightly"},
+    ]
+    with TestClient(app=app) as client:
+        for payload in invalid_payloads:
+            response = client.patch("/api/settings", json=payload)
+            assert response.status_code == 400, payload

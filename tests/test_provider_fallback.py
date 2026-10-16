@@ -202,3 +202,12 @@ def test_custom_provider_backend_accepts_https_and_loopback_http():
     )
     assert secure.base_url == "https://provider.example/v1"
     assert local.base_url == "http://127.0.0.1:1234/v1"
+
+
+def test_custom_provider_backend_validates_endpoint_from_environment(monkeypatch):
+    import terminal_ai as core
+    from api_provider_backend import APIProviderBackend
+
+    monkeypatch.setenv("TERMINAL_AI_CUSTOM_BASE_URL", "http://localhost.attacker.example/v1")
+    with pytest.raises(core.BackendError, match="loopback"):
+        APIProviderBackend("custom-openai", "test-only-key", model="test-model")
