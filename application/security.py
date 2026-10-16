@@ -128,8 +128,8 @@ class BasicAuthMiddleware:
             valid = (
                 scheme.casefold() == "basic"
                 and bool(separator)
-                and hmac.compare_digest(supplied_user, username)
-                and hmac.compare_digest(supplied_password, password)
+                and hmac.compare_digest(supplied_user.encode("utf-8"), username.encode("utf-8"))
+                and hmac.compare_digest(supplied_password.encode("utf-8"), password.encode("utf-8"))
             )
         except (ValueError, UnicodeError):
             valid = False
