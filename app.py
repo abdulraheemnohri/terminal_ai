@@ -1053,8 +1053,11 @@ async def test_provider_connection(data: dict[str, Any]) -> dict[str, Any]:
                 raise HTTPException(status_code=400, detail="Unknown provider.")
             key = api_key or os.environ.get(info["env"], "")
             endpoint = str(data.get("base_url", "")).strip() or None
-            if provider_id == "custom-openai" and endpoint and not endpoint.startswith(("https://", "http://127.0.0.1", "http://localhost")):
-                raise HTTPException(status_code=400, detail="Custom endpoint must use HTTPS, or localhost for a local endpoint.")
+            if provider_id == "custom-openai" and endpoint:
+                try:
+                    endpoint = validate_custom_base_url(endpoint)
+                except SettingsValidationError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
             backend = APIProviderBackend(provider_id, key, model=model, base_url=endpoint if provider_id == "custom-openai" else None, timeout=30)
         answer = "".join(backend.stream("Reply with OK only.", [core.Msg("user", "Connection test. Reply OK.")], tools=None)).strip()
         backend.close()
