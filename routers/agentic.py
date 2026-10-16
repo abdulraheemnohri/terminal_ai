@@ -263,7 +263,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         }:
             raise HTTPException(status_code=400, detail="Invalid task status.")
         items = task_lifecycle.list(limit, status)
-        for item in items:
+        for item_index, item in enumerate(items):
             if item.get("operation_id"):
                 operation = control.get_operation(item["operation_id"])
                 if operation is not None:
@@ -273,6 +273,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
                         pass
                     item["operation_tool"] = operation.get("tool")
                     item["operation_name"] = operation.get("operation")
+                    items[item_index] = item
             proposals = recovery_store.list_for_task(item["id"])
             for proposal in proposals:
                 operation_id = proposal.get("new_operation_id")
