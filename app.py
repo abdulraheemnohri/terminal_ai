@@ -1375,7 +1375,7 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
     allowed_settings = {
         "mode", "self_critique", "proactive", "max_ctx_chars", "active_provider",
         "agentic_planning_enabled", "agentic_recovery_enabled", "agentic_persona",
-        "provider_model", "custom_base_url", "provider_profiles", "browser_allowed_domains", "self_identity", "self_mission",
+        "provider_model", "provider_temperature", "provider_top_p", "provider_max_tokens", "provider_timeout_seconds", "custom_base_url", "provider_profiles", "browser_allowed_domains", "self_identity", "self_mission",
         "self_reflection_enabled", "learning_enabled", "self_improvement_enabled",
         "auto_extract_skills", "tool_approval_required", "self_diagnostics_enabled",
         "self_repair_enabled", "self_research_enabled", "self_evaluation_enabled",
@@ -1422,6 +1422,21 @@ async def update_settings(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data["provider_model"], str):
             raise HTTPException(status_code=400, detail="provider_model must be text.")
         current["provider_model"] = data["provider_model"].strip()[:200]
+    for key, minimum, maximum in (("provider_temperature", 0.0, 2.0), ("provider_top_p", 0.0, 1.0)):
+        if key in data:
+            value = data[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise HTTPException(status_code=400, detail=f"{key} must be numeric.")
+            import math
+            if not math.isfinite(value):
+                raise HTTPException(status_code=400, detail=f"{key} must be finite.")
+            current[key] = max(minimum, min(maximum, float(value)))
+    for key, minimum, maximum in (("provider_max_tokens", 64, 32768), ("provider_timeout_seconds", 5, 180)):
+        if key in data:
+            value = data[key]
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise HTTPException(status_code=400, detail=f"{key} must be an integer.")
+            current[key] = max(minimum, min(maximum, value))
     if "provider_profiles" in data:
         profiles = data["provider_profiles"]
         if not isinstance(profiles, dict) or len(profiles) > 30:

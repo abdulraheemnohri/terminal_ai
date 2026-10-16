@@ -612,3 +612,21 @@ def test_provider_profiles_reject_boolean_numeric_values():
     with TestClient(app=app) as client:
         response = client.patch("/api/settings", json={"provider_profiles": {"openai": {"temperature": True}}})
     assert response.status_code == 400
+
+
+def test_global_provider_generation_settings_are_validated_and_persisted():
+    with TestClient(app=app) as client:
+        response = client.patch("/api/settings", json={
+            "provider_temperature": 2.5,
+            "provider_top_p": -0.1,
+            "provider_max_tokens": 99999,
+            "provider_timeout_seconds": 1,
+        })
+        assert response.status_code == 200
+        saved = response.json()
+        assert saved["provider_temperature"] == 2.0
+        assert saved["provider_top_p"] == 0.0
+        assert saved["provider_max_tokens"] == 32768
+        assert saved["provider_timeout_seconds"] == 5
+        invalid = client.patch("/api/settings", json={"provider_temperature": True})
+        assert invalid.status_code == 400

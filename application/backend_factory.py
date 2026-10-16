@@ -85,6 +85,7 @@ def build_cloud_backends(
                     top_p=top_p,
                     max_tokens=max_tokens,
                 )
+            backends.append(backend)
         except Exception as exc:
             log.warning(
                 "Cloud provider %s could not initialize (%s)",

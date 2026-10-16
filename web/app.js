@@ -208,6 +208,72 @@ async function loadProviderConfigurationStatus(){
 }
 $("refresh-provider-status")?.addEventListener("click",loadProviderConfigurationStatus);
 
+let providerProfiles = {};
+
+function populateProviderProfileChoices(){
+ const select=$("profile-provider"),source=$("setting-provider");
+ if(!select||!source)return;
+ const previous=select.value;
+ select.replaceChildren(...Array.from(source.options).map(option=>{
+  const copy=document.createElement("option");copy.value=option.value;copy.textContent=option.textContent;return copy;
+ }));
+ if(Array.from(select.options).some(option=>option.value===previous))select.value=previous;
+ else select.value=source.value||select.options[0]?.value||"";
+}
+function renderProviderProfiles(){
+ const target=$("provider-profile-list");if(!target)return;
+ const entries=Object.entries(providerProfiles||{});
+ if(!entries.length){target.innerHTML='<div class="empty">No custom profiles saved yet. Default settings remain in effect.</div>';return;}
+ target.innerHTML=entries.map(([id,p])=>'<div class="list-item"><b>'+escapeHtml(id)+'</b><p>Model: '+escapeHtml(p.model||"provider default")+' · Priority: '+escapeHtml(p.failover_priority??100)+' · Temperature: '+escapeHtml(p.temperature??0.7)+' · Top-p: '+escapeHtml(p.top_p??0.95)+' · Tokens: '+escapeHtml(p.max_tokens??2048)+' · Timeout: '+escapeHtml(p.timeout_seconds??60)+'</p>'+(p.base_url?'<p>Endpoint: '+escapeHtml(p.base_url)+'</p>':'')+'</div>').join("");
+}
+function loadProviderProfileIntoEditor(){
+ const id=$("profile-provider")?.value;if(!id)return;
+ const p=providerProfiles[id]&&typeof providerProfiles[id]==="object"?providerProfiles[id]:{};
+ $("profile-model").value=p.model||"";
+ $("profile-base-url").value=p.base_url||"";
+ $("profile-temperature").value=p.temperature??0.7;
+ $("profile-top-p").value=p.top_p??0.95;
+ $("profile-max-tokens").value=p.max_tokens??2048;
+ $("profile-timeout").value=p.timeout_seconds??60;
+ $("profile-priority").value=p.failover_priority??100;
+ $("provider-profile-status").textContent=providerProfiles[id]?"Editing saved profile for "+id+".":"No profile saved for "+id+"; default values shown.";
+}
+async function saveProviderProfile(){
+ const id=$("profile-provider").value;
+ const profile={
+  model:$("profile-model").value.trim(),
+  base_url:$("profile-base-url").value.trim(),
+  temperature:Number($("profile-temperature").value),
+  top_p:Number($("profile-top-p").value),
+  max_tokens:Number($("profile-max-tokens").value),
+  timeout_seconds:Number($("profile-timeout").value),
+  failover_priority:Number($("profile-priority").value)
+ };
+ if(!id){throw new Error("Choose a provider first.");}
+ if(!Number.isFinite(profile.temperature)||profile.temperature<0||profile.temperature>2)throw new Error("Temperature must be between 0 and 2.");
+ if(!Number.isFinite(profile.top_p)||profile.top_p<0||profile.top_p>1)throw new Error("Top-p must be between 0 and 1.");
+ if(!Number.isInteger(profile.max_tokens)||profile.max_tokens<64||profile.max_tokens>32768)throw new Error("Maximum tokens must be an integer from 64 to 32768.");
+ if(!Number.isInteger(profile.timeout_seconds)||profile.timeout_seconds<5||profile.timeout_seconds>180)throw new Error("Timeout must be an integer from 5 to 180 seconds.");
+ if(!Number.isInteger(profile.failover_priority)||profile.failover_priority<1||profile.failover_priority>1000)throw new Error("Failover priority must be an integer from 1 to 1000.");
+ if(profile.base_url){const url=new URL(profile.base_url);if(!["http:","https:"].includes(url.protocol)||url.username||url.password)throw new Error("Endpoint must be HTTP(S) and must not contain credentials.");}
+ const button=$("save-provider-profile");button.disabled=true;
+ $("provider-profile-status").textContent="Saving profile…";
+ try{
+  const next={...providerProfiles,[id]:profile};
+  const response=await api("/api/settings",{method:"PATCH",body:JSON.stringify({provider_profiles:next})});
+  providerProfiles=response.provider_profiles&&typeof response.provider_profiles==="object"?response.provider_profiles:next;
+  renderProviderProfiles();loadProviderProfileIntoEditor();
+  $("provider-profile-status").textContent="Saved profile for "+id+". It will be used when the agent is next initialized.";
+  showToast("Provider profile saved for "+id+".","status");
+ }catch(error){$("provider-profile-status").textContent="Could not save profile: "+error.message;throw error;}
+ finally{button.disabled=false;}
+}
+$("profile-provider")?.addEventListener("change",loadProviderProfileIntoEditor);
+$("save-provider-profile")?.addEventListener("click",async()=>{
+ try{await saveProviderProfile();}catch(error){showToast(error.message,"error");}
+});
+$("reset-provider-profile")?.addEventListener("click",loadProviderProfileIntoEditor);
+
 async function loadSettings(){
  try{
   const data=await api("/api/settings");
@@ -219,6 +285,8 @@ async function loadSettings(){
   $("setting-max-tokens").value=data.provider_max_tokens??2048;
   $("setting-timeout").value=data.provider_timeout_seconds??60;
   $("setting-endpoint").value=data.custom_base_url||"";
+  providerProfiles=data.provider_profiles&&typeof data.provider_profiles==="object"?data.provider_profiles:{};
+  populateProviderProfileChoices();renderProviderProfiles();loadProviderProfileIntoEditor();
   await loadProviderConfigurationStatus();
   $("setting-browser-domains").value=(data.browser_allowed_domains||[]).join("\n");
   try{const browser=await api("/api/browser/status");$("browser-config-status").textContent=browser.enabled?("Allowlist configured: "+browser.allowed_domain_count+" domain(s) · Playwright "+(browser.playwright_installed?"installed":"not installed")+" · actions disabled pending secure dispatch"):"Browser disabled · no domains configured";}catch(e){$("browser-config-status").textContent="Browser status unavailable: "+e.message;}
