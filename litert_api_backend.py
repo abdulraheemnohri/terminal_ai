@@ -105,10 +105,14 @@ class LiteRTPythonBackend(core.Backend):
             for item in history[:-1]
             if item.role in {"user", "assistant", "model", "tool"} and item.text
         ]
-        latest_user_message = next(
-            (item.text for item in reversed(history) if item.role == "user" and item.text),
-            "",
-        )
+        latest = history[-1] if history else None
+        if latest is not None and latest.role == "tool":
+            latest_user_message = self._message("tool", latest.text)["content"]
+        else:
+            latest_user_message = next(
+                (item.text for item in reversed(history) if item.role == "user" and item.text),
+                "",
+            )
         try:
             with lm.Engine(str(self.model_path), backend=lm.Backend.CPU()) as engine:
                 # Qwen3 defaults to a separate thought channel. Disable
