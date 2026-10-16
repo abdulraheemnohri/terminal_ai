@@ -31,6 +31,7 @@ REQUIRED_FILES = (
     "scripts/validate.sh",
     "scripts/validate.ps1",
     "scripts/README.md",
+    "docs/MODULAR_API_MANAGEMENT_UI.md",
     "web/index.html",
     "web/app.js",
     "web/app.css",
@@ -52,6 +53,7 @@ REQUIRED_FILES = (
     "tests/test_whatsapp_agent_platform.py",
     "tests/test_whatsapp_agent_api.py",
     "tests/test_ui_control_integrity.py",
+    "tests/test_modular_api_management.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 
