@@ -519,7 +519,7 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
    b.disabled=true;b.textContent="Executing…";
    const result=await api("/api/terminal/execute/"+encodeURIComponent(b.dataset.operationId),{method:"POST",body:"{}"});
    $("task-lifecycle-result").textContent=JSON.stringify(result,null,2);
-   $("task-lifecycle-error").textContent="Command returned exit code "+result.returncode+". Sync task status, independently verify the result, then review the outcome.";
+   $("task-lifecycle-error").textContent=result.returncode===0?"Command returned exit code 0. Sync task status, independently verify the result, then review the outcome.":"Command failed with exit code "+result.returncode+". Sync task status; do not mark it successful. Use the recovery proposal workflow if needed.";
   }else if(b.dataset.taskLink){
    const id=prompt("Paste the existing Command Control operation ID. This only links it; it does not approve or execute it.");
    if(!id)return;
