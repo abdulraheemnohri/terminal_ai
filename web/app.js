@@ -328,6 +328,7 @@ async function loadSettings(){
   $("hf-token-state").textContent=data.hf_token_configured?"Hugging Face token configured locally.":"No Hugging Face token saved (some models may require access approval/token).";
   $("updates-enabled").checked=!!data.updates_enabled;
   $("update-interval").value=data.update_check_interval_hours||24;
+  $("update-channel").value=data.update_channel||"main";
   const configured=data.provider_configured||{};
   const rows=[["State directory",data.state_dir],["Models directory",data.models_dir],...Object.entries(configured).map(([k,v])=>[k,v?"API key configured":"API key missing"])];
   $("storage-list").innerHTML=rows.map(([k,v])=>'<div class="list-item"><b>'+escapeHtml(k)+'</b><p>'+escapeHtml(v)+'</p></div>').join("");

@@ -139,6 +139,15 @@ def test_dashboard_assets_are_served_separately():
     assert "overview-health" in js.text
 
 
+def test_update_channel_is_shown_as_read_only_when_only_main_is_supported():
+    with TestClient(app=app) as client:
+        html = client.get("/settings").text
+        js = client.get("/static/app.js").text
+    assert 'id="update-channel" disabled' in html
+    assert "main — stable branch (only supported)" in html
+    assert '$("update-channel").value=data.update_channel||"main";' in js
+
+
 def test_settings_backup_controls_are_visible_and_credentials_are_excluded():
     with TestClient(app=app) as client:
         html = client.get("/settings").text
