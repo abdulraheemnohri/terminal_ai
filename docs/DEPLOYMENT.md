@@ -11,7 +11,7 @@ TERMINAL_AI_AUTH_USER=your_unique_username
 TERMINAL_AI_AUTH_PASSWORD=your_long_random_password
 ```
 
-Restart the server after changing credentials. The dashboard, APIs, and WebSocket events require Basic authentication when configured; `/healthz` and `/readyz` remain public for probes. If the process is bound to a non-loopback IP, the app refuses requests unless both values are configured. Basic authentication is not a substitute for HTTPS, CSRF/origin protections, rate limits, authorization, or firewall rules.
+Restart the server after changing credentials. The dashboard, APIs, and WebSocket events require Basic authentication when configured; `/healthz` and `/readyz` remain public for probes. If the process is bound to a non-loopback IP, the app refuses requests unless both values are configured. Basic authentication is not a substitute for HTTPS, CSRF/origin protections, rate limits, authorization, or firewall rules. Custom provider endpoints accept HTTPS, or plain HTTP only for an exact localhost/loopback address; prefix lookalikes, embedded credentials, malformed ports, query strings, and fragments are rejected.
 
 ## Linux (systemd user service)
 
