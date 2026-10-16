@@ -9,7 +9,7 @@ PLIST="$HOME/Library/LaunchAgents/com.terminal-ai.server.plist"
 DOMAIN="gui/$(id -u)"
 launchctl bootout "$DOMAIN" "$PLIST" >/dev/null 2>&1 || true
 if [ -f "$PLIST" ]; then
-  rm -- "$PLIST"
+  rm -f "$PLIST"
   echo "Removed $PLIST"
 else
   echo "LaunchAgent plist was already absent."
