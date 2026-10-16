@@ -2381,7 +2381,7 @@ app = Litestar(
         create_whatsapp_agent_router(_WHATSAPP_AGENT),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, propose_settings_with_ai, downloads, start_model_download, remove_model, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, remove_model, diagnostics, update_provider_credentials, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
