@@ -241,7 +241,7 @@ function renderProviderProfiles(){
  const target=$("provider-profile-list");if(!target)return;
  const entries=Object.entries(providerProfiles||{});
  if(!entries.length){target.innerHTML='<div class="empty">No custom profiles saved yet. Default settings remain in effect.</div>';return;}
- target.innerHTML=entries.map(([id,p])=>'<div class="list-item"><b>'+escapeHtml(id)+'</b><p>Model: '+escapeHtml(p.model||"provider default")+' · Priority: '+escapeHtml(p.failover_priority??100)+' · Temperature: '+escapeHtml(p.temperature??0.7)+' · Top-p: '+escapeHtml(p.top_p??0.95)+' · Tokens: '+escapeHtml(p.max_tokens??2048)+' · Timeout: '+escapeHtml(p.timeout_seconds??60)+'</p>'+(p.base_url?'<p>Endpoint: '+escapeHtml(p.base_url)+'</p>':'')+'</div>').join("");
+ target.innerHTML=entries.sort((a,b)=>(Number(a[1]?.failover_priority)||100)-(Number(b[1]?.failover_priority)||100)).map(([id,p])=>'<div class="list-item" data-provider-profile-card="'+escapeHtml(id)+'"><div class="row" style="justify-content:space-between;gap:8px;align-items:center"><b>'+escapeHtml(id)+'</b><span class="badge">Priority '+escapeHtml(p.failover_priority??100)+'</span></div><p>Model: '+escapeHtml(p.model||"provider default")+' · Temperature: '+escapeHtml(p.temperature??0.7)+' · Top-p: '+escapeHtml(p.top_p??0.95)+' · Tokens: '+escapeHtml(p.max_tokens??2048)+' · Timeout: '+escapeHtml(p.timeout_seconds??60)+' s</p>'+(p.base_url?'<p>Endpoint: '+escapeHtml(p.base_url)+'</p>':'')+'<p class="muted" data-profile-test-status role="status" aria-live="polite">Connection not tested in this session.</p><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-edit-provider-profile="'+escapeHtml(id)+'">Edit profile</button><button class="btn" type="button" data-test-provider-profile="'+escapeHtml(id)+'">Test connection</button><button class="btn danger" type="button" data-delete-provider-profile="'+escapeHtml(id)+'">Remove profile</button></div></div>').join("");
 }
 function loadProviderProfileIntoEditor(){
  const id=$("profile-provider")?.value;if(!id)return;
@@ -285,7 +285,57 @@ async function saveProviderProfile(){
  }catch(error){$("provider-profile-status").textContent="Could not save profile: "+error.message;throw error;}
  finally{button.disabled=false;}
 }
+async function fetchProfileModels(){
+ const id=$("profile-provider")?.value;
+ const button=$("profile-fetch-models"),count=$("profile-model-count"),error=$("profile-model-error"),list=$("profile-model-options");
+ if(!id||!button||!count||!error||!list)return;
+ button.disabled=true;button.textContent="Fetching…";count.textContent="Contacting provider API…";error.textContent="";
+ try{
+  const result=await api("/api/providers/models",{method:"POST",body:JSON.stringify({provider_id:id,base_url:$("profile-base-url")?.value.trim()||""})});
+  list.replaceChildren(...(result.models||[]).map(model=>{const option=document.createElement("option");option.value=model.id;option.label=model.label||model.id;return option;}));
+  const current=$("profile-model").value.trim();
+  if(!current||!(result.models||[]).some(model=>model.id===current))$("profile-model").value=result.default_model||"";
+  count.textContent=(result.count||0)+" model ID(s) loaded";
+  showToast("Loaded "+(result.count||0)+" model IDs for "+id+".","status");
+ }catch(e){count.textContent="Could not load model list";error.textContent=e.message+" Save provider credentials in Settings before fetching models.";}
+ finally{button.disabled=false;button.textContent="Fetch profile model IDs";}
+}
+async function testProviderProfile(id,button){
+ const card=button.closest("[data-provider-profile-card]");
+ const status=card?.querySelector("[data-profile-test-status]");
+ if(!status)return;
+ const profile=providerProfiles[id]&&typeof providerProfiles[id]==="object"?providerProfiles[id]:{};
+ button.disabled=true;button.textContent="Testing…";status.textContent="Contacting provider API using credentials saved on this machine.";
+ try{
+  const result=await api("/api/providers/test",{method:"POST",body:JSON.stringify({provider_id:id,model:profile.model||"",base_url:profile.base_url||""})});
+  status.textContent="Connected · "+Number(result.elapsed_ms||0)+" ms"+(result.model?" · "+result.model:"");
+  status.dataset.result="success";
+ }catch(error){status.textContent="Connection failed: "+error.message;status.dataset.result="error";}
+ finally{button.disabled=false;button.textContent="Test connection";}
+}
+$("provider-profile-list")?.addEventListener("click",async e=>{
+ const edit=e.target.closest("[data-edit-provider-profile]");
+ const test=e.target.closest("[data-test-provider-profile]");
+ const remove=e.target.closest("[data-delete-provider-profile]");
+ if(edit){$("profile-provider").value=edit.dataset.editProviderProfile;loadProviderProfileIntoEditor();$("profile-model").focus();return;}
+ if(test){await testProviderProfile(test.dataset.testProviderProfile,test);return;}
+ if(remove){
+  const id=remove.dataset.deleteProviderProfile;
+  if(!confirm("Remove the saved settings profile for "+id+"? This does not delete credentials or the provider itself."))return;
+  remove.disabled=true;
+  try{
+   const next={...providerProfiles};delete next[id];
+   const response=await api("/api/settings",{method:"PATCH",body:JSON.stringify({provider_profiles:next})});
+   providerProfiles=response.provider_profiles&&typeof response.provider_profiles==="object"?response.provider_profiles:next;
+   renderProviderProfiles();loadProviderProfileIntoEditor();
+   $("provider-profile-status").textContent="Removed saved profile for "+id+". Provider credentials were not changed.";
+   showToast("Removed provider profile for "+id+".","status");
+  }catch(error){$("provider-profile-status").textContent="Could not remove profile: "+error.message;showToast(error.message,"error");}
+  finally{remove.disabled=false;}
+ }
+});
 $("profile-provider")?.addEventListener("change",loadProviderProfileIntoEditor);
+$("profile-fetch-models")?.addEventListener("click",fetchProfileModels);
 $("save-provider-profile")?.addEventListener("click",async()=>{
  try{await saveProviderProfile();}catch(error){showToast(error.message,"error");}
 });
