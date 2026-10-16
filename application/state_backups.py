@@ -20,6 +20,9 @@ MAX_FILES = 10_000
 MAX_MEMBER_BYTES = 100 * 1024 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
+# Credentials must never be copied into portable state archives. These files are managed separately.
+SENSITIVE_STATE_FILES = {"whatsapp_agent_platform.json"}
+
 
 class BackupError(ValueError):
     """An archive or backup request violates the local backup policy."""
@@ -123,7 +126,7 @@ def create_backup(state_dir: Path, backup_dir: Path | None = None) -> dict[str, 
                 if path.is_symlink() or not path.is_file() or path.name.endswith(("-wal", "-shm")):
                     continue
                 relative_parts = path.relative_to(state).parts
-                if "backups" in relative_parts:
+                if "backups" in relative_parts or path.name in SENSITIVE_STATE_FILES:
                     continue
                 relative = path.relative_to(state).as_posix()
                 data = _snapshot_file(path)
