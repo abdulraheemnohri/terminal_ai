@@ -28,7 +28,7 @@ def test_dashboard_returns_html():
     assert 'id="backup-create"' in response.text
     assert 'id="backup-list"' in response.text
     assert 'id="backup-refresh"' in response.text
-    assert "checksum-validate archives" in response.text
+    assert "checksum-verified backups" in response.text
 
 
 def test_status_endpoint_is_available_without_model():
