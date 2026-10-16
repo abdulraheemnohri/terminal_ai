@@ -137,7 +137,9 @@ def validate_backup(name: str, state_dir: Path, backup_dir: Path | None = None) 
             if names.count("manifest.json") != 1:
                 raise BackupError("Backup must contain exactly one manifest.")
             manifest = json.loads(archive.read("manifest.json"))
-            files = manifest.get("files") if isinstance(manifest, dict) else None
+            if not isinstance(manifest, dict):
+                raise BackupError("Unsupported backup manifest.")
+            files = manifest.get("files")
             if manifest.get("format") != 1 or not isinstance(files, dict):
                 raise BackupError("Unsupported backup manifest.")
             if len(files) > MAX_FILES:
