@@ -13,7 +13,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # The complete integration suite can exceed 15 minutes on a cold runner.
     # Keep a hard upper bound while allowing the full suite to finish.
     timeout-minutes: 30
     steps:
@@ -53,5 +52,6 @@ jobs:
           sh -n scripts/validate.sh
 
       - name: Run test suite
-        # Emit a traceback if an individual test stalls for two minutes.
-        run: python -m pytest tests/ -v --color=yes -o faulthandler_timeout=120
+        # Fail fast so the workflow captures a useful traceback instead of continuing into a stalled test.
+        # Dump thread stacks when a single test stalls for two minutes.
+        run: python -m pytest tests/ -v --color=yes -x -o faulthandler_timeout=120
