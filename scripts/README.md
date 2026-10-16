@@ -19,6 +19,6 @@ Backups may contain private conversation state, configuration, and credentials. 
 
 ## Platform startup and service scripts
 
-The `scripts/` directory is the central entrypoint catalog. Existing root-level installer/update/startup scripts remain in place for backwards compatibility; wrappers here forward to those implementations. Review each script before running it, especially scripts that register login/boot services or automatic project updates.
+The `scripts/` directory is the canonical home for installer, updater, service, autostart, and maintenance implementations. Root-level commands such as `install.sh`, `update.sh`, and `start-server.sh` are compatibility wrappers that forward into this directory. This avoids duplicated implementations while preserving existing instructions and shortcuts. Review each script before running it, especially scripts that register login/boot services or automatic project updates.
 
 Use `scripts/install-service.sh` for a per-user Linux systemd/macOS LaunchAgent service, `scripts/install-service.ps1` for Windows scheduled startup, `scripts/install_autostart_windows.ps1` for a Windows Startup-folder shortcut, and `scripts/termux-boot-start.sh` as the optional Termux:Boot entrypoint. System-wide systemd installation is separate and intentionally asks for confirmation.
