@@ -1397,7 +1397,7 @@ async def download_state_backup(name: str) -> Response:
     )
 
 
-@post("/api/operations/backups/validate")
+@post("/api/operations/backups/validate", status_code=200)
 async def validate_state_backup(data: dict[str, Any]) -> dict[str, Any]:
     """Verify archive manifest, file hashes, paths and restore bounds without writing state."""
     name = data.get("name")
