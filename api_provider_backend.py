@@ -102,8 +102,7 @@ class APIProviderBackend(core.Backend):
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
-        messages.extend({"role": m.role, "content": m.text}
-                        for m in history if m.role in {"user", "assistant"} and m.text)
+        messages.extend(self._history_messages(history))
         if not messages:
             return
         if self.config["protocol"] == "anthropic":
