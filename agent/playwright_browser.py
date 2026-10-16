@@ -113,7 +113,7 @@ class PlaywrightBrowser:
                  timeout_ms: int = 15000, max_pages: int = 5) -> None:
         self.allowed_domains = tuple(allowed_domains)
         if not self.allowed_domains:
-            raise BrowserPolicyError("Configure at least one allowed domain to enable browsing.")
+            raise BrowserPolicyError("Configure at least one allowed domain in allowed_domains (the browser domain allowlist) to enable browsing.")
         self.timeout_ms = max(1000, min(int(timeout_ms), 60000))
         self.max_pages = max(1, min(int(max_pages), 10))
         self._lock = threading.RLock()
