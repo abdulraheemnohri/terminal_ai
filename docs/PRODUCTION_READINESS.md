@@ -67,6 +67,12 @@ The Self-X dashboard exposes `GET /api/agentic/autonomy/status` and `POST /api/a
 
 This is an initial autonomous control loop, not unrestricted autonomous execution. Broader autonomy requires explicit action adapters with their own validation, idempotency, timeout, resource limits, independent verification, and policy enforcement. The run history is operational metadata; do not store secrets or sensitive personal data in goal text.
 
+## Settings controls and portable backup
+
+The Settings dashboard exposes the persisted Self-X identity, mission, and operational reflection toggle. These values are editable through the same validated settings API used by the runtime; they do not grant permissions or disable human approval.
+
+The Settings page also supports versioned JSON backup and restore for an explicit allowlist of non-secret configuration values. Exports exclude API keys and Hugging Face tokens. Imports must match the supported format/version, reject unknown keys and approval-policy weakening, show a preview, require a separate user confirmation, and pass through the server's normal settings validation. Credentials are configured separately on each machine.
+
 ## Remaining production gates
 
 These must be completed and verified before describing a deployment as enterprise-grade:
