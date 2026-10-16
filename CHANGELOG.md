@@ -1,3 +1,11 @@
+## Unreleased — cloud-first multi-provider fallback and LiteRT role fix
+
+- Add a deterministic cloud-first fallback chain: selected provider first, then other configured cloud providers, then local LiteRT-LM in Auto/Hybrid modes.
+- Keep Cloud mode cloud-only while allowing provider-to-provider failover; Local mode remains local-only.
+- Fall back only before output is emitted, avoiding duplicated answers when a stream fails mid-response.
+- Normalize internal tool results into marked user-context messages for LiteRT-LM; never send an unsupported `tool` role to a local model.
+- Update Settings help text and add regression tests for provider failover order, local fallback, empty responses, partial-stream failures, and role normalization.
+
 ## Unreleased — Gemini conversation-role compatibility
 
 - Normalize internal tool results into labelled user-context messages before sending chat history to Gemini SDKs, which accept only user/model content roles in this text-only adapter.
