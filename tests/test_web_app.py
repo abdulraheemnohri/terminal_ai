@@ -16,6 +16,8 @@ def test_dashboard_returns_html():
     assert "Skill evolution review queue" in response.text
     assert "Draft from reviewed learning" in response.text
     assert "LOCAL-FIRST AGENT CONTROL CENTER" in response.text
+    assert "Auto — cloud-first, local fallback" in response.text
+    assert "ordered provider failover" in response.text
     assert 'id="command-palette"' in response.text
     assert 'id="overview-browser-badge"' in response.text
     assert "Jump to…" in response.text
