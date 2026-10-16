@@ -35,11 +35,13 @@ class WhatsAppAgentPlatform:
         reply_handler: Callable[[str], Awaitable[str]],
         *,
         base_url: str = API_BASE,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._state_dir = Path(state_dir)
         self._path = self._state_dir / "whatsapp_agent_platform.json"
         self._reply_handler = reply_handler
         self._base_url = base_url.rstrip("/")
+        self._transport = transport
         self._lock = asyncio.Lock()
         self._task: asyncio.Task[None] | None = None
         self._http: httpx.AsyncClient | None = None
@@ -111,6 +113,7 @@ class WhatsAppAgentPlatform:
                 headers={"Authorization": f"Bearer {self._state['api_key']}"},
                 timeout=httpx.Timeout(35.0, connect=10.0),
                 follow_redirects=False,
+                transport=self._transport,
             )
         return self._http
 
@@ -210,8 +213,14 @@ class WhatsAppAgentPlatform:
 
     async def test_connection(self) -> dict[str, Any]:
         # Do not compete with the long-poll worker; it is already an authenticated connection.
-        if self._task is not None and not self._task.done() and self._state.get("connected"):
-            return {"ok": True, "message": "The WhatsApp Agent Platform poller is connected.", "status": self.status()}
+        if self._task is not None and not self._task.done():
+            connected = bool(self._state.get("connected"))
+            return {
+                "ok": connected,
+                "message": "The WhatsApp Agent Platform poller is connected." if connected
+                else "The background poller is connecting; refresh status in a few seconds.",
+                "status": self.status(),
+            }
         try:
             await self._get_updates(timeout=0, limit=1)
             self._state["last_error"] = ""
@@ -271,7 +280,8 @@ class WhatsAppAgentPlatform:
         return {"sent": True, "status": self.status()}
 
     async def _process_payload(self, payload: dict[str, Any]) -> None:
-        seen = set(self._state.get("seen_ids", []))
+        seen_list = list(self._state.get("seen_ids", []))
+        seen = set(seen_list)
         for message in self._messages(payload):
             message_id = message.get("id")
             sender = message.get("from")
@@ -292,7 +302,8 @@ class WhatsAppAgentPlatform:
             if message_type != "text":
                 answer = "This Terminal AI WhatsApp integration currently supports text messages only. Media support is not enabled yet."
             else:
-                text = message.get("text", {}).get("body", "")
+                text_data = message.get("text")
+                text = text_data.get("body", "") if isinstance(text_data, dict) else ""
                 if not isinstance(text, str) or not text.strip():
                     seen.add(message_id)
                     continue
@@ -310,7 +321,7 @@ class WhatsAppAgentPlatform:
                 logger.warning("WhatsApp reply delivery failed; check connection status.")
                 raise
             seen.add(message_id)
-        self._state["seen_ids"] = list(seen)[-SEEN_LIMIT:]
+        self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
         self._state["last_poll_at"] = int(time.time())
         self._state["last_error"] = ""
         self._save()
