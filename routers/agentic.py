@@ -809,5 +809,5 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
         approve_skill_proposal, reject_skill_proposal, promote_skill_proposal,
         list_recovery_proposals, create_recovery_proposal, queue_recovery_operation,
-        verify_recovery_operation, review_recovery_proposal,
+        verify_recovery_operation, review_recovery_proposal, review_recovery_outcome,
     ])
