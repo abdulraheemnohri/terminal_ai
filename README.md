@@ -281,6 +281,8 @@ Tracked tasks can collect up to three recovery proposals after a linked Command 
 **Keep the server on `127.0.0.1` unless you have deliberately configured a secure remote deployment.**
 
 - Do not expose the dashboard to untrusted networks without authentication, authorization, CSRF/origin protections, rate limits, TLS, and firewall/reverse-proxy controls.
+- Optional HTTP Basic authentication is available: set both `TERMINAL_AI_AUTH_USER` and `TERMINAL_AI_AUTH_PASSWORD` in your private `.env` file. It protects the dashboard, APIs, and WebSocket events; `/healthz` and `/readyz` remain public for probes. Use a long, unique password and HTTPS for remote access.
+- Remote-bound requests fail closed when authentication is missing or only one auth variable is configured. This does not replace authorization, CSRF/origin protections, rate limiting, TLS, or firewall controls.
 - Never commit `.env`, provider keys, Hugging Face tokens, cookies, local databases, logs, or model artifacts.
 - Treat model output, retrieved web pages, imported skills, and user-supplied verification text as untrusted input.
 - Approval is scoped to an operation; it is not blanket permission and does not imply execution.
