@@ -299,14 +299,12 @@ def _build_agent() -> core.Agent:
 
     if mode == "local":
         backend: core.Backend | None = local
-    elif mode == "cloud":
-        backend = cloud_backends[0] if cloud_backends else None
-    elif mode in {"auto", "hybrid"}:
+    elif mode in {"auto", "cloud", "hybrid"}:
         from application.provider_fallback import CloudFirstFallbackBackend
         backend = CloudFirstFallbackBackend(
             cloud_backends,
             local if mode in {"auto", "hybrid"} else None,
-        ) if cloud_backends or local else None
+        ) if cloud_backends or (mode in {"auto", "hybrid"} and local) else None
     else:
         backend = None
 
