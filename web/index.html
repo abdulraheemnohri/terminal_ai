@@ -177,6 +177,12 @@
   <section class="view" id="view-diagnostics">
     <div class="grid">
       <article class="card span-12"><div class="card-head"><div><h2>System diagnostics</h2><p style="margin:5px 0 0">Local-only checks for app health, storage, runtime, and model configuration. No cloud API test is triggered.</p></div><button class="btn" id="refresh-diagnostics">Run checks</button></div><div class="list" id="diagnostic-list"><div class="empty">Loading diagnostics…</div></div><div id="diagnostics-error" class="error"></div></article>
+      <article class="card span-12">
+        <div class="card-head"><div><h2>Feature & control availability</h2><p class="muted">Probe the app's health, settings, model/provider, memory, task, safety, backup, update, browser, and messaging control APIs. This is read-only and does not execute tools, test cloud credentials, or reveal stored secrets.</p></div><button class="btn primary" id="audit-controls-btn" type="button">Audit all controls</button></div>
+        <div class="metrics" style="margin-top:12px"><article class="card metric-card"><div class="muted">Checks</div><div class="metric" id="audit-controls-total">—</div></article><article class="card metric-card"><div class="muted">Available</div><div class="metric" id="audit-controls-available">—</div></article><article class="card metric-card"><div class="muted">Needs attention</div><div class="metric" id="audit-controls-attention">—</div></article></div>
+        <p class="muted" id="audit-controls-updated" role="status" aria-live="polite">Run the audit to check which controls are reachable.</p>
+        <div class="list" id="control-audit-list"><div class="empty">No control audit has been run.</div></div>
+      </article>
     </div>
   </section>
 
