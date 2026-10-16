@@ -46,6 +46,7 @@ from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
 from application.security import BasicAuthMiddleware
 from application.settings_validation import SettingsValidationError, validate_custom_base_url
+from application.state_backups import BackupError, create_backup, default_backup_dir, list_backups, validate_backup
 
 logger = logging.getLogger("terminal_ai.web")
 
@@ -1352,6 +1353,62 @@ async def get_settings() -> dict[str, Any]:
     }
 
 
+
+
+@get("/api/operations/backups")
+async def get_state_backups() -> dict[str, Any]:
+    """List local state backup archives without exposing archive contents."""
+    return list_backups()
+
+
+@post("/api/operations/backups")
+async def create_state_backup() -> dict[str, Any]:
+    """Create a private checksum-manifest ZIP of application state."""
+    try:
+        result = await asyncio.to_thread(create_backup, core.STATE_DIR, default_backup_dir())
+        logger.info("State backup created: files=%s size_bytes=%s", result["file_count"], result["size_bytes"])
+        return result
+    except BackupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        logger.exception("State backup failed")
+        raise HTTPException(status_code=500, detail="State backup failed. Check local disk permissions and free space.") from exc
+
+
+@get("/api/operations/backups/{name:str}/download")
+async def download_state_backup(name: str) -> Response:
+    """Download a named archive from the private backup directory."""
+    from application.state_backups import _safe_backup_path
+    try:
+        path = _safe_backup_path(name, default_backup_dir())
+        content = await asyncio.to_thread(path.read_bytes)
+    except BackupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Unable to read the selected backup.") from exc
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{path.name}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@post("/api/operations/backups/validate", status_code=200)
+async def validate_state_backup(data: dict[str, Any]) -> dict[str, Any]:
+    """Verify archive manifest, file hashes, paths and restore bounds without writing state."""
+    name = data.get("name")
+    if not isinstance(name, str) or not name or len(name) > 255:
+        raise HTTPException(status_code=400, detail="name must be a backup filename.")
+    try:
+        return await asyncio.to_thread(validate_backup, name, core.STATE_DIR, default_backup_dir())
+    except BackupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @get("/api/browser/status")
 async def browser_status() -> dict[str, Any]:
     """Expose browser configuration only; this endpoint never launches a browser."""
@@ -2183,7 +2240,7 @@ app = Litestar(
         create_chat_router(_chat_runs_snapshot),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, browser_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
