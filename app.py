@@ -36,7 +36,7 @@ from command_control import CommandControl
 from routers.control import create_control_router
 from routers.health import create_health_router
 from routers.chat import create_chat_router
-from routers.agentic import create_agentic_router
+from routers.agentic import create_agentic_router, start_autonomy_worker, stop_autonomy_worker
 from routers.knowledge import create_knowledge_router
 from routers.providers import create_provider_router
 from routers.workspace import create_workspace_router
@@ -2187,6 +2187,6 @@ app = Litestar(
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",
-    on_startup=[_start_update_checker, _start_selfx_maintenance, _start_scheduler],
-    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance, _stop_scheduler],
+    on_startup=[_start_update_checker, _start_selfx_maintenance, _start_scheduler, start_autonomy_worker],
+    on_shutdown=[_stop_update_checker, _stop_selfx_maintenance, _stop_scheduler, stop_autonomy_worker],
 )

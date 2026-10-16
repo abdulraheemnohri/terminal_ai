@@ -559,6 +559,16 @@ $("task-lifecycle-list").addEventListener("click",async e=>{
   await loadTaskLifecycle();await loadAgenticConsole();
  }catch(err){$("task-lifecycle-error").textContent=err.message;}
 });
+async function loadAutonomyJobs(){
+ const host=$("autonomy-jobs");if(!host)return;
+ try{
+  const data=await api("/api/agentic/autonomy/jobs");
+  const counts=data.queue?.by_status||{};
+  const summary=Object.entries(counts).map(([key,value])=>escapeHtml(key)+": "+escapeHtml(value)).join(" · ")||"No jobs yet";
+  host.innerHTML='<div class="list-item"><p>'+summary+' · Max attempts: '+escapeHtml(data.queue?.max_attempts??2)+'</p></div>'+
+   ((data.jobs||[]).length?data.jobs.map(job=>'<div class="list-item"><b>'+escapeHtml(job.status)+' · '+escapeHtml(job.progress||"")+'</b><p>'+escapeHtml(job.payload?.goal||"")+'</p><p class="muted">Attempts: '+escapeHtml(job.attempts)+'/'+escapeHtml(job.max_attempts)+' · Updated: '+escapeHtml(new Date(job.updated_at*1000).toLocaleString())+'</p>'+(["queued","running"].includes(job.status)?'<button class="btn" type="button" data-autonomy-cancel="'+escapeHtml(job.id)+'">Cancel job</button>':'')+(job.error?'<p class="error">'+escapeHtml(job.error)+'</p>':'')+'</div>').join(""):'<div class="empty">No queued autonomy jobs.</div>');
+ }catch(error){host.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
+}
 async function loadAutonomyStatus(){
  const host=$("autonomy-status");if(!host)return;
  try{
@@ -567,8 +577,28 @@ async function loadAutonomyStatus(){
   host.innerHTML='<div class="list-item"><b>Mode: '+escapeHtml(data.mode||"unknown")+'</b><p>Autonomous runs: '+escapeHtml(data.history?.count??0)+' · Completed read-only actions: '+escapeHtml(counts.completed||0)+' · Plans awaiting approval: '+escapeHtml(counts.awaiting_approval||0)+'</p><p>Automatic actions: '+escapeHtml((data.automatic_actions||[]).join(", "))+'</p><p>External side effects: '+escapeHtml(data.external_side_effects||"approval required")+'</p></div>'+
    ((data.history?.recent||[]).length?data.history.recent.map(item=>'<div class="list-item"><b>'+escapeHtml(item.action)+' · '+escapeHtml(item.status)+'</b><p>'+escapeHtml(item.goal)+'</p><p class="muted">'+escapeHtml(item.decision)+'</p></div>').join(""):'<div class="empty">No autonomous runs recorded yet.</div>');
  }catch(error){host.innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';}
+ await loadAutonomyJobs();
 }
 $("autonomy-refresh")?.addEventListener("click",loadAutonomyStatus);
+$("autonomy-queue-button")?.addEventListener("click",async()=>{
+ const button=$("autonomy-queue-button"),error=$("autonomy-error");
+ button.disabled=true;error.textContent="";
+ try{
+  const payload={goal:$("autonomy-goal").value.trim(),complexity:Number($("autonomy-complexity").value)};
+  const action=$("autonomy-action").value;if(action)payload.action=action;
+  const data=await api("/api/agentic/autonomy/jobs",{method:"POST",body:JSON.stringify(payload)});
+  $("autonomy-result").textContent=JSON.stringify(data,null,2);
+  error.textContent="Queued. The background worker only performs registered read-only actions or creates plans.";
+  await loadAutonomyJobs();
+ }catch(err){error.textContent=err.message;}
+ finally{button.disabled=false;}
+});
+$("autonomy-jobs")?.addEventListener("click",async event=>{
+ const button=event.target.closest("[data-autonomy-cancel]");if(!button)return;
+ button.disabled=true;
+ try{await api("/api/agentic/autonomy/jobs/"+encodeURIComponent(button.dataset.autonomyCancel)+"/cancel",{method:"POST",body:"{}"});await loadAutonomyJobs();}
+ catch(err){$("autonomy-error").textContent=err.message;button.disabled=false;}
+});
 $("autonomy-run-form")?.addEventListener("submit",async event=>{
  event.preventDefault();
  const button=$("autonomy-run-button"),error=$("autonomy-error"),result=$("autonomy-result");

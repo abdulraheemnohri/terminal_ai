@@ -13,6 +13,7 @@ from litestar.exceptions import HTTPException
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
 from application.autonomy import AutonomyEngine, AutonomyStore
+from application.autonomy_jobs import AutonomyJobQueue, AutonomyJobWorker
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
 from application.task_lifecycle import TaskLifecycleStore
@@ -20,6 +21,18 @@ from application.recovery_proposals import RecoveryProposalStore
 from terminal_ai_runtime import AdaptivePlanner, WorldModel, validate_skill_package
 
 _MAX_FACTS_FILE_BYTES = 2_000_000
+_AUTONOMY_WORKER: AutonomyJobWorker | None = None
+_AUTONOMY_QUEUE: AutonomyJobQueue | None = None
+
+
+async def start_autonomy_worker() -> None:
+    if _AUTONOMY_WORKER is not None:
+        await _AUTONOMY_WORKER.start()
+
+
+async def stop_autonomy_worker() -> None:
+    if _AUTONOMY_WORKER is not None:
+        await _AUTONOMY_WORKER.stop()
 
 
 class PersistentWorldModel:
@@ -81,10 +94,42 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
     skill_evolution = SkillEvolutionStore(Path(state_dir) / "skill_proposals.sqlite3")
     task_lifecycle = TaskLifecycleStore(Path(state_dir) / "task_lifecycle.sqlite3")
     recovery_store = RecoveryProposalStore(Path(state_dir) / "recovery_proposals.sqlite3")
+    global _AUTONOMY_WORKER, _AUTONOMY_QUEUE
     autonomy_store = AutonomyStore(Path(state_dir) / "autonomy_runs.sqlite3")
+    autonomy_queue = AutonomyJobQueue(Path(state_dir) / "autonomy_jobs.sqlite3")
     autonomy_engine = AutonomyEngine(store=autonomy_store, workspace=workspace, learning=learning_store,
                                      world_model=world, planner=planner, analyze=analyze_task,
                                      task_lifecycle=task_lifecycle, audit=control.audit)
+    _AUTONOMY_QUEUE = autonomy_queue
+    _AUTONOMY_WORKER = AutonomyJobWorker(autonomy_queue, autonomy_engine.run, control.audit)
+
+    @get("/autonomy/jobs")
+    async def list_autonomy_jobs() -> dict[str, Any]:
+        return {"queue": autonomy_queue.status(), "jobs": autonomy_queue.list()}
+
+    @post("/autonomy/jobs")
+    async def submit_autonomy_job(data: dict[str, Any]) -> dict[str, Any]:
+        try:
+            job = autonomy_queue.submit(data)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        control.audit("autonomy", "autonomy.job.queued", job["id"], {"action": job["payload"].get("action", "auto"), "risk": job["payload"].get("risk", "read")})
+        return {"job": job, "message": "Queued for the bounded autonomy worker; this does not authorize side effects."}
+
+    @get("/autonomy/jobs/{job_id:str}")
+    async def get_autonomy_job(job_id: str) -> dict[str, Any]:
+        job = autonomy_queue.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Autonomy job not found.")
+        return {"job": job}
+
+    @post("/autonomy/jobs/{job_id:str}/cancel")
+    async def cancel_autonomy_job(job_id: str) -> dict[str, Any]:
+        job = autonomy_queue.cancel(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Autonomy job not found.")
+        control.audit("autonomy", "autonomy.job.cancel_requested", job_id, {"status": job["status"]})
+        return {"job": job}
 
     @get("/autonomy/status")
     async def autonomy_status() -> dict[str, Any]:
@@ -94,6 +139,8 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
             "automatic_actions": ["workspace_overview", "learning_summary", "world_model_summary"],
             "decision_algorithm": "reviewed-outcome strategy recommendation + deterministic risk gates",
             "history": autonomy_store.summary(),
+            "job_queue": autonomy_queue.status(),
+            "worker": "single-process durable worker; safe decision cycles only",
             "external_side_effects": "approval_required",
             "permission_changes": False,
         }
