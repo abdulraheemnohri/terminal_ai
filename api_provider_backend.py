@@ -83,7 +83,7 @@ class APIProviderBackend(core.Backend):
         messages.extend(self._history_messages(history))
         if self.config["protocol"] == "anthropic":
             url = self.base_url + "/messages"
-            body = {"model": self.model, "max_tokens": self.max_tokens, "stream": True, "messages":
+            body = {"model": self.model, "max_tokens": self.max_tokens, "temperature": self.temperature, "stream": True, "messages":
                     [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]}
             if system:
                 body["system"] = system
