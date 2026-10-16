@@ -84,7 +84,7 @@ def security_status(root: str | Path) -> dict[str, Any]:
         "authentication_configured": complete,
         "credential_pair_complete": not partial,
         "configuration_error": partial,
-        "credential_source": "environment" if env_complete or env_partial else ("private .env" if complete or partial else "none"),
+        "credential_source": "environment" if env_complete else ("private .env or mixed" if complete or partial else "none"),
         "remote_bind_requires_auth": True,
         "credentials_exposed": False,
         "message": message,
