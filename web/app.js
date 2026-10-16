@@ -293,6 +293,9 @@ async function loadSettings(){
   $("custom-endpoint-field").hidden=!["custom-openai","ollama","lm-studio","vllm"].includes($("setting-provider").value);
   $("setting-critique").checked=!!data.self_critique;
   $("setting-agentic-persona").value=data.agentic_persona||"helpful";
+  $("setting-self-identity").value=data.self_identity||"Terminal AI";
+  $("setting-self-mission").value=data.self_mission||"Help the user accurately and safely while respecting permissions and privacy.";
+  $("setting-self-reflection").checked=data.self_reflection_enabled!==false;
   $("setting-agentic-planning").checked=data.agentic_planning_enabled!==false;
   $("setting-agentic-recovery").checked=data.agentic_recovery_enabled!==false;
   $("setting-proactive").checked=!!data.proactive;
@@ -410,6 +413,9 @@ $("settings-form").addEventListener("submit",async e=>{
    browser_allowed_domains:$("setting-browser-domains").value.split(String.fromCharCode(10)).flatMap(x=>x.split(",")).map(x=>x.trim()).filter(Boolean),
    api_key:$("setting-api-key").value,hf_token:$("setting-hf-token").value,
    self_critique:$("setting-critique").checked,
+   self_identity:$("setting-self-identity").value.trim(),
+   self_mission:$("setting-self-mission").value.trim(),
+   self_reflection_enabled:$("setting-self-reflection").checked,
    agentic_persona:$("setting-agentic-persona").value,
    agentic_planning_enabled:$("setting-agentic-planning").checked,
    agentic_recovery_enabled:$("setting-agentic-recovery").checked,
