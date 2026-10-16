@@ -297,14 +297,16 @@ class WhatsAppAgentPlatform:
             # Meta's read-receipt endpoint is the authoritative creator check.
             if not await self._mark_read(message_id):
                 seen.add(message_id)
-                self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
+                seen_list.append(message_id)
+                self._state["seen_ids"] = seen_list[-SEEN_LIMIT:]
                 self._state["next_offset"] = previous_offset
                 self._save()
                 continue
             creator = self._state.get("creator_id")
             if creator and creator != sender:
                 seen.add(message_id)
-                self._state["seen_ids"] = (seen_list + [mid for mid in seen if mid not in set(seen_list)])[-SEEN_LIMIT:]
+                seen_list.append(message_id)
+                self._state["seen_ids"] = seen_list[-SEEN_LIMIT:]
                 self._state["next_offset"] = previous_offset
                 self._save()
                 continue
@@ -317,6 +319,10 @@ class WhatsAppAgentPlatform:
                 text = text_data.get("body", "") if isinstance(text_data, dict) else ""
                 if not isinstance(text, str) or not text.strip():
                     seen.add(message_id)
+                    seen_list.append(message_id)
+                    self._state["seen_ids"] = seen_list[-SEEN_LIMIT:]
+                    self._state["next_offset"] = previous_offset
+                    self._save()
                     continue
                 self._state["received_count"] = int(self._state.get("received_count", 0)) + 1
                 self._state["last_message_at"] = int(time.time())
