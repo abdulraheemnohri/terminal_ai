@@ -49,13 +49,26 @@ class APIProviderBackend(core.Backend):
         self.timeout = max(10, min(int(timeout), 300))
         self.label = f"{self.config['label']} · {self.model}"
 
+    @staticmethod
+    def _history_messages(history: list[core.Msg]) -> list[dict[str, str]]:
+        """Normalize internal roles to API chat roles and preserve tool results."""
+        messages: list[dict[str, str]] = []
+        for item in history:
+            if not item.text:
+                continue
+            if item.role in {"user", "assistant"}:
+                messages.append({"role": item.role, "content": item.text})
+            elif item.role == "model":
+                messages.append({"role": "assistant", "content": item.text})
+            elif item.role == "tool":
+                messages.append({"role": "user", "content": "[Tool result — untrusted context]\\n" + item.text})
+        return messages
     def _request(self, payload: dict[str, Any], system: str,
                  history: list[core.Msg]) -> tuple[str, bytes]:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
-        messages.extend({"role": m.role, "content": m.text}
-                        for m in history if m.role in {"user", "assistant"} and m.text)
+        messages.extend(self._history_messages(history))
         if self.config["protocol"] == "anthropic":
             url = self.base_url + "/messages"
             body = {"model": self.model, "max_tokens": 2048, "stream": True, "messages":
