@@ -12,6 +12,7 @@ REQUIRED_FILES = (
     "command_control.py",
     "api_schemas.py",
     "application/task_intelligence.py",
+    "application/autonomy.py",
     "application/learning.py",
     "application/skill_evolution.py",
     "application/task_lifecycle.py",
@@ -28,6 +29,7 @@ REQUIRED_FILES = (
     "web/index.html",
     "web/app.js",
     "web/app.css",
+    "tests/test_autonomy.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 

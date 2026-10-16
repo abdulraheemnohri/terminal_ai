@@ -12,6 +12,7 @@ from litestar.exceptions import HTTPException
 
 from command_control import CommandControl
 from application.task_intelligence import analyze_task
+from application.autonomy import AutonomyEngine, AutonomyStore
 from application.learning import LearningStore
 from application.skill_evolution import SkillEvolutionStore
 from application.task_lifecycle import TaskLifecycleStore
@@ -73,13 +74,49 @@ class PersistentWorldModel:
             return fact.__dict__.copy()
 
 
-def create_agentic_router(control: CommandControl, state_dir: str | Path, learning: LearningStore | None = None) -> Router:
+def create_agentic_router(control: CommandControl, state_dir: str | Path, learning: LearningStore | None = None, workspace: Any = None) -> Router:
     planner = AdaptivePlanner()
     world = PersistentWorldModel(Path(state_dir) / "world_model.json")
     learning_store = learning or LearningStore(Path(state_dir) / "learning.sqlite3")
     skill_evolution = SkillEvolutionStore(Path(state_dir) / "skill_proposals.sqlite3")
     task_lifecycle = TaskLifecycleStore(Path(state_dir) / "task_lifecycle.sqlite3")
     recovery_store = RecoveryProposalStore(Path(state_dir) / "recovery_proposals.sqlite3")
+    autonomy_store = AutonomyStore(Path(state_dir) / "autonomy_runs.sqlite3")
+    autonomy_engine = AutonomyEngine(store=autonomy_store, workspace=workspace, learning=learning_store,
+                                     world_model=world, planner=planner, analyze=analyze_task,
+                                     task_lifecycle=task_lifecycle, audit=control.audit)
+
+    @get("/autonomy/status")
+    async def autonomy_status() -> dict[str, Any]:
+        return {
+            "enabled": True,
+            "mode": "bounded_safe",
+            "automatic_actions": ["workspace_overview", "learning_summary", "world_model_summary"],
+            "decision_algorithm": "reviewed-outcome strategy recommendation + deterministic risk gates",
+            "history": autonomy_store.summary(),
+            "external_side_effects": "approval_required",
+            "permission_changes": False,
+        }
+
+    @post("/autonomy/run")
+    async def run_autonomous_workflow(data: dict[str, Any]) -> dict[str, Any]:
+        allowed = {"goal", "action", "complexity", "risk", "has_external_side_effects"}
+        unknown = set(data) - allowed
+        if unknown:
+            raise HTTPException(status_code=400, detail="Unknown autonomy fields: " + ", ".join(sorted(unknown)))
+        try:
+            result = autonomy_engine.run(
+                goal=data.get("goal"),
+                action=data.get("action"),
+                complexity=data.get("complexity", 1),
+                risk=data.get("risk", "read"),
+                has_external_side_effects=data.get("has_external_side_effects", False),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail=f"Autonomous workflow failed safely ({type(exc).__name__}).") from exc
+        return result
 
     @get("/status")
     async def agentic_status() -> dict[str, Any]:
@@ -677,7 +714,7 @@ def create_agentic_router(control: CommandControl, state_dir: str | Path, learni
         return {"proposal": item, "promoted_to_reviewed_catalog": True, "execution_started": False, "permissions_changed": False}
 
     return Router(path="/api/agentic", route_handlers=[
-        agentic_status, plan, create_task_run, list_task_runs, get_task_run, link_task_operation,
+        agentic_status, autonomy_status, run_autonomous_workflow, plan, create_task_run, list_task_runs, get_task_run, link_task_operation,
         verify_task_run, review_task_run, learning_summary, record_learning_outcome,
         list_world_facts, observe_world_fact, validate_skill,
         list_skill_proposals, create_skill_proposal, draft_skill_from_reviewed_learning, validate_skill_proposal,
