@@ -51,7 +51,7 @@ In addition to the 19 in-dashboard views, three standalone pages have their own 
 - `/static/pages/chat-model-lab.html` — real model output tests and metadata-only request traces.
 - `/static/pages/whatsapp-agent.html` — WhatsApp Agent API status, write-only key configuration, polling, connectivity test, and creator-only manual send.
 
-The WhatsApp page uses `/api/whatsapp-agent/status`, `/config`, `/test`, and `/send`; server-side checks restrict outbound sends to the Meta-verified creator identity. Connectivity probes must not consume the persisted inbound update cursor.
+The WhatsApp page uses `/api/whatsapp-agent/status`, `/config`, `/test`, and `/send`; server-side checks restrict outbound sends to the Meta-verified creator identity. Connectivity probes must not consume the persisted inbound update cursor. `tests/test_ui_control_integrity.py` now checks that every navigation target has a matching view and that the standalone HTML assets and WhatsApp frontend/backend route contract remain connected.
 
 ## Existing high-level controls to verify in browser
 

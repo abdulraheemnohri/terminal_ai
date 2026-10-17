@@ -1,3 +1,9 @@
+## Unreleased — dashboard and backend wiring contract tests
+
+- Assert that every dashboard navigation target maps to a real view section.
+- Verify standalone HTML pages load their own CSS/JavaScript and remain linked from the dashboard.
+- Guard the WhatsApp page's status/config/test/send endpoints and its connection to the existing serialized chat pipeline.
+
 ## Unreleased — WhatsApp configuration validation
 
 - Reject non-boolean `clear_key` values and conflicting requests that attempt to set and remove a key in one call or enable polling while removing the key.

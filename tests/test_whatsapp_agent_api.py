@@ -41,3 +41,14 @@ def test_whatsapp_dashboard_page_and_assets_are_served_and_wired_to_api():
     ):
         assert endpoint in script
     assert "api_key" in script and "clear_key" in script
+
+    # Exercise Litestar's actual static-file route as well as source references.
+    with TestClient(app=app) as client:
+        for path in (
+            "/static/pages/whatsapp-agent.html",
+            "/static/css/whatsapp-agent.css",
+            "/static/js/whatsapp-agent.js",
+        ):
+            response = client.get(path)
+            assert response.status_code == 200, f"{path} should be served by Litestar"
+            assert response.text
