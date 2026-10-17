@@ -61,6 +61,21 @@ def test_cannot_enable_without_api_key(tmp_path):
     asyncio.run(run())
 
 
+def test_config_rejects_invalid_or_conflicting_key_removal_fields(tmp_path):
+    async def run():
+        service = _service(tmp_path)
+        with pytest.raises(ValueError, match="clear_key must be a boolean"):
+            await service.configure({"clear_key": "true"})
+        with pytest.raises(ValueError, match="cannot be combined with api_key"):
+            await service.configure({"api_key": "secret", "clear_key": True})
+        with pytest.raises(ValueError, match="cannot be combined with enabled=true"):
+            await service.configure({"clear_key": True, "enabled": True})
+        assert service.status()["configured"] is False
+        await service.stop()
+
+    asyncio.run(run())
+
+
 def test_test_connection_uses_meta_updates_endpoint(tmp_path):
     async def run():
         service = _service(tmp_path)
