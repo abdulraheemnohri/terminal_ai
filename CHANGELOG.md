@@ -1,3 +1,8 @@
+## Unreleased — reject empty state backups
+
+- Refuse to create or validate backup archives with no restorable state files, matching the restore CLI's refusal to apply empty archives.
+- Add regression tests for empty state directories and empty backup manifests.
+
 ## Unreleased — composed authentication and origin-guard coverage
 
 - Test the actual middleware composition: cross-origin mutations and WebSocket upgrades are rejected, same-origin mutations still require valid Basic authentication, and authenticated non-browser requests without Origin remain supported.
