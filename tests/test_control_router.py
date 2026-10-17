@@ -30,3 +30,31 @@ def test_command_control_websocket_route_is_modularized():
         with client.websocket_connect("/api/control/events") as socket:
             event = socket.receive_json()
     assert event["type"] == "connected"
+
+
+def test_command_control_websocket_replays_audit_summary_without_arguments():
+    with TestClient(app=app) as client:
+        queued = client.post("/api/control/pending", json={
+            "tool": "workspace",
+            "operation": "inspect",
+            "arguments": {"path": "README.md", "private_note": "must-not-be-streamed"},
+        })
+        assert queued.status_code in {200, 201}
+        operation_id = queued.json()["operation"]["id"]
+
+        with client.websocket_connect("/api/control/events") as socket:
+            connected = socket.receive_json()
+            assert connected["type"] == "connected"
+            replayed = None
+            # The endpoint replays at most the most recent 100 audit summaries.
+            for _ in range(100):
+                event = socket.receive_json()
+                if event.get("type") == "action_event" and event.get("target") == operation_id:
+                    replayed = event
+                    break
+
+    assert replayed is not None
+    assert replayed["action"] == "operation.queued"
+    assert replayed["details"] == {"tool": "workspace", "operation": "inspect"}
+    assert "private_note" not in str(replayed)
+    assert "README.md" not in str(replayed)
