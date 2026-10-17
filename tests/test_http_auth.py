@@ -72,3 +72,62 @@ def test_placeholder_credentials_do_not_enable_auth(monkeypatch, tmp_path):
     monkeypatch.setenv("TERMINAL_AI_AUTH_PASSWORD", "replace_with_a_long_random_password")
     middleware = BasicAuthMiddleware(lambda *args: None, root=tmp_path)
     assert middleware._credentials() == (None, None)
+
+
+def test_websocket_without_credentials_is_rejected_on_remote_bind(monkeypatch, tmp_path):
+    import asyncio
+
+    from application.security import BasicAuthMiddleware
+
+    _clear_auth(monkeypatch)
+    events = []
+
+    async def downstream(scope, receive, send):
+        events.append({"type": "downstream"})
+
+    async def send(event):
+        events.append(event)
+
+    middleware = BasicAuthMiddleware(downstream, root=tmp_path)
+    scope = {
+        "type": "websocket",
+        "path": "/api/control/events",
+        "headers": [],
+        "server": ("0.0.0.0", 8000),
+    }
+    asyncio.run(middleware(scope, lambda: None, send))
+
+    assert not any(event.get("type") == "downstream" for event in events)
+    close = next(event for event in events if event.get("type") == "websocket.close")
+    assert close["code"] == 4403
+    assert "requires authentication" in close["reason"].lower()
+
+
+def test_websocket_with_configured_auth_rejects_missing_credentials(monkeypatch, tmp_path):
+    import asyncio
+
+    from application.security import BasicAuthMiddleware
+
+    monkeypatch.setenv("TERMINAL_AI_AUTH_USER", "operator")
+    monkeypatch.setenv("TERMINAL_AI_AUTH_PASSWORD", "test-only-password")
+    events = []
+
+    async def downstream(scope, receive, send):
+        events.append({"type": "downstream"})
+
+    async def send(event):
+        events.append(event)
+
+    middleware = BasicAuthMiddleware(downstream, root=tmp_path)
+    scope = {
+        "type": "websocket",
+        "path": "/api/control/events",
+        "headers": [],
+        "server": ("127.0.0.1", 8000),
+    }
+    asyncio.run(middleware(scope, lambda: None, send))
+
+    assert not any(event.get("type") == "downstream" for event in events)
+    close = next(event for event in events if event.get("type") == "websocket.close")
+    assert close["code"] == 4401
+    assert close["reason"] == "Authentication required"
