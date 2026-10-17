@@ -1350,6 +1350,7 @@ let controlSocketRetry=null;
 let controlSocketRetryDelay=1000;
 let controlLivePaused=false;
 let controlEventHistory=[];
+let controlAuditSnapshot=null;
 const CONTROL_EVENT_HISTORY_LIMIT=100;
 function controlApi(path,options={}){return api(path,options);}
 function controlList(text){return [...new Set(String(text||"").split(",").map(x=>x.trim()).filter(Boolean))];}
@@ -1391,11 +1392,41 @@ async function loadControlPending(){
  }catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}
 }
 async function loadControlAudit(){
+ const limit=Number($("control-audit-limit")?.value||100);
  try{
-  const data=await controlApi("/api/control/audit?limit=100");const integrity=data.integrity||{};
+  const data=await controlApi("/api/control/audit?limit="+encodeURIComponent(String(limit)));const integrity=data.integrity||{};
+  controlAuditSnapshot={format:"terminal-ai-audit-export",version:1,generated_at:new Date().toISOString(),limit:data.limit||limit,integrity,entries:data.entries||[]};
   $("control-audit-integrity").textContent=(integrity.valid?"Integrity verified":"INTEGRITY WARNING")+" · "+(integrity.checked||0)+" entries checked"+(integrity.reason?" · "+integrity.reason:"");
   $("control-audit-list").innerHTML=(data.entries||[]).map(e=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(e.action)+'</b><span class="muted">'+escapeHtml(new Date(e.timestamp*1000).toLocaleString())+'</span></div><p>'+escapeHtml(e.actor)+' → '+escapeHtml(e.target)+'</p><p class="muted">'+escapeHtml(JSON.stringify(e.details||{}))+'</p><small class="muted">SHA-256: '+escapeHtml(e.entry_hash)+'</small></div>').join("")||'<div class="empty">No audit entries yet.</div>';
- }catch(e){$("control-audit-integrity").textContent=e.message;}
+  $("control-audit-export-status").textContent="Loaded "+(data.entries||[]).length+" entries (requested latest "+limit+"). Integrity "+(integrity.valid?"verified":"WARNING")+". Exports include this snapshot only.";
+  $("control-audit-export-json").disabled=false;$("control-audit-export-csv").disabled=false;
+ }catch(e){
+  controlAuditSnapshot=null;$("control-audit-integrity").textContent=e.message;
+  $("control-audit-export-status").textContent="Audit could not be loaded; export is disabled.";
+  $("control-audit-export-json").disabled=true;$("control-audit-export-csv").disabled=true;
+ }
+}
+function downloadControlAudit(filename,mime,content){
+ const blob=new Blob([content],{type:mime});const url=URL.createObjectURL(blob);
+ const link=document.createElement("a");link.href=url;link.download=filename;link.hidden=true;
+ document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+function exportControlAuditJSON(){
+ if(!controlAuditSnapshot)return;
+ const payload={...controlAuditSnapshot,export_note:"This is the fetched audit snapshot, not a signature or a tamper-proof external archive."};
+ downloadControlAudit("terminal-ai-audit-"+new Date().toISOString().replace(/[:.]/g,"-")+".json","application/json;charset=utf-8",JSON.stringify(payload,null,2));
+}
+function exportControlAuditCSV(){
+ if(!controlAuditSnapshot)return;
+ const snapshot=controlAuditSnapshot;
+ const fields=["seq","timestamp","actor","action","target","details","entry_hash","integrity_valid","integrity_checked"];
+ const quote=value=>'"'+String(value??"").replace(/"/g,'""')+'"';
+ const rows=[fields.join(",")];
+ for(const entry of snapshot.entries)rows.push([
+  entry.seq,entry.timestamp,entry.actor,entry.action,entry.target,JSON.stringify(entry.details||{}),entry.entry_hash,
+  snapshot.integrity?.valid===true,snapshot.integrity?.checked??0
+ ].map(quote).join(","));
+ downloadControlAudit("terminal-ai-audit-"+new Date().toISOString().replace(/[:.]/g,"-")+".csv","text/csv;charset=utf-8","\\uFEFF"+rows.join("\\r\\n"));
 }
 function controlEventCategory(item){
  const action=String(item?.action||"").toLowerCase();
@@ -1500,6 +1531,9 @@ if($("control-save-policy"))$("control-save-policy").addEventListener("click",sa
 if($("control-refresh-pending"))$("control-refresh-pending").addEventListener("click",loadControlPending);
 if($("control-status-filter"))$("control-status-filter").addEventListener("change",loadControlPending);
 if($("control-audit-refresh"))$("control-audit-refresh").addEventListener("click",loadControlAudit);
+if($("control-audit-limit"))$("control-audit-limit").addEventListener("change",loadControlAudit);
+if($("control-audit-export-json"))$("control-audit-export-json").addEventListener("click",exportControlAuditJSON);
+if($("control-audit-export-csv"))$("control-audit-export-csv").addEventListener("click",exportControlAuditCSV);
 if($("control-queue-form"))$("control-queue-form").addEventListener("submit",async e=>{
  e.preventDefault();$("control-queue-error").textContent="";
  try{let args=JSON.parse($("control-arguments").value||"{}");if(!args||Array.isArray(args)||typeof args!=="object")throw new Error("Arguments must be a JSON object.");
