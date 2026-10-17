@@ -1,3 +1,7 @@
+## Unreleased — CI compatibility coverage
+
+- Run the full CI validation suite on Python 3.11 and 3.12 to catch version-specific regressions.
+
 ## Unreleased — audit ledger integrity handling
 
 - Treat malformed or unreadable audit-chain records as integrity failures instead of crashing diagnostics.
