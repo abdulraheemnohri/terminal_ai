@@ -140,6 +140,8 @@ def create_backup(state_dir: Path, backup_dir: Path | None = None) -> dict[str, 
                     raise BackupError("State backup contains more than 10,000 files.")
                 manifest["files"][relative] = _sha256_bytes(data)
                 archive.writestr("state/" + relative, data)
+            if not manifest["files"]:
+                raise BackupError("State directory contains no restorable files.")
             archive.writestr("manifest.json", json.dumps(manifest, indent=2, sort_keys=True))
         os.chmod(temp_name, stat.S_IRUSR | stat.S_IWUSR)
         # Preserve every backup by choosing a collision-safe name even within one second.
@@ -186,6 +188,8 @@ def validate_backup(name: str, state_dir: Path, backup_dir: Path | None = None) 
                 raise BackupError("Unsupported backup manifest.")
             if len(files) > MAX_FILES:
                 raise BackupError("Backup contains too many files.")
+            if not files:
+                raise BackupError("Backup contains no restorable state files.")
             seen_members = set()
             total_bytes = 0
             conflicts = 0
