@@ -1,4 +1,15 @@
-## Unreleased — audit ledger schema validation\n\n- Reject audit entries with missing or incorrectly typed required fields, invalid hash encodings, or malformed hash links even if the entry hash was recomputed.\n- Add regression coverage proving schema-invalid records fail verification.\n\n## Unreleased — CI compatibility coverage
+## Unreleased — cross-origin request protection
+
+- Reject cross-origin browser mutations and WebSocket upgrades when an Origin header is supplied.
+- Preserve same-origin browser requests and non-browser clients that do not send Origin; this is defense in depth, not a replacement for authentication or TLS.
+- Add regression tests for cross-origin rejection, safe GETs, same-origin default ports, WebSockets, and CLI compatibility.
+
+## Unreleased — audit ledger schema validation
+
+- Reject audit entries with missing or incorrectly typed required fields, invalid hash encodings, or malformed hash links even if the entry hash was recomputed.
+- Add regression coverage proving schema-invalid records fail verification.
+
+## Unreleased — CI compatibility coverage
 
 - Run the full CI validation suite on Python 3.11 and 3.12 to catch version-specific regressions.
 

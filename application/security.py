@@ -10,6 +10,7 @@ import hmac
 import ipaddress
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Any
 
 
@@ -173,5 +174,82 @@ class BasicAuthMiddleware:
                 await send({"type": "websocket.close", "code": 4401, "reason": "Authentication required"})
             else:
                 await self._respond(send, 401, "Authentication required.", challenge=True)
+            return
+        await self.app(scope, receive, send)
+
+
+class OriginGuardMiddleware:
+    """Reject cross-origin browser mutations and WebSocket upgrades.
+
+    Requests without an Origin header remain supported for CLI and server-to-server
+    clients. This is a browser CSRF defense-in-depth measure, not a replacement for
+    authentication, TLS, or network isolation.
+    """
+
+    _MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    @staticmethod
+    def _normalized_authority(value: str, *, scheme: str) -> tuple[str, int] | None:
+        try:
+            parsed = urlsplit(value if "://" in value else f"{scheme}://{value}")
+            if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+                return None
+            port = parsed.port
+            if port is None:
+                port = 443 if scheme in {"https", "wss"} else 80
+            return parsed.hostname.casefold().rstrip("."), port
+        except (ValueError, UnicodeError):
+            return None
+
+    @classmethod
+    def _same_origin(cls, origin: bytes, host: bytes, request_scheme: str) -> bool:
+        try:
+            raw_origin = origin.decode("ascii").strip()
+            raw_host = host.decode("ascii").strip()
+            parsed = urlsplit(raw_origin)
+        except (UnicodeError, ValueError):
+            return False
+        expected_scheme = {"ws": "http", "wss": "https"}.get(request_scheme, request_scheme)
+        if (
+            parsed.scheme.casefold() != expected_scheme.casefold()
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or not parsed.netloc
+            or raw_origin.casefold() == "null"
+        ):
+            return False
+        origin_authority = cls._normalized_authority(parsed.netloc, scheme=parsed.scheme.casefold())
+        host_authority = cls._normalized_authority(raw_host, scheme=expected_scheme.casefold())
+        return origin_authority is not None and origin_authority == host_authority
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        scope_type = scope.get("type")
+        if scope_type not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+        method = str(scope.get("method", "")).upper()
+        if scope_type == "http" and method not in self._MUTATING_METHODS:
+            await self.app(scope, receive, send)
+            return
+        origin = next((value for name, value in scope.get("headers", []) if name.lower() == b"origin"), None)
+        if origin is None:
+            await self.app(scope, receive, send)
+            return
+        host = next((value for name, value in scope.get("headers", []) if name.lower() == b"host"), None)
+        if host is None or not self._same_origin(origin, host, str(scope.get("scheme", "http")).lower()):
+            if scope_type == "websocket":
+                await send({"type": "websocket.close", "code": 4403, "reason": "Cross-origin WebSocket rejected"})
+                return
+            payload = b"Cross-origin request rejected."
+            await send({"type": "http.response.start", "status": 403, "headers": [
+                (b"content-type", b"text/plain; charset=utf-8"),
+                (b"content-length", str(len(payload)).encode("ascii")),
+                (b"cache-control", b"no-store"),
+            ]})
+            await send({"type": "http.response.body", "body": payload})
             return
         await self.app(scope, receive, send)
