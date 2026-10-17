@@ -1,3 +1,7 @@
+## Unreleased — CI compatibility coverage
+
+- Run the full CI validation suite on Python 3.11 and 3.12 to catch version-specific regressions.
+
 ## Unreleased — approval race regression coverage
 
 - Verify only one concurrent worker can claim a reviewed operation.
