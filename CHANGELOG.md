@@ -1,3 +1,8 @@
+## Unreleased — approval race regression coverage
+
+- Verify only one concurrent worker can claim a reviewed operation.
+- Verify an approval cannot be reused with altered operation arguments.
+
 ## Unreleased — WebSocket event replay coverage
 
 - Verify newly queued operations appear in the action stream as replayable audit summaries.
