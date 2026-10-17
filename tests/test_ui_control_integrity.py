@@ -27,6 +27,30 @@ def test_static_javascript_id_references_exist_in_dashboard():
     assert not missing, f"JavaScript references missing dashboard element IDs: {missing}"
 
 
+
+def test_chat_toolbar_controls_have_live_handlers_and_safe_export_routes():
+    html = HTML_PATH.read_text(encoding="utf-8")
+    js = JS_PATH.read_text(encoding="utf-8")
+    required_controls = {
+        "chat-export-md",
+        "chat-export-json",
+        "chat-copy-transcript",
+        "chat-new-session",
+        "chat-refresh-runs",
+    }
+    ids = set(re.findall(r'\\bid="([^"]+)"', html))
+    assert required_controls <= ids, f"Chat toolbar is missing controls: {sorted(required_controls - ids)}"
+    for control in required_controls:
+        assert control in js, f"Chat toolbar control has no JavaScript wiring: {control}"
+        assert re.search(r'\\$\\(["\\']' + re.escape(control) + r'["\\']\\)\\?\\.addEventListener', js), (
+            f"Chat toolbar control must register an event handler: {control}"
+        )
+    assert '"/api/sessions/new"' in js, "New chat must create a persistent server-side session"
+    assert 'api("/api/chat/runs")' in js, "Refresh runs must use the metadata-only chat trace endpoint"
+    assert "URL.createObjectURL" in js and "JSON.stringify(payload" in js, "Exports must create downloadable local files"
+    assert 'run.execution' in js, "Trace rendering must display recorded execution stages"
+
+
 def test_label_targets_exist_in_dashboard():
     html = HTML_PATH.read_text(encoding="utf-8")
     ids = set(re.findall(r'\bid="([^"]+)"', html))
