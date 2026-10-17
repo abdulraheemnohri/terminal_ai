@@ -103,3 +103,30 @@ def test_control_audit_is_visible_and_endpoint_catalog_is_unique():
     assert len(endpoints) == len(set(endpoints)), "Control audit endpoint paths must be unique"
     assert "/healthz" in endpoints and "/readyz" in endpoints
     assert "/api/settings" in endpoints and "/api/control/pending?status=pending&limit=1" in endpoints
+
+
+def test_live_control_feed_has_user_controls_and_bounded_reconnect():
+    html = HTML_PATH.read_text(encoding="utf-8")
+    js = JS_PATH.read_text(encoding="utf-8")
+    required_controls = {
+        "control-live-filter",
+        "control-live-pause",
+        "control-live-clear",
+        "control-live-reconnect",
+        "control-live-help",
+        "control-live-status",
+        "control-live-feed",
+    }
+    ids = set(re.findall(r'\\bid="([^"]+)"', html))
+    assert required_controls <= ids, (
+        f"Live control feed is missing controls: {sorted(required_controls - ids)}"
+    )
+    for control in ("control-live-filter", "control-live-pause", "control-live-clear", "control-live-reconnect"):
+        assert f'$("'{control}'")' not in js  # guard against malformed selector interpolation
+    assert 'addEventListener("click",reconnectControlEvents)' in js
+    assert 'addEventListener("click",()=>{' in js
+    assert "controlSocketRetryDelay=Math.min(30000,delay*2)" in js
+    assert "CONTROL_EVENT_HISTORY_LIMIT=100" in js
+    assert "controlLivePaused" in js and "renderControlEventFeed()" in js
+    assert "terminal-ai-control-feed-filter" in js
+    assert 'new WebSocket(scheme+"//"+location.host+"/api/control/events")' in js
