@@ -50,6 +50,29 @@ def test_chat_toolbar_controls_have_live_handlers_and_safe_export_routes():
     assert "run.execution" in js, "Trace rendering must display recorded execution stages"
 
 
+
+def test_chat_search_and_display_preferences_are_persisted_and_applied():
+    html = HTML_PATH.read_text(encoding="utf-8")
+    js = JS_PATH.read_text(encoding="utf-8")
+    required_ids = {
+        "chat-search",
+        "chat-search-status",
+        "chat-setting-enter",
+        "chat-setting-scroll",
+        "chat-setting-meta",
+        "chat-setting-compact",
+        "chat-setting-font",
+    }
+    ids = set(re.findall(r'\bid="([^"]+)"', html))
+    assert required_ids <= ids, f"Chat search/settings UI is missing: {sorted(required_ids - ids)}"
+    assert '$("chat-search")?.addEventListener("input",filterChatMessages)' in js
+    assert 'localStorage.getItem(CHAT_PREFS_KEY)' in js and 'localStorage.setItem(CHAT_PREFS_KEY' in js
+    assert 'if(e.key==="Enter"&&!e.shiftKey&&$("chat-setting-enter")?.checked)' in js
+    assert 'classList.toggle("compact"' in js
+    assert 'classList.toggle("hide-response-meta"' in js
+    assert 'style.fontSize=$("chat-setting-font").value+"px"' in js
+
+
 def test_label_targets_exist_in_dashboard():
     html = HTML_PATH.read_text(encoding="utf-8")
     ids = set(re.findall(r'\bid="([^"]+)"', html))
