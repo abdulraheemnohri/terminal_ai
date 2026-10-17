@@ -1,3 +1,8 @@
+## Unreleased — non-consuming WhatsApp connectivity checks
+
+- Preserve the inbound update cursor around connection tests so a probe cannot skip an unread WhatsApp Agent Platform message.
+- Add regression coverage for cursor preservation in memory and on disk; update WhatsApp setup and production-readiness documentation.
+
 ## Unreleased — restore destination preflight coverage
 
 - Verify overwrite mode validates every destination before replacing any existing file, preventing partial changes when a later destination conflicts with a directory.

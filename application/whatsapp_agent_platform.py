@@ -220,13 +220,18 @@ class WhatsAppAgentPlatform:
                 else "The background poller is connecting; refresh status in a few seconds.",
                 "status": self.status(),
             }
+        # A connectivity probe must never consume the message cursor. Meta may
+        # return a real update even for timeout=0; the worker must see it later.
+        previous_offset = self._state.get("next_offset")
         try:
             await self._get_updates(timeout=0, limit=1)
+            self._state["next_offset"] = previous_offset
             self._state["last_error"] = ""
             self._state["last_poll_at"] = int(time.time())
             self._save()
             return {"ok": True, "message": "Agent API key accepted by Meta.", "status": self.status()}
         except Exception as exc:
+            self._state["next_offset"] = previous_offset
             self._state["last_error"] = str(exc)[:300]
             self._save()
             raise

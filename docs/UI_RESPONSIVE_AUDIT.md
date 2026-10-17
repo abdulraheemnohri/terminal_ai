@@ -4,7 +4,7 @@
 
 This pass reviewed `web/index.html`, `web/app.js`, `web/app.css`, and `web/chat-enhancements.js` from the default branch.
 
-- All 18 sidebar navigation entries have matching `view-*` sections.
+- All 19 sidebar navigation entries have matching `view-*` sections.
 - Static `$("id")` references found in `web/app.js` resolve to IDs in the HTML (233 unique static references checked).
 - No duplicate HTML IDs were found by the static scan.
 - Responsive CSS was extended for narrow phones, standard phones, tablets, laptops, and wide desktop displays.
@@ -21,7 +21,7 @@ This pass reviewed `web/index.html`, `web/app.js`, `web/app.css`, and `web/chat-
 
 ## Page inventory
 
-The dashboard contains these 18 views:
+The dashboard contains these 19 views:
 
 1. Overview
 2. AI Chat
@@ -40,7 +40,18 @@ The dashboard contains these 18 views:
 15. Learning
 16. Self-improvement
 17. Self-X Evolution Engine
-18. Settings
+18. WhatsApp Agent
+19. Settings
+
+## Standalone HTML pages
+
+In addition to the 19 in-dashboard views, three standalone pages have their own HTML, CSS, and JavaScript assets:
+
+- `/static/pages/api-management.html` — provider inventory, credentials, model discovery, connection checks, routing priority, and profile settings.
+- `/static/pages/chat-model-lab.html` — real model output tests and metadata-only request traces.
+- `/static/pages/whatsapp-agent.html` — WhatsApp Agent API status, write-only key configuration, polling, connectivity test, and creator-only manual send.
+
+The WhatsApp page uses `/api/whatsapp-agent/status`, `/config`, `/test`, and `/send`; server-side checks restrict outbound sends to the Meta-verified creator identity. Connectivity probes must not consume the persisted inbound update cursor.
 
 ## Existing high-level controls to verify in browser
 
@@ -56,7 +67,7 @@ The dashboard contains these 18 views:
 Run after installing dependencies and starting the local server:
 
 - [ ] At 320px, 375px, 390px, 768px, 1024px, 1440px, and 1920px widths, confirm no page-level horizontal scrollbar.
-- [ ] Swipe the phone navigation horizontally and open all 18 pages.
+- [ ] Swipe the phone navigation horizontally and open all 19 pages.
 - [ ] Save and reload settings; verify secret fields stay blank unless intentionally re-entered.
 - [ ] Confirm approval/rejection buttons show a clear outcome and approval does not itself execute a queued operation.
 - [ ] Verify live action stream connection/disconnection feedback and reconnection behavior.

@@ -16,7 +16,7 @@ The agent API key is not a WhatsApp Linked Devices QR code, phone number, or Clo
 
 - Save and remove the API key through the dashboard.
 - Enable or disable background polling.
-- Test API connectivity and inspect local connection status.
+- Test API connectivity and inspect local connection status without advancing the inbound update cursor; queued messages remain available to the poller.
 - Receive text messages through Meta's long-poll `GET /updates` endpoint.
 - Verify the creator using `POST /statuses`; do not forward unverified senders to the model.
 - Generate replies through Terminal AI's existing serialized chat pipeline and send text replies through `POST /messages`.
@@ -41,7 +41,7 @@ Media, voice notes, image/document/video handling, reactions, rich interactive m
 
 - `GET /api/whatsapp-agent/status` — safe status snapshot; never returns the API key.
 - `POST /api/whatsapp-agent/config` — save `api_key`, set `enabled`, or set `clear_key: true`.
-- `POST /api/whatsapp-agent/test` — test connectivity when no background poll is active, or report the active worker's state.
+- `POST /api/whatsapp-agent/test` — test connectivity when no background poll is active, or report the active worker's state. The probe restores the prior cursor so it cannot consume an unread message.
 - `POST /api/whatsapp-agent/send` — send `{"message":"..."}` to the verified creator only.
 
 The API is mounted behind the same Litestar middleware as the rest of Terminal AI. Deploy it only behind the application's configured access control; do not expose the dashboard to the public internet without authentication and TLS.
