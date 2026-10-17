@@ -1,3 +1,8 @@
+## Unreleased — WhatsApp configuration validation
+
+- Reject non-boolean `clear_key` values and conflicting requests that attempt to set and remove a key in one call or enable polling while removing the key.
+- Add regression tests to ensure invalid configuration leaves credentials unchanged.
+
 ## Unreleased — non-consuming WhatsApp connectivity checks
 
 - Preserve the inbound update cursor around connection tests so a probe cannot skip an unread WhatsApp Agent Platform message.
