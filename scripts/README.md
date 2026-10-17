@@ -12,7 +12,8 @@ Run scripts from a checkout. Python utilities use the current interpreter; use `
 - `python scripts/restore_state.py /path/to/backup.zip --confirm --overwrite` — explicitly overwrite existing files; make a backup first.
 - `sh scripts/validate.sh` — run structure, compilation, JavaScript syntax, shell syntax, and pytest checks.
 - `powershell -ExecutionPolicy Bypass -File scripts/validate.ps1` — equivalent Windows validation.
-- `sh scripts/update.sh` — safe fast-forward update with source backup and tests.
+- `sh scripts/update.sh` — Linux/macOS safe fast-forward update with source bundle, tests, and dependency rollback on validation failure.
+- `powershell -ExecutionPolicy Bypass -File scripts/update.ps1` — Windows safe update with official-origin validation, state backup, fast-forward-only update, validation, and source/dependency rollback.
 - `python scripts/execute_approved_browser_operation.py --operation-id ID --confirm` — execute only an already-approved browser operation from a trusted local terminal.
 
 Backups may contain private conversation state, configuration, and credentials. Store them privately. Restore requires explicit confirmation, verifies checksums and archive paths, and refuses overwrites by default. None of these maintenance utilities grants agent permissions or enables automatic tool execution.
