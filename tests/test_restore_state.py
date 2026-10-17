@@ -111,3 +111,26 @@ def test_restore_rejects_symlink_escape_before_writing_any_file(tmp_path: Path):
     assert result.returncode == 2
     assert not (state / "first.txt").exists()
     assert not (outside / "outside.txt").exists()
+
+
+def test_restore_rejects_path_traversal_before_checksum_validation(tmp_path: Path):
+    archive = tmp_path / "backup.zip"
+    manifest = {"format": 1, "files": {"../outside.txt": "not-a-valid-checksum"}}
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("manifest.json", json.dumps(manifest))
+    result = _run_restore(archive, tmp_path / "state", "--confirm")
+    assert result.returncode == 2
+    assert "unsafe path" in result.stdout.lower()
+    assert "invalid sha-256" not in result.stdout.lower()
+
+
+def test_restore_rejects_windows_path_separator(tmp_path: Path):
+    archive = tmp_path / "backup.zip"
+    relative = r"..\\outside.txt"
+    manifest = {"format": 1, "files": {relative: hashlib.sha256(b"blocked").hexdigest()}}
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("manifest.json", json.dumps(manifest))
+    result = _run_restore(archive, tmp_path / "state", "--confirm")
+    assert result.returncode == 2
+    assert "unsafe path" in result.stdout.lower()
+    assert not (tmp_path / "outside.txt").exists()
