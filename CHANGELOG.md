@@ -1,3 +1,8 @@
+## Unreleased — WebSocket authentication regression coverage
+
+- Add tests proving unauthenticated WebSocket connections are rejected when the server is remotely bound without credentials.
+- Add tests proving configured HTTP Basic authentication is enforced for WebSocket upgrades as well as ordinary HTTP requests.
+
 ## Unreleased — cloud-first multi-provider fallback and LiteRT role fix
 
 - Add a deterministic cloud-first fallback chain: selected provider first, then other configured cloud providers, then local LiteRT-LM in Auto/Hybrid modes.
