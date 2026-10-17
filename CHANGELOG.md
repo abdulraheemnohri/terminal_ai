@@ -1,4 +1,4 @@
-## Unreleased — CI compatibility coverage
+## Unreleased — audit ledger schema validation\n\n- Reject audit entries with missing or incorrectly typed required fields, invalid hash encodings, or malformed hash links even if the entry hash was recomputed.\n- Add regression coverage proving schema-invalid records fail verification.\n\n## Unreleased — CI compatibility coverage
 
 - Run the full CI validation suite on Python 3.11 and 3.12 to catch version-specific regressions.
 
