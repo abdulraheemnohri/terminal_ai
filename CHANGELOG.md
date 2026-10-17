@@ -1,3 +1,8 @@
+## Unreleased — Windows updater documentation
+
+- Document the existing PowerShell updater, including official-origin and clean-worktree checks, state backup, fast-forward-only updates, validation, rollback behavior, and scheduled-task restart conditions.
+- Align the scripts catalog with the actual cross-platform update entrypoints.
+
 ## Unreleased — POSIX update dependency rollback
 
 - When update validation fails after a fast-forward, reset to the previous source commit and reinstall its dependency set.

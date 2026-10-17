@@ -229,7 +229,7 @@ Install and test the project before enabling startup. The service runs as the cu
 | Windows (Task Scheduler) | Run `./scripts/install-service.ps1` in PowerShell | `Get-ScheduledTask -TaskName 'Terminal AI Web Server'` |
 | Android / Termux | Install Termux:Boot and follow [the guide](docs/DEPLOYMENT.md) | Remove the copied Termux boot entry |
 
-Startup and automatic updates are separate settings. The updater scripts update **Terminal AI source and Python dependencies**, not the operating system. Review the repository, keep backups, and understand the rollback path before enabling any scheduled updater. See [Deployment](docs/DEPLOYMENT.md) and [Automatic startup](docs/AUTOSTART.md).
+Startup and automatic updates are separate settings. The updater scripts update **Terminal AI source and Python dependencies**, not the operating system. Linux/macOS use `sh scripts/update.sh`; Windows PowerShell uses `./scripts/update.ps1`. Both are explicit operator-run maintenance tools, not unattended automatic updates. Review the repository, keep backups, and understand the rollback path before updating. See [Deployment](docs/DEPLOYMENT.md) and [Automatic startup](docs/AUTOSTART.md).
 
 ## Development and tests
 
