@@ -154,8 +154,8 @@ def test_chat_font_preference_is_applied_to_message_container():
 
 def test_all_dashboard_views_and_standalone_pages_are_wired():
     html = HTML_PATH.read_text(encoding="utf-8")
-    nav_views = set(re.findall(r'<button\\b[^>]*\\bdata-view="([^"]+)"', html))
-    section_views = set(re.findall(r'\\bid="view-([^"]+)"', html))
+    nav_views = set(re.findall(r'<button\b[^>]*\bdata-view="([^"]+)"', html))
+    section_views = set(re.findall(r'\bid="view-([^"]+)"', html))
     assert nav_views, "Dashboard navigation must expose view targets"
     assert nav_views == section_views, (
         f"Navigation targets without views: {sorted(nav_views - section_views)}; "
