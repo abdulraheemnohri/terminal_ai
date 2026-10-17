@@ -75,6 +75,22 @@ def test_test_connection_uses_meta_updates_endpoint(tmp_path):
     asyncio.run(run())
 
 
+def test_connection_probe_does_not_advance_update_cursor(tmp_path):
+    async def run():
+        service = _service(tmp_path)
+        await service.configure({"api_key": "test-agent-secret", "enabled": False})
+        service._state["next_offset"] = 7
+        result = await service.test_connection()
+        assert result["ok"] is True
+        assert result["status"]["last_error"] == ""
+        assert service._state["next_offset"] == 7
+        persisted = json.loads((tmp_path / "whatsapp_agent_platform.json").read_text())
+        assert persisted["next_offset"] == 7
+        await service.stop()
+
+    asyncio.run(run())
+
+
 def test_creator_message_is_verified_then_replied_to(tmp_path):
     seen = []
 
