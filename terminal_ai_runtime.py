@@ -132,7 +132,28 @@ class AuditLedger:
                     if not isinstance(entry, dict):
                         return False, count
                     supplied = entry.pop("hash", None)
-                    if not isinstance(supplied, str) or entry.get("previous_hash") != previous:
+                    timestamp = entry.get("timestamp")
+                    event_id = entry.get("event_id")
+                    event_type = entry.get("event_type")
+                    actor = entry.get("actor")
+                    details = entry.get("details")
+                    link = entry.get("previous_hash")
+                    if (
+                        not isinstance(supplied, str)
+                        or len(supplied) != 64
+                        or any(char not in "0123456789abcdef" for char in supplied)
+                        or not isinstance(timestamp, (int, float))
+                        or isinstance(timestamp, bool)
+                        or not isinstance(event_id, str)
+                        or not event_id
+                        or not isinstance(event_type, str)
+                        or not isinstance(actor, str)
+                        or not isinstance(details, dict)
+                        or not isinstance(link, str)
+                        or len(link) != 64
+                        or any(char not in "0123456789abcdef" for char in link)
+                        or link != previous
+                    ):
                         return False, count
                     expected = hashlib.sha256(canonical_json(entry).encode()).hexdigest()
                     if supplied != expected:
