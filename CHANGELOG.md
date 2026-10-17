@@ -1,3 +1,9 @@
+## Unreleased — authentication middleware regression coverage
+
+- Cover remote-bind fail-closed behavior for HTTP and WebSocket requests without credentials.
+- Cover partial credential configuration, valid Basic authentication, malformed/invalid credentials, and exact health-probe exemptions.
+- Assert authentication failures do not disclose configured passwords.
+
 ## Unreleased — cross-origin request protection
 
 - Reject cross-origin browser mutations and WebSocket upgrades when an Origin header is supplied.
