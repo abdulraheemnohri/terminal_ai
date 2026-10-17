@@ -40,4 +40,18 @@ def test_audit_ledger_refuses_append_after_tampering(tmp_path: Path):
     entry["details"] = {"session": "altered"}
     path.write_text(json.dumps(entry) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="integrity check failed"):
-        ledger.append("session.ended", "test", {})
+        ledger.append("session.ended", "test", {})\n
+def test_audit_ledger_rejects_schema_invalid_record_even_with_recomputed_hash(tmp_path: Path):
+    import hashlib
+
+    path = tmp_path / "audit.jsonl"
+    ledger = AuditLedger(path)
+    ledger.append("session.started", "test", {"session": "one"})
+    entry = json.loads(path.read_text(encoding="utf-8"))
+    entry["details"] = ["not", "an", "object"]
+    entry.pop("hash")
+    entry["hash"] = hashlib.sha256(
+        json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    path.write_text(json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\\n", encoding="utf-8")
+    assert ledger.verify() == (False, 0)
