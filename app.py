@@ -44,7 +44,7 @@ from routers.terminal import create_terminal_router
 from api_schemas import ChatRequest, MemoryWriteRequest
 from application.container import RuntimeServices
 from application.backend_factory import build_cloud_backends
-from application.security import BasicAuthMiddleware, security_status
+from application.security import BasicAuthMiddleware, OriginGuardMiddleware, security_status
 from application.settings_validation import SettingsValidationError, validate_custom_base_url
 from application.state_backups import BackupError, create_backup, default_backup_dir, list_backups, validate_backup
 from application.whatsapp_agent_platform import WhatsAppAgentPlatform, create_whatsapp_agent_router
