@@ -91,6 +91,7 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 - Command Control Center for pending operations, approvals, policy visibility, and audit history.
 - Global auto-execution stays disabled by default. An approval decision is not itself an execution event.
 - Responsive dashboard with pages for Chat, Sessions, Models, Memory, Knowledge Base, Workspace Tools, Command Control, Scheduler, Goals, Skills, Learning, Self-improvement, Self-X, Diagnostics, and Settings.
+- Redacted diagnostics report export: collect local diagnostics, runtime status, and liveness/readiness probe status into a downloadable JSON report while redacting sensitive-key fields, environment/path fields, and common credential-token patterns. Review the report before sharing because remaining system metadata can still be sensitive.
 - Optional per-user startup integrations for Linux/systemd, macOS/launchd, Windows Task Scheduler, and Termux:Boot.
 - Update helpers are separate from startup and are opt-in; automatic project updates are not silently enabled.
 
