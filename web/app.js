@@ -1347,6 +1347,10 @@ if(titles[initialView])showView(initialView);
 // Command Control Center: human review, policy controls, skill packages and live audit events.
 let controlSocket=null;
 let controlSocketRetry=null;
+let controlSocketRetryDelay=1000;
+let controlLivePaused=false;
+let controlEventHistory=[];
+const CONTROL_EVENT_HISTORY_LIMIT=100;
 function controlApi(path,options={}){return api(path,options);}
 function controlList(text){return [...new Set(String(text||"").split(",").map(x=>x.trim()).filter(Boolean))];}
 async function loadControlPolicy(){
@@ -1393,25 +1397,94 @@ async function loadControlAudit(){
   $("control-audit-list").innerHTML=(data.entries||[]).map(e=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(e.action)+'</b><span class="muted">'+escapeHtml(new Date(e.timestamp*1000).toLocaleString())+'</span></div><p>'+escapeHtml(e.actor)+' → '+escapeHtml(e.target)+'</p><p class="muted">'+escapeHtml(JSON.stringify(e.details||{}))+'</p><small class="muted">SHA-256: '+escapeHtml(e.entry_hash)+'</small></div>').join("")||'<div class="empty">No audit entries yet.</div>';
  }catch(e){$("control-audit-integrity").textContent=e.message;}
 }
+function controlEventCategory(item){
+ const action=String(item?.action||"").toLowerCase();
+ if(/approval|approve|reject|operation|queue|execute/.test(action))return "approval";
+ if(/policy|allowlist|blocklist|permission|tool.rule/.test(action))return "policy";
+ if(/chat|message|session|inference|response/.test(action))return "chat";
+ if(/autonomy|autonomous|job|selfx|self-x/.test(action))return "autonomy";
+ return "other";
+}
+function renderControlEventFeed(){
+ const feed=$("control-live-feed");if(!feed)return;
+ const filter=$("control-live-filter")?.value||"all";
+ const events=controlEventHistory.filter(item=>filter==="all"||controlEventCategory(item)===filter).slice(0,40);
+ if(!events.length){feed.innerHTML='<div class="empty">'+(controlEventHistory.length?'No events match this filter.':'Waiting for operational events…')+'</div>';return;}
+ feed.replaceChildren();
+ for(const item of events){
+  const row=document.createElement("div");row.className="list-item";
+  const head=document.createElement("b");head.textContent=item.action||"action";
+  const detail=document.createElement("p");detail.textContent=(item.actor||"system")+" · "+(item.target||"")+" · "+(Number.isFinite(Number(item.timestamp))?new Date(Number(item.timestamp)*1000).toLocaleTimeString():"time unavailable");
+  const summary=document.createElement("p");summary.className="muted";
+  try{summary.textContent=JSON.stringify(item.details||{});}catch(_){summary.textContent="Event details unavailable";}
+  row.append(head,detail,summary);feed.append(row);
+ }
+}
+function scheduleControlReconnect(){
+ if(controlSocketRetry)return;
+ const delay=Math.min(30000,Math.max(1000,controlSocketRetryDelay));
+ const status=$("control-live-status");
+ if(status)status.textContent="Reconnecting in "+Math.ceil(delay/1000)+"s";
+ controlSocketRetry=setTimeout(()=>{controlSocketRetry=null;connectControlEvents();},delay);
+ controlSocketRetryDelay=Math.min(30000,delay*2);
+}
 function connectControlEvents(){
  if(controlSocket||!$("control-live-status"))return;
  const scheme=location.protocol==="https:"?"wss:":"ws:";
- try{controlSocket=new WebSocket(scheme+"//"+location.host+"/api/control/events");}catch(e){$("control-live-status").textContent="Unavailable";return;}
- controlSocket.onopen=()=>{$("control-live-status").textContent="Live";};
- controlSocket.onmessage=event=>{
+ let socket;
+ try{socket=new WebSocket(scheme+"//"+location.host+"/api/control/events");}
+ catch(_){$("control-live-status").textContent="Connection unavailable";scheduleControlReconnect();return;}
+ controlSocket=socket;
+ socket.onopen=()=>{
+  if(controlSocket!==socket)return;
+  controlSocketRetryDelay=1000;
+  $("control-live-status").textContent="Live";
+ };
+ socket.onmessage=event=>{
+  if(controlSocket!==socket)return;
   try{
-   const item=JSON.parse(event.data);if(item.type!=="action_event")return;
-   const feed=$("control-live-feed");const row=document.createElement("div");row.className="list-item";
-   const head=document.createElement("b");head.textContent=item.action||"action";
-   const detail=document.createElement("p");detail.textContent=(item.actor||"system")+" · "+(item.target||"")+" · "+new Date(item.timestamp*1000).toLocaleTimeString();
-   const summary=document.createElement("p");summary.className="muted";summary.textContent=JSON.stringify(item.details||{});
-   row.append(head,detail,summary);feed.prepend(row);while(feed.children.length>40)feed.lastElementChild.remove();
+   const item=JSON.parse(event.data);if(!item||item.type!=="action_event")return;
+   controlEventHistory.unshift(item);
+   if(controlEventHistory.length>CONTROL_EVENT_HISTORY_LIMIT)controlEventHistory.length=CONTROL_EVENT_HISTORY_LIMIT;
+   if(!controlLivePaused)renderControlEventFeed();
    loadControlAudit();
   }catch(_){}
  };
- controlSocket.onclose=()=>{controlSocket=null;$("control-live-status").textContent="Reconnecting";if(!controlSocketRetry)controlSocketRetry=setTimeout(()=>{controlSocketRetry=null;connectControlEvents();},3000);};
- controlSocket.onerror=()=>{$("control-live-status").textContent="Retrying";};
+ socket.onclose=()=>{
+  if(controlSocket!==socket)return;
+  controlSocket=null;
+  scheduleControlReconnect();
+ };
+ socket.onerror=()=>{
+  if(controlSocket===socket)$("control-live-status").textContent="Connection error";
+ };
 }
+function reconnectControlEvents(){
+ if(controlSocketRetry){clearTimeout(controlSocketRetry);controlSocketRetry=null;}
+ const oldSocket=controlSocket;controlSocket=null;
+ if(oldSocket&&oldSocket.readyState<2){try{oldSocket.close(1000,"Manual reconnect");}catch(_){}}
+ controlSocketRetryDelay=1000;
+ $("control-live-status").textContent="Reconnecting…";
+ connectControlEvents();
+}
+if($("control-live-filter")){
+ try{$("control-live-filter").value=sessionStorage.getItem("terminal-ai-control-feed-filter")||"all";}catch(_){}
+ $("control-live-filter").addEventListener("change",()=>{
+  try{sessionStorage.setItem("terminal-ai-control-feed-filter",$("control-live-filter").value);}catch(_){}
+  if(!controlLivePaused)renderControlEventFeed();
+ });
+}
+if($("control-live-pause"))$("control-live-pause").addEventListener("click",()=>{
+ controlLivePaused=!controlLivePaused;
+ $("control-live-pause").textContent=controlLivePaused?"Resume feed":"Pause feed";
+ $("control-live-pause").setAttribute("aria-pressed",controlLivePaused?"true":"false");
+ $("control-live-help").textContent=controlLivePaused?"Feed paused. Incoming summaries continue buffering in memory; resume to display the latest events.":"Automatically reconnects with backoff when the connection drops. Up to 100 recent event summaries are kept in this page.";
+ if(!controlLivePaused)renderControlEventFeed();
+});
+if($("control-live-clear"))$("control-live-clear").addEventListener("click",()=>{
+ controlEventHistory=[];renderControlEventFeed();
+});
+if($("control-live-reconnect"))$("control-live-reconnect").addEventListener("click",reconnectControlEvents);
 async function loadCommandControl(){
  try{await Promise.all([loadControlPolicy(),loadControlPending(),loadControlAudit()]);connectControlEvents();}
  catch(e){$("control-policy-error").textContent=e.message;}
