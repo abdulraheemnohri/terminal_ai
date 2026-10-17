@@ -247,6 +247,13 @@ class WhatsAppAgentPlatform:
         key = data.get("api_key", "")
         if not isinstance(key, str) or len(key) > 4096:
             raise ValueError("api_key must be text up to 4096 characters.")
+        clear_key = data.get("clear_key", False)
+        if type(clear_key) is not bool:
+            raise ValueError("clear_key must be a boolean.")
+        if clear_key and key.strip():
+            raise ValueError("clear_key cannot be combined with api_key.")
+        if clear_key and data.get("enabled") is True:
+            raise ValueError("clear_key cannot be combined with enabled=true.")
         if key.strip():
             self._state["api_key"] = key.strip()
             # A changed key must not reuse a cursor or creator pinned to another agent.
