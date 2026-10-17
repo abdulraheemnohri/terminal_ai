@@ -121,8 +121,9 @@ def test_live_control_feed_has_user_controls_and_bounded_reconnect():
     assert required_controls <= ids, (
         f"Live control feed is missing controls: {sorted(required_controls - ids)}"
     )
-    for control in ("control-live-filter", "control-live-pause", "control-live-clear", "control-live-reconnect"):
-        assert f'$("'{control}'")' not in js  # guard against malformed selector interpolation
+    assert '$("control-live-filter").addEventListener("change"' in js
+    assert '$("control-live-pause").addEventListener("click"' in js
+    assert '$("control-live-clear").addEventListener("click"' in js
     assert 'addEventListener("click",reconnectControlEvents)' in js
     assert 'addEventListener("click",()=>{' in js
     assert "controlSocketRetryDelay=Math.min(30000,delay*2)" in js
