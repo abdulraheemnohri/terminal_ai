@@ -117,7 +117,7 @@ def test_live_control_feed_has_user_controls_and_bounded_reconnect():
         "control-live-status",
         "control-live-feed",
     }
-    ids = set(re.findall(r'\\bid="([^"]+)"', html))
+    ids = set(re.findall(r'\bid="([^"]+)"', html))
     assert required_controls <= ids, (
         f"Live control feed is missing controls: {sorted(required_controls - ids)}"
     )
