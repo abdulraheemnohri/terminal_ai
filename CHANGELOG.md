@@ -1,3 +1,9 @@
+## Unreleased — POSIX update dependency rollback
+
+- When update validation fails after a fast-forward, reset to the previous source commit and reinstall its dependency set.
+- Preserve the original failure exit code and emit a clear manual-recovery warning if source or dependency rollback fails.
+- Add a simulated updater failure test covering source reset and dependency restoration.
+
 ## Unreleased — dashboard and backend wiring contract tests
 
 - Assert that every dashboard navigation target maps to a real view section.

@@ -37,7 +37,7 @@ Android may stop background processes to save battery. Install the separate Term
 
 ## Updating safely
 
-The dashboard's update checker is advisory; review updates before applying them. For Linux/macOS, `sh scripts/update.sh` performs a fast-forward-only Git update, creates a source bundle backup, installs dependencies, compiles modules, runs tests, and restarts a managed service when detected. It refuses dirty worktrees and non-fast-forward changes. It is deliberately not scheduled to apply updates unattended. On Windows, update manually in a reviewed maintenance window, run the tests, then restart the Scheduled Task.
+The dashboard's update checker is advisory; review updates before applying them. For Linux/macOS, `sh scripts/update.sh` performs a fast-forward-only Git update, creates a source bundle backup, installs dependencies, compiles modules, runs tests, and restarts a managed service when detected. It refuses dirty worktrees and non-fast-forward changes. If validation fails after the source fast-forward, it resets to the previous commit and attempts to reinstall that revision's `requirements.txt`; if dependency restoration also fails, it prints a manual recovery warning. It is deliberately not scheduled to apply updates unattended. On Windows, update manually in a reviewed maintenance window, run the tests, then restart the Scheduled Task.
 
 Automatic startup is enabled only after you explicitly install the service. Automatic update installation remains disabled by default; an update check is not permission to modify code, install dependencies, or restart the server.
 

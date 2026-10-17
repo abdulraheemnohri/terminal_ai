@@ -86,3 +86,74 @@ def test_backup_skips_symlinks(tmp_path: Path):
     archive_path = next(backup_dir.glob("*.zip"))
     with zipfile.ZipFile(archive_path) as archive:
         assert "state/external-link" not in archive.namelist()
+
+
+def test_posix_update_failure_restores_source_and_previous_dependencies(tmp_path: Path):
+    project = tmp_path / "project"
+    (project / "scripts").mkdir(parents=True)
+    (project / ".git").mkdir()
+    python_bin = project / ".venv" / "bin" / "python"
+    python_bin.parent.mkdir(parents=True)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    reset_log = tmp_path / "git-reset.log"
+    python_log = tmp_path / "python-calls.log"
+
+    update_script = (ROOT / "scripts" / "update.sh").read_text(encoding="utf-8")
+    (project / "scripts" / "update.sh").write_text(update_script, encoding="utf-8")
+    (project / "requirements.txt").write_text("# test requirements\n", encoding="utf-8")
+
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        "case \"$1\" in\n"
+        "  status) exit 0 ;;\n"
+        "  fetch) exit 0 ;;\n"
+        "  branch) echo main ;;\n"
+        "  merge-base) exit 0 ;;\n"
+        "  rev-parse) if [ \"$2\" = HEAD ]; then echo previous; else echo updated; fi ;;\n"
+        "  bundle) mkdir -p \"$(dirname \"$3\")\"; : > \"$3\" ;;\n"
+        "  merge) exit 0 ;;\n"
+        "  reset) echo \"$*\" >> \"$RESET_LOG\"; exit 0 ;;\n"
+        "  *) exit 0 ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    python_bin.write_text(
+        "#!/bin/sh\n"
+        "echo \"$*\" >> \"$PYTHON_LOG\"\n"
+        "if [ \"$1\" = -m ] && [ \"$2\" = pip ] && [ \"$3\" = install ]; then\n"
+        "  count=$(grep -c '^-m pip install -r requirements.txt$' \"$PYTHON_LOG\" || true)\n"
+        "  if [ \"$count\" -eq 1 ]; then exit 7; fi\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    python_bin.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(fake_bin) + os.pathsep + env.get("PATH", "")
+    env["RESET_LOG"] = str(reset_log)
+    env["PYTHON_LOG"] = str(python_log)
+    env["HOME"] = str(tmp_path / "home")
+    (tmp_path / "home").mkdir()
+
+    result = subprocess.run(
+        ["sh", str(project / "scripts" / "update.sh")],
+        cwd=project,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 7, result.stdout + result.stderr
+    assert "restoring source revision previous" in result.stderr
+    assert reset_log.read_text(encoding="utf-8").strip() == "reset --hard previous"
+    calls = python_log.read_text(encoding="utf-8").splitlines()
+    assert calls == [
+        "-m pip install -r requirements.txt",
+        "-m pip install -r requirements.txt",
+    ]
+    assert "previous dependency set failed" not in result.stderr

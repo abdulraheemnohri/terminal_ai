@@ -28,7 +28,21 @@ mkdir -p "$BACKUP"
 git bundle create "$BACKUP/source.bundle" --all
 PREVIOUS=$(git rev-parse HEAD)
 UPDATED=0
-trap 'status=$?; if [ "$status" -ne 0 ] && [ "$UPDATED" = "1" ]; then echo "Update failed; restoring source revision $PREVIOUS." >&2; git reset --hard "$PREVIOUS" || true; fi' EXIT
+rollback_update() {
+  status=$?
+  if [ "$status" -ne 0 ] && [ "$UPDATED" = "1" ]; then
+    echo "Update failed; restoring source revision $PREVIOUS." >&2
+    if git reset --hard "$PREVIOUS"; then
+      if ! .venv/bin/python -m pip install -r requirements.txt; then
+        echo "Warning: source rollback succeeded, but restoring the previous dependency set failed. Run .venv/bin/python -m pip install -r requirements.txt manually." >&2
+      fi
+    else
+      echo "Warning: automatic source rollback failed. Restore commit $PREVIOUS manually." >&2
+    fi
+  fi
+  exit "$status"
+}
+trap rollback_update EXIT
 git merge --ff-only "origin/$BRANCH"
 UPDATED=1
 .venv/bin/python -m pip install -r requirements.txt

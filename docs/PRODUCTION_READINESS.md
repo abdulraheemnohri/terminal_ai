@@ -92,7 +92,7 @@ These must be completed and verified before describing a deployment as enterpris
 
 - Authentication/authorization and multi-user tenant isolation for remote access.
 - A robust isolated execution worker for any future shell/browser/computer-control tools.
-- End-to-end tests for WebSocket reconnect/replay, operation approval races, audit-chain corruption, update rollback, and backup restore.
+- End-to-end tests for WebSocket reconnect/replay, operation approval races, audit-chain corruption, and backup restore. The POSIX updater now has a simulated failure test for source rollback plus previous-dependency restoration; managed-service restart recovery and full Windows/macOS update rollback drills remain to be validated.
 - CI coverage across supported Python/OS combinations, static typing/linting, dependency and secret scanning, and release artifact signing.
 - Operational metrics, structured redacted logs, retention controls, migration policy, and documented disaster recovery.
 - Optional integrations such as voice, image generation, external messaging channels, browser automation, and multi-agent coordination should be separate adapters with explicit configuration, not silently enabled capabilities.
