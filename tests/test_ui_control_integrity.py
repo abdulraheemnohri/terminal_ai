@@ -131,3 +131,16 @@ def test_live_control_feed_has_user_controls_and_bounded_reconnect():
     assert "controlLivePaused" in js and "renderControlEventFeed()" in js
     assert "terminal-ai-control-feed-filter" in js
     assert 'new WebSocket(scheme+"//"+location.host+"/api/control/events")' in js
+
+def test_diagnostics_report_export_is_visible_and_redacts_sensitive_fields():
+    html = HTML_PATH.read_text(encoding="utf-8")
+    js = JS_PATH.read_text(encoding="utf-8")
+    ids = set(re.findall(r'\bid="([^"]+)"', html))
+    assert {"export-diagnostics-report", "diagnostics-export-status"} <= ids
+    assert '$("export-diagnostics-report")?.addEventListener("click",exportDiagnosticsReport)' in js
+    assert "DIAGNOSTIC_SENSITIVE_KEY" in js
+    assert "api[_-]?key" in js
+    assert "github_pat_" in js
+    assert '"/api/diagnostics"' in js
+    assert '"/api/status"' in js
+    assert "privacy_note" in js
