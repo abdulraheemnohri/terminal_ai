@@ -300,7 +300,39 @@ let downloadPoll=null;
 function startDownloadPolling(){if(downloadPoll)clearInterval(downloadPoll);downloadPoll=setInterval(async()=>{await loadDownloads();try{const d=await api("/api/downloads");if(!(d.downloads||[]).some(j=>["queued","downloading"].includes(j.status))){clearInterval(downloadPoll);downloadPoll=null;await loadModels();}}catch{}},1500);}
 loadProviders();loadDownloads();
 async function loadDiagnostics(){const list=$("diagnostic-list");list.innerHTML='<div class="empty">Running local checks…</div>';$("diagnostics-error").textContent="";try{const d=await api("/api/diagnostics");const sections=[["Application",d.application],["Backend",d.backend],["Storage",d.storage],["Runtime",d.runtime]];list.innerHTML=sections.map(([name,values])=>'<div class="list-item"><b>'+escapeHtml(name)+'</b>'+Object.entries(values||{}).map(([k,v])=>'<p><span class="muted">'+escapeHtml(k.replace(/_/g," "))+'</span>: '+escapeHtml(typeof v==="object"&&v!==null?JSON.stringify(v):v)+'</p>').join("")+'</div>').join("");}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
+const DIAGNOSTIC_SENSITIVE_KEY=/(secret|token|password|api[_-]?key|credential|authorization|cookie|path|dir(?:ectory)?|workspace|root|environment|env_)/i;
+function redactDiagnosticValue(value,key=""){
+ if(DIAGNOSTIC_SENSITIVE_KEY.test(key))return "[redacted]";
+ if(Array.isArray(value))return value.slice(0,100).map(item=>redactDiagnosticValue(item));
+ if(value&&typeof value==="object"){
+  const result={};
+  for(const [childKey,childValue] of Object.entries(value).slice(0,100))result[childKey]=redactDiagnosticValue(childValue,childKey);
+  return result;
+ }
+ if(typeof value==="string")return value.replace(/\b(?:sk-[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,}|hf_[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,"[redacted]").slice(0,1000);
+ return value;
+}
+async function exportDiagnosticsReport(){
+ const button=$("export-diagnostics-report"),status=$("diagnostics-export-status");
+ if(!button||!status)return;
+ button.disabled=true;status.textContent="Collecting local diagnostics and read-only health probes…";
+ const probe=async path=>{try{const response=await fetch(path,{method:"GET",headers:{Accept:"application/json"},cache:"no-store"});return {ok:response.ok,status:response.status};}catch(_){return {ok:false,status:null,error:"unreachable"};}};
+ const capture=async path=>{try{return {ok:true,data:redactDiagnosticValue(await api(path))};}catch(error){return {ok:false,error:"request failed ("+(error?.name||"Error")+")"};}};
+ try{
+  const [diagnostics,runtime,health,readiness]=await Promise.all([
+   capture("/api/diagnostics"),capture("/api/status"),probe("/healthz"),probe("/readyz")
+  ]);
+  const report={format:"terminal-ai-diagnostics-report",version:1,generated_at:new Date().toISOString(),privacy_note:"Sensitive-key fields, local paths, environment fields and common token patterns are redacted. Review the report before sharing.",probes:{liveness:health,readiness},diagnostics,runtime_status:runtime};
+  const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json;charset=utf-8"});
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download="terminal-ai-diagnostics-"+new Date().toISOString().replace(/[:.]/g,"-")+".json";link.hidden=true;
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+  status.textContent="Redacted diagnostic report generated. Review it before sharing; local system metadata may still be sensitive.";
+ }catch(error){status.textContent="Could not export diagnostics: "+(error?.message||"unknown error");}
+ finally{button.disabled=false;}
+}
 $("refresh-diagnostics").addEventListener("click",loadDiagnostics);
+$("export-diagnostics-report")?.addEventListener("click",exportDiagnosticsReport);
 
 // Read-only service/control inventory. Keep this list explicit so new backend
 // control surfaces can be added deliberately and covered by regression tests.
