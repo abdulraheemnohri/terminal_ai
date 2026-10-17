@@ -339,6 +339,8 @@ Backups can contain sensitive state and credentials; keep them in a private dire
 | [Autostart and updates](docs/AUTOSTART.md) | Platform startup options and update guidance |
 | [Production readiness](docs/PRODUCTION_READINESS.md) | Capability matrix, limitations, and production checklist |
 | [UI responsive audit](docs/UI_RESPONSIVE_AUDIT.md) | Responsive layout checks and manual regression checklist |
+| [WhatsApp Agent Platform](docs/WHATSAPP_AGENT_PLATFORM.md) | Meta Agent API setup, creator verification, message flow, privacy, and endpoints |
+| [UI page inventory and responsive audit](docs/UI_RESPONSIVE_AUDIT.md) | In-dashboard views, standalone HTML pages, asset wiring, and manual browser checks |
 | [Installation guide](INSTALL.md) | Installation and troubleshooting |
 | [Changelog](CHANGELOG.md) | Repository change history |
 
