@@ -98,11 +98,15 @@ class AuditLedger:
 
     def append(self, event_type: str, actor: str, details: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
+            valid, _ = self.verify()
+            if not valid:
+                raise ValueError("Audit ledger integrity check failed; refusing to append.")
             previous = "0" * 64
             if self.path.exists():
                 with self.path.open("r", encoding="utf-8") as src:
                     for line in src:
-                        if line.strip(): previous = json.loads(line)["hash"]
+                        if line.strip():
+                            previous = json.loads(line)["hash"]
             entry = {"timestamp": time.time(), "event_id": uuid.uuid4().hex,
                      "event_type": event_type[:100], "actor": actor[:120],
                      "details": details, "previous_hash": previous}
@@ -117,16 +121,25 @@ class AuditLedger:
 
     def verify(self) -> tuple[bool, int]:
         previous, count = "0" * 64, 0
-        if not self.path.exists(): return True, 0
-        with self.path.open("r", encoding="utf-8") as src:
-            for line in src:
-                if not line.strip(): continue
-                entry = json.loads(line)
-                supplied = entry.pop("hash", None)
-                if entry.get("previous_hash") != previous: return False, count
-                expected = hashlib.sha256(canonical_json(entry).encode()).hexdigest()
-                if supplied != expected: return False, count
-                previous, count = supplied, count + 1
+        if not self.path.exists():
+            return True, 0
+        try:
+            with self.path.open("r", encoding="utf-8") as src:
+                for line in src:
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        return False, count
+                    supplied = entry.pop("hash", None)
+                    if not isinstance(supplied, str) or entry.get("previous_hash") != previous:
+                        return False, count
+                    expected = hashlib.sha256(canonical_json(entry).encode()).hexdigest()
+                    if supplied != expected:
+                        return False, count
+                    previous, count = supplied, count + 1
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+            return False, count
         return True, count
 
 @dataclass
