@@ -100,4 +100,4 @@ def test_audit_export_controls_are_present_and_wired_to_real_elements():
     assert '$("feature-control-audit-list")' in js
     assert "exportControlAuditJSON" in js
     assert "exportControlAuditCSV" in js
-    assert "fetched audit snapshot only" in js
+    assert "Fetched audit snapshot only" in js
