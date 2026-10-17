@@ -134,3 +134,44 @@ def test_restore_rejects_windows_path_separator(tmp_path: Path):
     assert result.returncode == 2
     assert "unsafe path" in result.stdout.lower()
     assert not (tmp_path / "outside.txt").exists()
+
+
+def test_restore_refuses_existing_files_without_overwrite_and_writes_nothing_else(tmp_path: Path):
+    archive = tmp_path / "backup.zip"
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "existing.txt").write_text("keep this", encoding="utf-8")
+    _archive(archive, {"existing.txt": b"replace me", "new.txt": b"must not appear"})
+
+    result = _run_restore(archive, state, "--confirm")
+
+    assert result.returncode == 2
+    assert "already exist" in result.stdout.lower()
+    assert (state / "existing.txt").read_text(encoding="utf-8") == "keep this"
+    assert not (state / "new.txt").exists()
+
+
+def test_restore_overwrite_requires_explicit_flag_and_replaces_requested_file(tmp_path: Path):
+    archive = tmp_path / "backup.zip"
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "existing.txt").write_text("old content", encoding="utf-8")
+    _archive(archive, {"existing.txt": b"new content"})
+
+    blocked = _run_restore(archive, state, "--confirm")
+    assert blocked.returncode == 2
+    assert (state / "existing.txt").read_text(encoding="utf-8") == "old content"
+
+    restored = _run_restore(archive, state, "--confirm", "--overwrite")
+    assert restored.returncode == 0, restored.stdout + restored.stderr
+    assert (state / "existing.txt").read_bytes() == b"new content"
+
+
+def test_restore_rejects_empty_backup_without_writing_state(tmp_path: Path):
+    archive = tmp_path / "empty.zip"
+    state = tmp_path / "state"
+    _archive(archive, {})
+    result = _run_restore(archive, state, "--confirm")
+    assert result.returncode == 2
+    assert "contains no state files" in result.stdout.lower()
+    assert not state.exists()

@@ -1,3 +1,9 @@
+## Unreleased — restore recovery regression coverage
+
+- Verify restores without `--overwrite` leave all existing and new destination files untouched when conflicts exist.
+- Verify `--overwrite` replaces only the explicitly requested existing file.
+- Reject empty backups without creating a state directory.
+
 ## Unreleased — audit ledger integrity handling
 
 - Treat malformed or unreadable audit-chain records as integrity failures instead of crashing diagnostics.
