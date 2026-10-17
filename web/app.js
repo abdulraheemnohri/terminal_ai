@@ -4,7 +4,7 @@ let apiReachable=null;
 const titles={overview:"Overview",chat:"AI Chat",sessions:"Sessions",models:"Models",diagnostics:"Diagnostics",memory:"Memory",goals:"Goals",self:"Self-awareness",skills:"Skills",tools:"Tools",learning:"Learning",improvements:"Self-improvement",selfx:"Self-X Evolution Engine","whatsapp-agent":"WhatsApp Agent Platform",settings:"Settings",knowledge:"Knowledge Base",workspace:"Workspace Tools",scheduler:"Task Scheduler","command-control":"Command Control Center"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function api(path,options={}){const res=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||data.message||("Request failed ("+res.status+")"));return data;}
-function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();loadSecurityStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();if(name==="whatsapp-agent")loadWhatsAppAgent();}
+function showView(name){document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id==="view-"+name));document.querySelectorAll("#nav button").forEach(el=>el.classList.toggle("active",el.dataset.view===name));$("page-title").textContent=titles[name]||name;if(name==="chat")loadChatRuns();if(name==="sessions")loadSessions();if(name==="models")loadModels();if(name==="diagnostics")loadDiagnostics();if(name==="memory")loadMemory();if(name==="goals")loadGoals();if(name==="settings"){loadSettings();loadUpdateStatus();loadBackups();loadSecurityStatus();}if(name==="self")loadSelf();if(name==="skills")loadSkills();if(name==="tools")loadTools();if(name==="learning")loadLearning();if(name==="improvements"){loadImprovements();loadSkillEvolution();}if(name==="selfx"){loadSelfX();loadAgenticConsole();loadTaskLifecycle();loadAutonomyStatus();}if(name==="knowledge")loadKnowledge();if(name==="workspace")loadWorkspace();if(name==="scheduler")loadScheduler();if(name==="command-control")loadCommandControl();if(name==="whatsapp-agent")loadWhatsAppAgent();}
 $("nav").addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)showView(b.dataset.view);});
 if($("overview-refresh"))$("overview-refresh").addEventListener("click",()=>loadStatus());
 document.addEventListener("click",e=>{const b=e.target.closest("[data-go]");if(b)showView(b.dataset.go);});
@@ -122,11 +122,126 @@ async function loadStatus(){
  }
 }
 function formatDuration(value){let s=Math.max(0,Number(value)||0);const d=Math.floor(s/86400);s%=86400;const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s=Math.floor(s%60);return [d?d+"d":"",h?h+"h":"",m?m+"m":"",(!d&&!h&&!m)||s?s+"s":""].filter(Boolean).join(" ");}
-function addMessage(role,text){const welcome=$("welcome");if(welcome)welcome.remove();const div=document.createElement("div");div.className="message "+role;const who=document.createElement("span");who.className="who";who.textContent=role==="user"?"You":"Terminal AI";const body=document.createElement("div");body.textContent=text;div.append(who,body);$("messages").append(div);$("messages").scrollTop=$("messages").scrollHeight;return div;}
+function addMessage(role,text){const welcome=$("welcome");if(welcome)welcome.remove();const div=document.createElement("div");div.className="message "+role;const who=document.createElement("span");who.className="who";who.textContent=role==="user"?"You":"Terminal AI";const body=document.createElement("div");body.textContent=text;div.append(who,body);$("messages").append(div);filterChatMessages();if(!$("chat-setting-scroll")||$("chat-setting-scroll").checked)$("messages").scrollTop=$("messages").scrollHeight;return div;}
+
+const CHAT_PREFS_KEY="terminal-ai-chat-preferences-v1";
+function applyChatPreferences(){
+ let saved={};
+ try{saved=JSON.parse(localStorage.getItem(CHAT_PREFS_KEY)||"{}")||{};}catch(_){saved={};}
+ const defaults={"chat-setting-enter":true,"chat-setting-scroll":true,"chat-setting-meta":true,"chat-setting-compact":false};
+ for(const [id,fallback] of Object.entries(defaults))$(id).checked=typeof saved[id]==="boolean"?saved[id]:fallback;
+ const font=Number(saved["chat-setting-font"]);
+ $("chat-setting-font").value=String(Number.isFinite(font)?Math.min(19,Math.max(12,font)):14);
+ $("messages").style.fontSize=$("chat-setting-font").value+"px";
+ $("messages").classList.toggle("compact",$("chat-setting-compact").checked);
+ $("messages").classList.toggle("hide-response-meta",!$("chat-setting-meta").checked);
+ $("chat-input").placeholder=$("chat-setting-enter").checked?"Message Terminal AI… (Enter to send, Shift+Enter for a new line)":"Message Terminal AI… (Enter for a new line, use Send to submit)";
+ filterChatMessages();
+}
+function saveChatPreferences(){
+ const saved={};
+ for(const id of ["chat-setting-enter","chat-setting-scroll","chat-setting-meta","chat-setting-compact"])saved[id]=$(id).checked;
+ saved["chat-setting-font"]=Number($("chat-setting-font").value);
+ try{localStorage.setItem(CHAT_PREFS_KEY,JSON.stringify(saved));}catch(_){}
+ applyChatPreferences();
+}
+function filterChatMessages(){
+ const search=$("chat-search");if(!search)return;
+ const query=search.value.trim().toLocaleLowerCase();
+ const messages=Array.from(document.querySelectorAll("#messages .message"));let visible=0;
+ for(const message of messages){
+  const body=message.children[1]?.textContent||message.textContent||"";
+  const match=!query||body.toLocaleLowerCase().includes(query);
+  message.hidden=!match;if(match)visible++;
+ }
+ const status=$("chat-search-status");
+ if(status)status.textContent=query?visible+" of "+messages.length+" messages":messages.length+" messages";
+}
+$("chat-search")?.addEventListener("input",filterChatMessages);
+for(const id of ["chat-setting-enter","chat-setting-scroll","chat-setting-meta","chat-setting-compact","chat-setting-font"])$(id)?.addEventListener("change",saveChatPreferences);
+$("chat-setting-font")?.addEventListener("input",saveChatPreferences);
+applyChatPreferences();
+
 document.querySelectorAll(".suggestions button").forEach(b=>b.addEventListener("click",()=>{$("chat-input").value=b.textContent;showView("chat");$("chat-input").focus();}));
-$("chat-form").addEventListener("submit",async e=>{e.preventDefault();const message=$("chat-input").value.trim();if(!message)return;$("chat-error").textContent="";addMessage("user",message);$("chat-input").value="";$("send-btn").disabled=true;$("send-btn").textContent="Thinking…";const pending=addMessage("assistant","Thinking…");try{const data=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});pending.lastChild.textContent=data.answer||"The selected model returned an empty answer. Check Diagnostics and the active backend.";const meta=document.createElement("small");meta.className="response-meta";meta.textContent="Generated by "+(data.backend||"unknown backend")+" · "+(Number(data.elapsed_seconds)||0).toFixed(1)+"s · "+(data.history_count??"—")+" history entries";pending.append(meta);await loadStatus();}catch(err){pending.lastChild.textContent="";$("chat-error").textContent=err.message;pending.remove();}finally{$("send-btn").disabled=false;$("send-btn").textContent="Send message ↗";}});
-$("chat-input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chat-form").requestSubmit();}});
+$("chat-form").addEventListener("submit",async e=>{e.preventDefault();const message=$("chat-input").value.trim();if(!message)return;$("chat-error").textContent="";addMessage("user",message);$("chat-input").value="";$("send-btn").disabled=true;$("send-btn").textContent="Thinking…";const pending=addMessage("assistant","Thinking…");try{const data=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});pending.lastChild.textContent=data.answer||"The selected model returned an empty answer. Check Diagnostics and the active backend.";const meta=document.createElement("small");meta.className="response-meta";meta.textContent="Generated by "+(data.backend||"unknown backend")+" · "+(Number(data.elapsed_seconds)||0).toFixed(1)+"s · "+(data.history_count??"—")+" history entries";pending.append(meta);await loadStatus();await loadChatRuns();}catch(err){pending.lastChild.textContent="";$("chat-error").textContent=err.message;pending.remove();}finally{$("send-btn").disabled=false;$("send-btn").textContent="Send message ↗";}});
+$("chat-input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&$("chat-setting-enter")?.checked){e.preventDefault();$("chat-form").requestSubmit();}});
 $("clear-chat").addEventListener("click",async()=>{try{await api("/api/chat/clear",{method:"POST",body:"{}"});$("messages").innerHTML='<div class="welcome" id="welcome"><div class="orb">✧</div><h2>Fresh conversation</h2><p>Your chat history was cleared from the active session.</p></div>';$("chat-error").textContent="";}catch(e){$("chat-error").textContent=e.message;}});
+
+function getChatTranscript(){
+ return Array.from(document.querySelectorAll("#messages .message")).map(node=>{
+  const role=node.classList.contains("user")?"user":node.classList.contains("assistant")?"assistant":"system";
+  const body=node.children[1];
+  return {role,text:String(body?.textContent||"").trim()};
+ }).filter(message=>message.text&&message.text!=="Thinking…");
+}
+function downloadChatFile(filename,content,type){
+ const blob=new Blob([content],{type});
+ const url=URL.createObjectURL(blob);
+ const link=document.createElement("a");
+ link.href=url;link.download=filename;link.hidden=true;
+ document.body.append(link);link.click();link.remove();
+ window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function chatExportPayload(){
+ return {format:"terminal-ai-chat-export",version:1,exported_at:new Date().toISOString(),
+  session:statusData?.active_session||"active-session",messages:getChatTranscript()};
+}
+function chatFilename(extension){
+ const session=String(statusData?.active_session||"chat").replace(/[^A-Za-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60)||"chat";
+ return "terminal-ai-"+session+"."+extension;
+}
+$("chat-export-md")?.addEventListener("click",()=>{
+ const payload=chatExportPayload();
+ if(!payload.messages.length){$("chat-error").textContent="There are no visible messages to export.";return;}
+ const markdown="# Terminal AI conversation\n\nSession: "+payload.session+"\nExported: "+payload.exported_at+"\n\n"+
+  payload.messages.map(m=>"## "+(m.role==="user"?"You":m.role==="assistant"?"Terminal AI":"System")+"\n\n"+m.text).join("\n\n---\n\n")+"\n";
+ downloadChatFile(chatFilename("md"),markdown,"text/markdown;charset=utf-8");$("chat-error").textContent="";
+});
+$("chat-export-json")?.addEventListener("click",()=>{
+ const payload=chatExportPayload();
+ if(!payload.messages.length){$("chat-error").textContent="There are no visible messages to export.";return;}
+ downloadChatFile(chatFilename("json"),JSON.stringify(payload,null,2)+"\n","application/json;charset=utf-8");$("chat-error").textContent="";
+});
+$("chat-copy-transcript")?.addEventListener("click",async()=>{
+ const messages=getChatTranscript();
+ if(!messages.length){$("chat-error").textContent="There are no visible messages to copy.";return;}
+ const transcript=messages.map(m=>(m.role==="user"?"You":m.role==="assistant"?"Terminal AI":"System")+":\n"+m.text).join("\n\n");
+ try{
+  if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(transcript);
+  else throw new Error("Clipboard API unavailable");
+  $("chat-error").textContent="Transcript copied to clipboard.";
+ }catch(_){
+  const field=document.createElement("textarea");field.value=transcript;field.setAttribute("readonly","");field.style.position="fixed";field.style.opacity="0";document.body.append(field);field.select();
+  const copied=typeof document.execCommand==="function"&&document.execCommand("copy");field.remove();
+  $("chat-error").textContent=copied?"Transcript copied to clipboard.":"Clipboard access was blocked. Use Export Markdown instead.";
+ }
+});
+$("chat-new-session")?.addEventListener("click",async()=>{
+ const name=window.prompt("Optional name for the new chat:");
+ if(name===null)return;
+ const button=$("chat-new-session");button.disabled=true;
+ try{
+  await api("/api/sessions/new",{method:"POST",body:JSON.stringify({name:name.trim()})});
+  $("messages").innerHTML='<div class="welcome" id="welcome"><div class="orb">✧</div><h2>New conversation</h2><p>New session created. Send a message to begin.</p></div>';$("chat-search").value="";filterChatMessages();
+  $("chat-error").textContent="";await loadSessions();await loadStatus();showView("chat");
+ }catch(error){$("chat-error").textContent=error.message;}
+ finally{button.disabled=false;}
+});
+async function loadChatRuns(){
+ const panel=$("chat-execution-trace");if(!panel)return;
+ panel.innerHTML='<div class="empty">Loading recent execution traces…</div>';$("chat-run-error").textContent="";
+ try{
+  const data=await api("/api/chat/runs");const runs=data.runs||[];
+  panel.innerHTML=runs.length?runs.slice(0,10).map(run=>{
+   const stages=Array.isArray(run.execution)?run.execution:[];
+   const stageHtml=stages.map(stage=>'<div class="health-item"><span class="health-indicator '+(stage.status==="completed"?"ok":stage.status==="failed"?"warn":"neutral")+'"></span><div><b>'+escapeHtml(stage.name||"stage")+'</b><p>'+escapeHtml(stage.detail||stage.message||stage.status||"No details")+(Number.isFinite(Number(stage.elapsed_seconds))?" · "+Number(stage.elapsed_seconds).toFixed(2)+"s":"")+'</p></div></div>').join("");
+   const date=Number.isFinite(Number(run.started_at))?new Date(Number(run.started_at)*1000).toLocaleString():"Time unavailable";
+   return '<article class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(run.status||"unknown")+' · '+escapeHtml(run.backend||"unknown backend")+'</b><span class="badge">'+escapeHtml(Number(run.elapsed_seconds||0).toFixed(2))+'s</span></div><p class="muted">'+escapeHtml(date)+' · session '+escapeHtml(run.session||"unknown")+' · request '+escapeHtml(run.request_id||"—")+'</p>'+(run.error?'<p class="error">'+escapeHtml(run.error)+'</p>':"")+'<div class="execution-stages">'+(stageHtml||'<p class="muted">No stage details recorded.</p>')+'</div></article>';
+  }).join(""):'<div class="empty">No chat execution traces have been recorded in this process yet.</div>';
+ }catch(error){panel.innerHTML='<div class="empty">Execution traces are unavailable.</div>';$("chat-run-error").textContent=error.message;}
+}
+$("chat-refresh-runs")?.addEventListener("click",loadChatRuns);
+
 async function loadMemory(){const list=$("memory-list");list.innerHTML='<div class="empty">Loading…</div>';try{const data=await api("/api/memory");const facts=data.facts||[];list.innerHTML=facts.length?facts.slice().reverse().map(f=>'<div class="list-item"><div class="row" style="justify-content:space-between"><b>'+escapeHtml(f.k)+'</b><button class="btn danger forget-btn" data-key="'+escapeHtml(f.k)+'">Forget</button></div><p>'+escapeHtml(f.v)+'</p><div class="muted" style="font-size:11px;margin-top:8px">Source: '+escapeHtml(f.source||"unknown")+'</div></div>').join(""):'<div class="empty">No saved facts yet. Add a memory using the form.</div>';}catch(e){list.innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>';}}
 $("memory-list").addEventListener("click",async e=>{const b=e.target.closest(".forget-btn");if(!b)return;if(!confirm("Forget memory facts matching “"+b.dataset.key+"”?"))return;try{await api("/api/memory/forget",{method:"POST",body:JSON.stringify({key:b.dataset.key})});await loadMemory();await loadStatus();}catch(err){$("memory-error").textContent=err.message;}});
 $("refresh-memory").addEventListener("click",loadMemory);

@@ -76,6 +76,7 @@
     <article class="card span-12"><div class="card-head"><div><h2>AI conversation</h2><p style="margin:5px 0 0">Ask questions, work through tasks, and use your saved memory.</p></div><button class="btn danger" id="clear-chat">Clear conversation</button></div>
       <div class="chat-toolbar" aria-label="Chat tools">
         <label class="chat-search-wrap" for="chat-search">Find in chat <input id="chat-search" type="search" maxlength="200" placeholder="Search visible messages…"></label>
+        <span id="chat-search-status" class="muted" role="status" aria-live="polite"></span>
         <div class="chat-toolbar-actions">
           <button class="btn" type="button" id="chat-export-md">Export Markdown</button>
           <button class="btn" type="button" id="chat-export-json">Export JSON</button>
