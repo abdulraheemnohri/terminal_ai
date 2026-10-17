@@ -144,3 +144,9 @@ def test_diagnostics_report_export_is_visible_and_redacts_sensitive_fields():
     assert '"/api/diagnostics"' in js
     assert '"/api/status"' in js
     assert "privacy_note" in js
+
+
+def test_chat_font_preference_is_applied_to_message_container():
+    js = (ROOT / "web" / "chat-enhancements.js").read_text(encoding="utf-8")
+    assert 'box.style.fontSize=String(prefs.font)+"px"' in js
+    assert 'prefs.font=Math.max(12,Math.min(19,Number(prefs.font)||14))' in js
