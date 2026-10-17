@@ -101,33 +101,33 @@ def test_posix_update_failure_restores_source_and_previous_dependencies(tmp_path
 
     update_script = (ROOT / "scripts" / "update.sh").read_text(encoding="utf-8")
     (project / "scripts" / "update.sh").write_text(update_script, encoding="utf-8")
-    (project / "requirements.txt").write_text("# test requirements\\n", encoding="utf-8")
+    (project / "requirements.txt").write_text("# test requirements\n", encoding="utf-8")
 
     fake_git = fake_bin / "git"
     fake_git.write_text(
-        "#!/bin/sh\\n"
-        "case \"$1\" in\\n"
-        "  status) exit 0 ;;\\n"
-        "  fetch) exit 0 ;;\\n"
-        "  branch) echo main ;;\\n"
-        "  merge-base) exit 0 ;;\\n"
-        "  rev-parse) if [ \"$2\" = HEAD ]; then echo previous; else echo updated; fi ;;\\n"
-        "  bundle) mkdir -p \"$(dirname \"$3\")\"; : > \"$3\" ;;\\n"
-        "  merge) exit 0 ;;\\n"
-        "  reset) echo \"$*\" >> \"$RESET_LOG\"; exit 0 ;;\\n"
-        "  *) exit 0 ;;\\n"
-        "esac\\n",
+        "#!/bin/sh\n"
+        "case \"$1\" in\n"
+        "  status) exit 0 ;;\n"
+        "  fetch) exit 0 ;;\n"
+        "  branch) echo main ;;\n"
+        "  merge-base) exit 0 ;;\n"
+        "  rev-parse) if [ \"$2\" = HEAD ]; then echo previous; else echo updated; fi ;;\n"
+        "  bundle) mkdir -p \"$(dirname \"$3\")\"; : > \"$3\" ;;\n"
+        "  merge) exit 0 ;;\n"
+        "  reset) echo \"$*\" >> \"$RESET_LOG\"; exit 0 ;;\n"
+        "  *) exit 0 ;;\n"
+        "esac\n",
         encoding="utf-8",
     )
     fake_git.chmod(0o755)
     python_bin.write_text(
-        "#!/bin/sh\\n"
-        "echo \"$*\" >> \"$PYTHON_LOG\"\\n"
-        "if [ \"$1\" = -m ] && [ \"$2\" = pip ] && [ \"$3\" = install ]; then\\n"
-        "  count=$(grep -c '^-m pip install -r requirements.txt$' \"$PYTHON_LOG\" || true)\\n"
-        "  if [ \"$count\" -eq 1 ]; then exit 7; fi\\n"
-        "fi\\n"
-        "exit 0\\n",
+        "#!/bin/sh\n"
+        "echo \"$*\" >> \"$PYTHON_LOG\"\n"
+        "if [ \"$1\" = -m ] && [ \"$2\" = pip ] && [ \"$3\" = install ]; then\n"
+        "  count=$(grep -c '^-m pip install -r requirements.txt$' \"$PYTHON_LOG\" || true)\n"
+        "  if [ \"$count\" -eq 1 ]; then exit 7; fi\n"
+        "fi\n"
+        "exit 0\n",
         encoding="utf-8",
     )
     python_bin.chmod(0o755)
