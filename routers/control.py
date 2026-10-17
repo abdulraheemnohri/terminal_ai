@@ -50,8 +50,10 @@ def create_control_router(control: CommandControl) -> Router:
 
     @get("/audit")
     async def audit(limit: int = 100) -> dict[str, Any]:
+        if limit < 1 or limit > 1000:
+            raise HTTPException(status_code=400, detail="Audit limit must be between 1 and 1000.")
         return {"entries": control.list_audit(limit), "integrity": control.verify_audit(),
-                "append_only": True, "storage": "sqlite-wal-hash-chain"}
+                "append_only": True, "storage": "sqlite-wal-hash-chain", "limit": limit}
 
     @get("/skills/export")
     async def export_skills() -> dict[str, Any]:
