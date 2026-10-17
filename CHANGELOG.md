@@ -1,3 +1,7 @@
+## Unreleased — composed authentication and origin-guard coverage
+
+- Test the actual middleware composition: cross-origin mutations and WebSocket upgrades are rejected, same-origin mutations still require valid Basic authentication, and authenticated non-browser requests without Origin remain supported.
+
 ## Unreleased — authentication middleware regression coverage
 
 - Cover remote-bind fail-closed behavior for HTTP and WebSocket requests without credentials.
