@@ -14,7 +14,7 @@ function readMessages(){return [...document.querySelectorAll("#messages > .messa
 function transcript(){return readMessages().filter(m=>m.text.trim()).map(m=>({role:m.role,content:m.text,timestamp:m.timestamp,feedback:m.feedback}));}
 function savePrefs(){try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(prefs));}catch{}}
 function applyPrefs(){
- const box=$("messages");if(box){box.classList.toggle("compact",!!prefs.compact);box.style.setProperty("--chat-font-size",String(prefs.font)+"px");}
+ const box=$("messages");if(box){box.classList.toggle("compact",!!prefs.compact);box.style.fontSize=String(prefs.font)+"px";}
  const meta=$("chat-setting-meta");if(meta)document.querySelectorAll(".response-meta").forEach(el=>el.hidden=!prefs.meta);
  const controls=[["chat-setting-enter","enter"],["chat-setting-scroll","scroll"],["chat-setting-meta","meta"],["chat-setting-compact","compact"]];
  controls.forEach(([id,key])=>{const el=$(id);if(el)el.checked=!!prefs[key];});
