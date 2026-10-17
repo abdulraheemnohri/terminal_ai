@@ -52,7 +52,7 @@ def _validated_entries(archive_path: Path) -> list[tuple[str, bytes]]:
                 raise ValueError("Manifest entries must contain path and SHA-256 strings.")
             # Validate the path before checksum details so malformed/traversal paths
             # are consistently rejected as unsafe, even if their checksum is invalid.
-            if not relative or "\\\\" in relative or ":" in relative:
+            if not relative or "\\" in relative or ":" in relative:
                 raise ValueError(f"Unsafe path in manifest: {relative!r}")
             raw_parts = relative.split("/")
             part = PurePosixPath(relative)
