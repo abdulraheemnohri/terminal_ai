@@ -65,3 +65,49 @@ def test_audit_rows_cannot_be_updated_or_deleted(tmp_path):
             pass
         else:
             raise AssertionError("audit updates should be blocked by SQLite trigger")
+
+
+def test_approved_operation_can_only_be_claimed_once_under_race(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    control = CommandControl(tmp_path / "control.sqlite3")
+    queued = control.queue("workspace", "inspect", {"path": "README.md"})
+    reviewed = control.review(queued["id"], True)
+    assert reviewed["status"] == "approved"
+
+    barrier = Barrier(2)
+
+    def claim():
+        barrier.wait(timeout=5)
+        try:
+            item = control.claim_approved(
+                queued["id"], "workspace", "inspect", {"path": "README.md"}
+            )
+            return ("claimed", item["status"])
+        except ValueError:
+            return ("rejected", None)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: claim(), range(2)))
+
+    assert sum(result[0] == "claimed" for result in results) == 1
+    assert sum(result[0] == "rejected" for result in results) == 1
+    assert control.get_operation(queued["id"])["status"] == "executing"
+
+
+def test_approved_operation_claim_is_bound_to_exact_arguments(tmp_path):
+    control = CommandControl(tmp_path / "control.sqlite3")
+    queued = control.queue("workspace", "inspect", {"path": "README.md"})
+    control.review(queued["id"], True)
+
+    try:
+        control.claim_approved(
+            queued["id"], "workspace", "inspect", {"path": "../secrets.txt"}
+        )
+    except ValueError as exc:
+        assert "arguments do not match" in str(exc)
+    else:
+        raise AssertionError("a mismatched approval must not be claimable")
+
+    assert control.get_operation(queued["id"])["status"] == "approved"
