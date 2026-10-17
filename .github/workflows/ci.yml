@@ -49,6 +49,9 @@ jobs:
         run: |
           node --check web/app.js
           node --check web/chat-enhancements.js
+          node --check web/js/api-management.js
+          node --check web/js/chat-model-lab.js
+          node --check web/js/whatsapp-agent.js
           sh -n scripts/validate.sh
 
       - name: Run test suite

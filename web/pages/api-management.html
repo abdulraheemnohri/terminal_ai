@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d19"><title>API Management · Terminal AI</title>
+<link rel="stylesheet" href="/static/css/api-management.css">
+<script src="/static/js/api-management.js" defer></script>
+</head>
+<body>
+<header class="top"><a class="brand" href="/">TERMINAL AI <span>/ API MANAGEMENT</span></a><nav><a href="/">Control Center</a><a href="/static/pages/chat-model-lab.html">Chat & Models</a><a href="/static/pages/whatsapp-agent.html">WhatsApp API</a></nav></header>
+<main class="wrap">
+<section class="hero"><div><p class="eyebrow">PROVIDER CONTROL PLANE</p><h1>API Management</h1><p>Configure each provider independently, discover model IDs, test live connectivity, and manage failover profiles. Credentials are never displayed after saving.</p></div><div class="hero-actions"><button id="refresh-all" class="btn">Refresh all</button><span id="summary" class="pill">Loading provider inventory…</span></div></section>
+<div id="page-error" class="error" role="alert"></div>
+<section class="metrics" id="metrics" aria-live="polite"></section>
+<section class="section-head"><div><p class="eyebrow">INDEPENDENT CONFIGURATIONS</p><h2>Provider API sections</h2></div><label class="search">Filter providers <input id="provider-filter" type="search" placeholder="Search provider, protocol, model…"></label></section>
+<div id="provider-sections" class="provider-grid"><div class="empty">Loading providers…</div></div>
+<section class="panel guide"><h2>Credential and routing rules</h2><ul><li>Saving a key updates the selected provider's local credential entry; the key is never read back into this page.</li><li>Provider profiles store model, endpoint, generation parameters, timeout, and failover priority separately for each provider.</li><li>Use HTTPS for remote custom endpoints. Plain HTTP is accepted only for loopback/local endpoints.</li><li>A connection test sends a minimal “Reply with OK only” prompt to the provider. It does not change your default model.</li><li>Chat & Models runs a real test turn only after you explicitly confirm it may enter the active conversation and local archive.</li></ul></section>
+</main>
+</body></html>

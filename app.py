@@ -1376,6 +1376,57 @@ async def propose_settings_with_ai(data: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail="Could not generate a valid settings proposal. Check backend availability and try again.") from exc
 
 
+@post("/api/providers/credentials", status_code=200)
+async def update_provider_credentials(data: dict[str, Any]) -> dict[str, Any]:
+    """Save or remove one provider's API key without coupling it to the active provider."""
+    allowed = {"provider_id", "api_key", "clear"}
+    unknown = sorted(set(data) - allowed)
+    if unknown:
+        raise HTTPException(status_code=400, detail="Unknown credential field(s): " + ", ".join(unknown[:8]))
+    provider_value = data.get("provider_id")
+    if not isinstance(provider_value, str) or not provider_value.strip() or len(provider_value) > 80:
+        raise HTTPException(status_code=400, detail="provider_id must be a non-empty string of at most 80 characters.")
+    provider_id = provider_value.strip().lower()
+    from api_provider_backend import PROVIDERS
+    if provider_id != "gemini" and provider_id not in PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unknown provider.")
+    clear = data.get("clear", False)
+    if type(clear) is not bool:
+        raise HTTPException(status_code=400, detail="clear must be a boolean.")
+    key = data.get("api_key", "")
+    if not isinstance(key, str) or len(key) > 4096:
+        raise HTTPException(status_code=400, detail="api_key must be text up to 4096 characters.")
+    if clear and key.strip():
+        raise HTTPException(status_code=400, detail="Do not replace and clear a provider key in the same request.")
+    if not clear and not key.strip():
+        raise HTTPException(status_code=400, detail="Enter a new API key or set clear=true.")
+    env_name = "GEMINI_API_KEY" if provider_id == "gemini" else PROVIDERS[provider_id]["env"]
+    manager = core.EnvManager(env_file=ROOT / ".env", workspace=ROOT)
+    manager.load(apply=True)
+    if clear:
+        manager.unset(env_name, persist=True)
+        os.environ.pop(env_name, None)
+    elif not manager.set(env_name, key.strip(), persist=True):
+        raise HTTPException(status_code=400, detail="Could not save provider API key.")
+    # A credential change may affect the active provider or configured failover chain.
+    global _AGENT, _BACKEND
+    if _AGENT is not None:
+        try:
+            _AGENT.backend.close()
+        except Exception:
+            pass
+    _AGENT = None
+    _BACKEND = None
+    return {
+        "provider_id": provider_id,
+        "configured": bool(os.environ.get(env_name)),
+        "cleared": clear,
+        "secret_returned": False,
+        "notice": "Credential saved locally; its value is never returned." if not clear
+                  else "Saved credential removed from the local .env and current process.",
+    }
+
+
 @get("/api/settings")
 async def get_settings() -> dict[str, Any]:
     _load_env()
@@ -2330,7 +2381,7 @@ app = Litestar(
         create_whatsapp_agent_router(_WHATSAPP_AGENT),
         list_scheduled_tasks, create_scheduled_task, update_scheduled_task, delete_scheduled_task,
         goals, add_goal, complete_goal, sessions, create_session, select_session, delete_session, list_skills, create_skill, generate_skill, delete_skill, list_tools, learning_status, self_improvements,
-        models, model_detail, propose_settings_with_ai, downloads, start_model_download, remove_model, diagnostics, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
+        models, model_detail, propose_settings_with_ai, downloads, start_model_download, remove_model, diagnostics, update_provider_credentials, get_settings, update_settings, self_status, selfx_status, selfx_run_maintenance, selfx_diagnose, selfx_evaluate, selfx_research, selfx_checkpoint, selfx_restore, self_reflect, update_status, get_state_backups, create_state_backup, download_state_backup, validate_state_backup, get_security_status, browser_status, check_updates, apply_update,
         create_static_files_router(path="/static", directories=[str(WEB_DIR)], include_in_schema=False),
     ],
     debug=os.environ.get("TERMINAL_AI_DEBUG") == "1",

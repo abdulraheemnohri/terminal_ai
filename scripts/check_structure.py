@@ -31,9 +31,19 @@ REQUIRED_FILES = (
     "scripts/validate.sh",
     "scripts/validate.ps1",
     "scripts/README.md",
+    "docs/MODULAR_API_MANAGEMENT_UI.md",
     "web/index.html",
     "web/app.js",
     "web/app.css",
+    "web/pages/api-management.html",
+    "web/pages/chat-model-lab.html",
+    "web/pages/whatsapp-agent.html",
+    "web/js/api-management.js",
+    "web/js/chat-model-lab.js",
+    "web/js/whatsapp-agent.js",
+    "web/css/api-management.css",
+    "web/css/chat-model-lab.css",
+    "web/css/whatsapp-agent.css",
     "tests/test_autonomy.py",
     "tests/test_autonomy_jobs.py",
     "tests/test_approved_plan_dispatch.py",
@@ -43,6 +53,7 @@ REQUIRED_FILES = (
     "tests/test_whatsapp_agent_platform.py",
     "tests/test_whatsapp_agent_api.py",
     "tests/test_ui_control_integrity.py",
+    "tests/test_modular_api_management.py",
 )
 REQUIRED_DIRS = ("agent", "application", "routers", "tests", "docs", "scripts")
 
