@@ -1,3 +1,7 @@
+## Unreleased — restore path regression coverage
+
+- Add regression tests for traversal paths with malformed checksums and Windows backslash paths.
+
 ## Unreleased — restore path validation regression
 
 - Validate archive paths before checksum values so path traversal is rejected consistently, including malformed-checksum archives.
