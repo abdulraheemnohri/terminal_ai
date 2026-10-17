@@ -53,6 +53,30 @@ def test_backup_excludes_whatsapp_agent_api_key_file(tmp_path: Path):
     assert b"do-not-export-this-secret" not in archive_bytes
 
 
+def test_create_backup_rejects_empty_state_directory(tmp_path: Path):
+    state = tmp_path / "state"
+    state.mkdir()
+    output = tmp_path / "backups"
+
+    with pytest.raises(BackupError, match="no restorable files"):
+        create_backup(state, output)
+
+    assert not list(output.glob("terminal-ai-state-*.zip"))
+
+
+def test_validate_backup_rejects_empty_manifest(tmp_path: Path):
+    state = tmp_path / "state"
+    state.mkdir()
+    output = tmp_path / "backups"
+    output.mkdir()
+    name = "terminal-ai-state-empty.zip"
+    with zipfile.ZipFile(output / name, "w") as archive:
+        archive.writestr("manifest.json", json.dumps({"format": 1, "files": {}}))
+
+    with pytest.raises(BackupError, match="no restorable state files"):
+        validate_backup(name, state, output)
+
+
 def test_validate_backup_detects_checksum_tampering(tmp_path: Path):
     state = tmp_path / "state"
     state.mkdir()
