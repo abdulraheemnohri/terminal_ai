@@ -1,4 +1,4 @@
-"""Restore a validated state backup without overwriting files by default."""
+""""Restore a validated state backup without overwriting files by default."""
 from __future__ import annotations
 
 import argparse
@@ -50,8 +50,8 @@ def _validated_entries(archive_path: Path) -> list[tuple[str, bytes]]:
         for relative, expected in files.items():
             if not isinstance(relative, str) or not isinstance(expected, str):
                 raise ValueError("Manifest entries must contain path and SHA-256 strings.")
-            if not SHA256_RE.fullmatch(expected):
-                raise ValueError(f"Invalid SHA-256 value for {relative!r}.")
+            # Validate the path before checksum details so malformed/traversal paths
+            # are consistently rejected as unsafe, even if their checksum is invalid.
             if not relative or "\\\\" in relative or ":" in relative:
                 raise ValueError(f"Unsafe path in manifest: {relative!r}")
             raw_parts = relative.split("/")
@@ -63,6 +63,8 @@ def _validated_entries(archive_path: Path) -> list[tuple[str, bytes]]:
                 or any(piece in {"", ".", ".."} for piece in part.parts)
             ):
                 raise ValueError(f"Unsafe path in manifest: {relative!r}")
+            if not SHA256_RE.fullmatch(expected):
+                raise ValueError(f"Invalid SHA-256 value for {relative!r}.")
             member = "state/" + part.as_posix()
             if member not in names:
                 raise ValueError(f"Missing backup member: {relative}")
