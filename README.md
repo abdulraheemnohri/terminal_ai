@@ -88,7 +88,7 @@ The project uses a **modular-monolith architecture**: a Litestar application, se
 
 ### Human control and operations
 
-- Command Control Center for pending operations, approvals, policy visibility, and audit history.
+- Command Control Center for pending operations, approvals, policy visibility, live action feed, hash-chain audit verification, and bounded JSON/CSV audit snapshot exports (1–1,000 entries). Exported snapshots are local downloads, not signed or tamper-proof external archives.
 - Global auto-execution stays disabled by default. An approval decision is not itself an execution event.
 - Responsive dashboard with pages for Chat, Sessions, Models, Memory, Knowledge Base, Workspace Tools, Command Control, Scheduler, Goals, Skills, Learning, Self-improvement, Self-X, Diagnostics, and Settings.
 - Optional per-user startup integrations for Linux/systemd, macOS/launchd, Windows Task Scheduler, and Termux:Boot.

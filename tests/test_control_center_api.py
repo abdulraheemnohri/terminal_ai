@@ -69,3 +69,35 @@ def test_command_control_status_filter_includes_execution_lifecycle_states():
             ]
         invalid = client.get("/api/control/pending?status=banana")
     assert invalid.status_code == 400
+
+def test_audit_limit_is_bounded_and_reported():
+    with TestClient(app=app) as client:
+        normal = client.get("/api/control/audit?limit=250")
+        too_small = client.get("/api/control/audit?limit=0")
+        too_large = client.get("/api/control/audit?limit=1001")
+    assert normal.status_code == 200
+    assert normal.json()["limit"] == 250
+    assert len(normal.json()["entries"]) <= 250
+    assert too_small.status_code == 400
+    assert too_large.status_code == 400
+
+
+def test_audit_export_controls_are_present_and_wired_to_real_elements():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "web" / "index.html").read_text(encoding="utf-8")
+    js = (root / "web" / "app.js").read_text(encoding="utf-8")
+    for element_id in (
+        "control-audit-limit",
+        "control-audit-refresh",
+        "control-audit-export-json",
+        "control-audit-export-csv",
+        "control-audit-export-status",
+        "feature-control-audit-list",
+    ):
+        assert f'id="{element_id}"' in html
+    assert '$("feature-control-audit-list")' in js
+    assert "exportControlAuditJSON" in js
+    assert "exportControlAuditCSV" in js
+    assert "Fetched audit snapshot only" in js

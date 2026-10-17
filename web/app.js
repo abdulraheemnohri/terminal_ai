@@ -1393,17 +1393,21 @@ async function loadControlPending(){
 }
 async function loadControlAudit(){
  const limit=Number($("control-audit-limit")?.value||100);
+ const jsonButton=$("control-audit-export-json"),csvButton=$("control-audit-export-csv");
+ if(jsonButton)jsonButton.disabled=true;if(csvButton)csvButton.disabled=true;
  try{
-  const data=await controlApi("/api/control/audit?limit="+encodeURIComponent(String(limit)));const integrity=data.integrity||{};
-  controlAuditSnapshot={format:"terminal-ai-audit-export",version:1,generated_at:new Date().toISOString(),limit:data.limit||limit,integrity,entries:data.entries||[]};
+  const data=await controlApi("/api/control/audit?limit="+encodeURIComponent(String(limit)));
+  const integrity=data.integrity||{};const entries=Array.isArray(data.entries)?data.entries:[];
+  controlAuditSnapshot={format:"terminal-ai-audit-export",version:1,generated_at:new Date().toISOString(),limit:data.limit||limit,integrity,entries};
   $("control-audit-integrity").textContent=(integrity.valid?"Integrity verified":"INTEGRITY WARNING")+" · "+(integrity.checked||0)+" entries checked"+(integrity.reason?" · "+integrity.reason:"");
-  $("control-audit-list").innerHTML=(data.entries||[]).map(e=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(e.action)+'</b><span class="muted">'+escapeHtml(new Date(e.timestamp*1000).toLocaleString())+'</span></div><p>'+escapeHtml(e.actor)+' → '+escapeHtml(e.target)+'</p><p class="muted">'+escapeHtml(JSON.stringify(e.details||{}))+'</p><small class="muted">SHA-256: '+escapeHtml(e.entry_hash)+'</small></div>').join("")||'<div class="empty">No audit entries yet.</div>';
-  $("control-audit-export-status").textContent="Loaded "+(data.entries||[]).length+" entries (requested latest "+limit+"). Integrity "+(integrity.valid?"verified":"WARNING")+". Exports include this snapshot only.";
-  $("control-audit-export-json").disabled=false;$("control-audit-export-csv").disabled=false;
+  const list=$("feature-control-audit-list");
+  if(list)list.innerHTML=entries.map(e=>'<div class="list-item"><div class="row" style="justify-content:space-between;gap:8px"><b>'+escapeHtml(e.action)+'</b><span class="muted">'+escapeHtml(new Date(e.timestamp*1000).toLocaleString())+'</span></div><p>'+escapeHtml(e.actor)+' → '+escapeHtml(e.target)+'</p><p class="muted">'+escapeHtml(JSON.stringify(e.details||{}))+'</p><small class="muted">SHA-256: '+escapeHtml(e.entry_hash)+'</small></div>').join("")||'<div class="empty">No audit entries yet.</div>';
+  $("control-audit-export-status").textContent="Loaded "+entries.length+" entries (requested latest "+limit+"). Integrity "+(integrity.valid?"verified":"WARNING")+". Export contains this fetched snapshot only.";
+  if(jsonButton)jsonButton.disabled=false;if(csvButton)csvButton.disabled=false;
  }catch(e){
   controlAuditSnapshot=null;$("control-audit-integrity").textContent=e.message;
   $("control-audit-export-status").textContent="Audit could not be loaded; export is disabled.";
-  $("control-audit-export-json").disabled=true;$("control-audit-export-csv").disabled=true;
+  if(jsonButton)jsonButton.disabled=true;if(csvButton)csvButton.disabled=true;
  }
 }
 function downloadControlAudit(filename,mime,content){
@@ -1413,7 +1417,7 @@ function downloadControlAudit(filename,mime,content){
 }
 function exportControlAuditJSON(){
  if(!controlAuditSnapshot)return;
- const payload={...controlAuditSnapshot,export_note:"This is the fetched audit snapshot, not a signature or a tamper-proof external archive."};
+ const payload={...controlAuditSnapshot,export_note:"Fetched audit snapshot only. This file is not a signature or a tamper-proof external archive."};
  downloadControlAudit("terminal-ai-audit-"+new Date().toISOString().replace(/[:.]/g,"-")+".json","application/json;charset=utf-8",JSON.stringify(payload,null,2));
 }
 function exportControlAuditCSV(){
@@ -1426,7 +1430,7 @@ function exportControlAuditCSV(){
   entry.seq,entry.timestamp,entry.actor,entry.action,entry.target,JSON.stringify(entry.details||{}),entry.entry_hash,
   snapshot.integrity?.valid===true,snapshot.integrity?.checked??0
  ].map(quote).join(","));
- downloadControlAudit("terminal-ai-audit-"+new Date().toISOString().replace(/[:.]/g,"-")+".csv","text/csv;charset=utf-8","\\uFEFF"+rows.join("\\r\\n"));
+ downloadControlAudit("terminal-ai-audit-"+new Date().toISOString().replace(/[:.]/g,"-")+".csv","text/csv;charset=utf-8",rows.join("\r\n"));
 }
 function controlEventCategory(item){
  const action=String(item?.action||"").toLowerCase();
