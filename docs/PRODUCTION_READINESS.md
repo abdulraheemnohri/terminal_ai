@@ -29,6 +29,10 @@ The project should implement comparable *workflow categories* where technically 
 7. **Observability:** action events, latency and error metrics, redacted logs, audit verification, readiness/liveness probes, and backup/restore drills.
 8. **Security:** local-only defaults, authentication and authorization before remote exposure, CSRF/origin protections for browser sessions, rate limits, secret redaction, dependency scanning, and documented recovery procedures.
 
+## Cross-origin browser request guard
+
+The application rejects mutating HTTP requests (`POST`, `PUT`, `PATCH`, `DELETE`) and WebSocket upgrades when a supplied `Origin` does not match the request host and scheme. Requests without `Origin` remain supported for command-line and server-to-server clients. This is CSRF defense in depth only: keep HTTP Basic authentication enabled for remote access, use HTTPS, apply rate limits at a trusted proxy, and do not expose the app directly to the public internet. Same-origin comparison must be reviewed if a reverse proxy rewrites `Host` or terminates TLS.
+
 ## Production deployment invariants
 
 - Bind to `127.0.0.1` by default. Do not expose the app directly to the public internet without authentication, authorization, TLS, CSRF/origin checks, rate limiting, and a reviewed reverse-proxy configuration.
