@@ -2366,7 +2366,7 @@ async def _stop_whatsapp_agent() -> None:
 
 
 app = Litestar(
-    middleware=[DefineMiddleware(BasicAuthMiddleware, root=ROOT)],
+    middleware=[DefineMiddleware(OriginGuardMiddleware), DefineMiddleware(BasicAuthMiddleware, root=ROOT)],
     route_handlers=[
         index, favicon, overview_page, chat_page, models_page, sessions_page, diagnostics_page, memory_page, goals_page, settings_page, self_page,
         skills_page, tools_page, learning_page, improvements_page, selfx_page, command_control_page,
