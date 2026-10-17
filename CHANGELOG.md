@@ -73,6 +73,11 @@
 - Add idempotent learning source references and database migration so retries of the review request cannot create duplicate samples.
 - Add a Self-X review control, API documentation, and regression coverage for pre-verification blocking and repeated requests.
 
+## Unreleased — chat display preference fix
+
+- Apply the selected chat font size directly to the message container so the UI control changes rendered message text, while retaining the existing 12–19 px bounds and browser-local persistence.
+- Add regression coverage for the font-size control wiring.
+
 # Changelog
 
 ## Unreleased — recovery execution tracking and verification
