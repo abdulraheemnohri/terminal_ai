@@ -1,3 +1,9 @@
+## Unreleased — state restore hardening
+
+- Reject duplicate ZIP members, missing/extra archive entries, malformed checksums, unsafe paths, oversized manifests, and archives beyond the configured safety limits before restoring state.
+- Preflight every destination, including symlink resolution, before writing the first file to avoid partial restores caused by a later path escape.
+- Add regression tests for confirmation requirements, valid restore, duplicate/unlisted members, traversal, and symlink escape.
+
 ## Unreleased — WebSocket authentication regression coverage
 
 - Add tests proving unauthenticated WebSocket connections are rejected when the server is remotely bound without credentials.
