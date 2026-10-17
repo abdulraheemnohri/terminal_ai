@@ -1,3 +1,8 @@
+## Unreleased — WebSocket event replay coverage
+
+- Verify newly queued operations appear in the action stream as replayable audit summaries.
+- Assert raw operation arguments and private payload values are not included in streamed events.
+
 ## Unreleased — restore recovery regression coverage
 
 - Verify restores without `--overwrite` leave all existing and new destination files untouched when conflicts exist.
