@@ -1,3 +1,8 @@
+## Unreleased — restore destination preflight coverage
+
+- Verify overwrite mode validates every destination before replacing any existing file, preventing partial changes when a later destination conflicts with a directory.
+- Add a regression test that checks an earlier existing file remains unchanged when a later archive destination is invalid.
+
 ## Unreleased — reject empty state backups
 
 - Refuse to create or validate backup archives with no restorable state files, matching the restore CLI's refusal to apply empty archives.
