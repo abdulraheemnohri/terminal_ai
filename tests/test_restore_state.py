@@ -167,6 +167,27 @@ def test_restore_overwrite_requires_explicit_flag_and_replaces_requested_file(tm
     assert (state / "existing.txt").read_bytes() == b"new content"
 
 
+
+
+def test_restore_preflights_all_destinations_before_overwriting(tmp_path: Path):
+    archive = tmp_path / "backup.zip"
+    state = tmp_path / "state"
+    state.mkdir()
+    existing = state / "existing.txt"
+    existing.write_text("keep original", encoding="utf-8")
+    # A later archive entry conflicts with a directory. The restore must discover
+    # this before replacing the earlier, otherwise-valid existing file.
+    (state / "blocked.txt").mkdir()
+    _archive(archive, {"existing.txt": b"replacement", "blocked.txt": b"not a directory"})
+
+    result = _run_restore(archive, state, "--confirm", "--overwrite")
+
+    assert result.returncode == 2
+    assert "destination is a directory" in result.stdout.lower()
+    assert existing.read_text(encoding="utf-8") == "keep original"
+    assert (state / "blocked.txt").is_dir()
+
+
 def test_restore_rejects_empty_backup_without_writing_state(tmp_path: Path):
     archive = tmp_path / "empty.zip"
     state = tmp_path / "state"
