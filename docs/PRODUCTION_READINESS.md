@@ -33,6 +33,10 @@ The project should implement comparable *workflow categories* where technically 
 
 Automated tests exercise HTTP Basic authentication for valid, invalid, malformed, and partially configured credentials; verify remote-bound HTTP and WebSocket requests fail closed without credentials; and confirm only exact health probe paths are exempt. Authentication remains single-user HTTP Basic rather than per-user roles or multi-tenant authorization.
 
+## Composed browser and authentication guard coverage
+
+Regression tests exercise the middleware stack in the same order as the application: cross-origin browser mutations are rejected before route handling, same-origin mutations still require valid Basic credentials, cross-origin WebSocket upgrades are rejected even with credentials, and non-browser requests without an Origin header continue through authentication. These tests validate middleware composition, not reverse-proxy or deployed-network configuration.
+
 ## Cross-origin browser request guard
 
 The application rejects mutating HTTP requests (`POST`, `PUT`, `PATCH`, `DELETE`) and WebSocket upgrades when a supplied `Origin` does not match the request host and scheme. Requests without `Origin` remain supported for command-line and server-to-server clients. This is CSRF defense in depth only: keep HTTP Basic authentication enabled for remote access, use HTTPS, apply rate limits at a trusted proxy, and do not expose the app directly to the public internet. Same-origin comparison must be reviewed if a reverse proxy rewrites `Host` or terminates TLS.
