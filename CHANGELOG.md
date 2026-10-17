@@ -1,3 +1,9 @@
+## Unreleased — restore path validation regression
+
+- Validate archive paths before checksum values so path traversal is rejected consistently, including malformed-checksum archives.
+- Reject Windows path separators correctly during manifest validation.
+- Fixes a legacy restore regression test and closes a Windows-style path validation gap.
+
 ## Unreleased — state restore hardening
 
 - Reject duplicate ZIP members, missing/extra archive entries, malformed checksums, unsafe paths, oversized manifests, and archives beyond the configured safety limits before restoring state.
