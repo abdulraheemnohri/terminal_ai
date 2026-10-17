@@ -40,7 +40,7 @@ Media, voice notes, image/document/video handling, reactions, rich interactive m
 ## API endpoints
 
 - `GET /api/whatsapp-agent/status` — safe status snapshot; never returns the API key.
-- `POST /api/whatsapp-agent/config` — save `api_key`, set `enabled`, or set `clear_key: true`.
+- `POST /api/whatsapp-agent/config` — save `api_key`, set `enabled`, or set `clear_key: true`. These fields are type-checked; key removal cannot be combined with a new key or an explicit `enabled: true`.
 - `POST /api/whatsapp-agent/test` — test connectivity when no background poll is active, or report the active worker's state. The probe restores the prior cursor so it cannot consume an unread message.
 - `POST /api/whatsapp-agent/send` — send `{"message":"..."}` to the verified creator only.
 
