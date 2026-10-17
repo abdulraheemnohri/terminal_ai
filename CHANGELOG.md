@@ -1,3 +1,9 @@
+## Unreleased — audit ledger integrity handling
+
+- Treat malformed or unreadable audit-chain records as integrity failures instead of crashing diagnostics.
+- Refuse to append new events when existing audit history fails integrity verification.
+- Add regression tests for event tampering, malformed JSON, valid chains, and fail-closed append behavior.
+
 ## Unreleased — restore path regression coverage
 
 - Add regression tests for traversal paths with malformed checksums and Windows backslash paths.
